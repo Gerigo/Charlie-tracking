@@ -1,0 +1,20 @@
+import { Redirect } from 'expo-router';
+import { useAppContext, FullScreenLoader } from '@/src/providers/AppProvider';
+
+export default function IndexRoute() {
+  const { authReady, authUser, workspaceLoading, needsOnboarding, isSandbox } = useAppContext();
+
+  if (!authReady || workspaceLoading) {
+    return <FullScreenLoader label="Préparation de Luna..." />;
+  }
+
+  if (!authUser && !isSandbox) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  if (!isSandbox && needsOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  return <Redirect href="/(app)/(tabs)/tracker" />;
+}
