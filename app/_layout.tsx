@@ -23,6 +23,7 @@ import { AppProvider } from '@/src/providers/AppProvider';
 import { AppThemeProvider, useAppTheme } from '@/src/providers/ThemeProvider';
 import { ConfirmDialogHost } from '@/src/components/ui/ConfirmDialogHost';
 import { DocumentMetaSync } from '@/src/components/sync/DocumentMetaSync';
+import { useIosPwaUrlLock } from '@/src/lib/iosPwaUrlLock';
 import { logger } from '@/src/utils/logger';
 
 // Capture console.error / console.warn from Firebase SDK and other libraries
@@ -72,6 +73,10 @@ export default function RootLayout() {
 
 function ThemedRootLayout() {
   const { navigationTheme, theme } = useAppTheme();
+
+  // Keep iOS PWA in standalone mode by locking the URL to /tracker.
+  // Without this, every tab switch would exit the PWA into Safari chrome.
+  useIosPwaUrlLock('/tracker');
 
   return (
     <AppProvider>
