@@ -74,18 +74,35 @@ export async function requestGrowthSpurtAnalysis({ events, baby, analysis }: Req
     throw new Error('Connexion impossible au serveur d\'analyse');
   }
 
+  // In local Expo dev (`npm run start`), the SPA fallback rewrites
+  // `/api/*` to `index.html` because the Vercel function isn't being
+  // served. The HTML response is "OK" but isn't JSON, so the parse
+  // below would throw a cryptic Safari-flavoured error. Detect this
+  // case via Content-Type and surface a clear instruction.
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      'L\'endpoint /api n\'est pas disponible en dev local. Lance `vercel dev` (au lieu de `npm run start`) pour servir la fonction Mistral, ou teste depuis l\'URL Vercel déployée.',
+    );
+  }
+
   if (!response.ok) {
     let errMsg = `Erreur ${response.status}`;
     try {
-      const body = await response.json() as { error?: string };
+      const body = (await response.json()) as { error?: string };
       if (body.error) errMsg = body.error;
     } catch {
-      /* swallow */
+      /* swallow — already non-OK + non-JSON case is rare here */
     }
     throw new Error(errMsg);
   }
 
-  const data = (await response.json()) as { text?: string; error?: string };
+  let data: { text?: string; error?: string };
+  try {
+    data = (await response.json()) as { text?: string; error?: string };
+  } catch {
+    throw new Error('Réponse serveur invalide (JSON malformé)');
+  }
   if (!data.text) {
     throw new Error(data.error ?? 'Réponse vide du serveur');
   }

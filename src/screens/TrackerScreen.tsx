@@ -4,6 +4,7 @@ import {
 } from "@/src/components/editorial/ActivityIcon";
 import { EditorialTopBar } from "@/src/components/editorial/TopBar";
 import { AppButton, AppInput, AppModal, Chip, Screen } from "@/src/components/ui";
+import { DayTimeline } from "@/src/components/timeline/DayTimeline";
 import { isStoolColorNormal, stoolColorLabelKey } from "@/src/constants/i18n";
 import type { AppTheme } from "@/src/constants/theme";
 import { radii, spacing } from "@/src/constants/theme";
@@ -16,7 +17,7 @@ import { useAppContext } from "@/src/providers/AppProvider";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
 import type { DiaperType, StoolColor } from "@/src/types/domain";
 import { getCareOptionsWithDefaults, getVisitOptions } from "@/src/utils/careEvents";
-import { formatClock, formatRelativeShort } from "@/src/utils/date";
+import { formatClock, formatDuration, formatRelativeShort } from "@/src/utils/date";
 import {
   getLastEventOfType,
   getLastFeedSide,
@@ -700,6 +701,7 @@ function QuickTile({
   accent,
   pulsing,
   active,
+  isLive,
   confirmation,
   onLongPress,
   children,
@@ -711,6 +713,12 @@ function QuickTile({
   accent: string;
   pulsing?: boolean;
   active?: boolean;
+  /**
+   * In-progress signal — same idiom as Today's live sleep hero. Renders
+   * the lastLabel in italic display font and pulses a small dot prefix
+   * so the parent can see at a glance "this is happening right now".
+   */
+  isLive?: boolean;
   /** When set, replaces lastLabel for ~2.5s with a mint check confirmation */
   confirmation?: string | null;
   onLongPress?: () => void;
@@ -718,6 +726,25 @@ function QuickTile({
 }) {
   const { theme } = useAppTheme();
   const pulse = useRef(new Animated.Value(0)).current;
+  const livePulse = useRef(new Animated.Value(0)).current;
+
+  // Slow breathing dot when isLive — visual cue that the counter is
+  // running. Stops cleanly when isLive flips off.
+  useEffect(() => {
+    if (!isLive) {
+      livePulse.stopAnimation();
+      livePulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1, duration: 900, useNativeDriver: false, easing: Easing.inOut(Easing.quad) }),
+        Animated.timing(livePulse, { toValue: 0, duration: 900, useNativeDriver: false, easing: Easing.inOut(Easing.quad) }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isLive, livePulse]);
 
   useEffect(() => {
     if (!pulsing) return;
@@ -813,18 +840,51 @@ function QuickTile({
           >
             {label}
           </Text>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.quickTileLast,
-              {
-                color: showingConfirmation ? theme.mint : lastColor,
-                fontFamily: theme.fontMedium,
-              },
-            ]}
-          >
-            {showingConfirmation ? `✓ ${confirmation}` : lastLabel}
-          </Text>
+          {isLive && !showingConfirmation ? (
+            // Live counter — italic Fraunces + breathing rose dot, mirrors
+            // Today's hero "Charlie dort depuis 1h 23m" style at tile scale.
+            <View style={styles.quickTileLiveRow}>
+              <Animated.View
+                style={[
+                  styles.quickTileLiveDot,
+                  {
+                    backgroundColor: theme.primaryContainer,
+                    opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
+                    transform: [
+                      {
+                        scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.15] }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.quickTileLiveLabel,
+                  {
+                    color: '#FFFFFF',
+                    fontFamily: theme.fontDisplayItalic,
+                  },
+                ]}
+              >
+                {lastLabel}
+              </Text>
+            </View>
+          ) : (
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.quickTileLast,
+                {
+                  color: showingConfirmation ? theme.mint : lastColor,
+                  fontFamily: theme.fontMedium,
+                },
+              ]}
+            >
+              {showingConfirmation ? `✓ ${confirmation}` : lastLabel}
+            </Text>
+          )}
         </View>
 
         {/* Divider */}
@@ -1034,6 +1094,17 @@ export function TrackerScreen() {
   const lastFeed = getLastEventOfType(events, "feed");
   const lastFeedSide = getLastFeedSide(events);
   const lastSleep = getLastEventOfType(events, "sleep");
+
+  // Live "now" timestamp for the in-progress sleep counter — refreshed
+  // every 15 s while a session is active. Same cadence as Today's hero,
+  // so the two views stay in sync.
+  const [liveNow, setLiveNow] = useState(Date.now());
+  useEffect(() => {
+    if (!activeSession) return;
+    setLiveNow(Date.now());
+    const i = setInterval(() => setLiveNow(Date.now()), 15000);
+    return () => clearInterval(i);
+  }, [activeSession]);
   const lastDiaper = getLastEventOfType(events, "diaper");
   const lastTemperature = getLastEventOfType(events, "temperature");
   const lastCare = useMemo(
@@ -1265,9 +1336,10 @@ export function TrackerScreen() {
           label={t("tracker.sleep")}
           lastLabel={
             activeSession
-              ? language === "fr" ? "En cours" : "In progress"
+              ? formatDuration(activeSession.startTime, liveNow)
               : lastLabelFor(lastSleep)
           }
+          isLive={Boolean(activeSession)}
           accent={theme.sleep}
           active={Boolean(activeSession)}
           pulsing={pulseKind === "sleep"}
@@ -1544,6 +1616,11 @@ export function TrackerScreen() {
           </QuickChip>
         </QuickTile>
       </View>
+
+      {/* Read-only fil de la journée — same component as Today, no edit
+          buttons here. The user goes to History (or stays on Today) for
+          per-event actions. */}
+      <DayTimeline events={events} />
 
       <AppModal visible={feedModalVisible} onClose={resetFeedModal}>
           <Pressable
@@ -2208,6 +2285,24 @@ const styles = StyleSheet.create({
   quickTileLast: {
     fontSize: 10.5,
     letterSpacing: 0.2,
+  },
+  // Live row — only used when a session is in progress. Slightly
+  // bigger than the regular `lastLabel` because it carries meaning
+  // (real-time duration), not just metadata.
+  quickTileLiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 1,
+  },
+  quickTileLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  quickTileLiveLabel: {
+    fontSize: 14,
+    letterSpacing: -0.2,
   },
   quickTileDivider: {
     height: 1,

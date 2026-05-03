@@ -86,14 +86,29 @@ function getAllowedOrigins(): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  // Always allow localhost dev (Expo defaults to 8081) and the Vercel
-  // project URL if set.
   const defaults = [
     'http://localhost:8081',
     'http://localhost:3000',
   ];
-  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
-  return [...fromEnv, ...defaults, ...(vercelUrl ? [vercelUrl] : [])];
+  // Vercel injects two relevant env vars at runtime:
+  //   - VERCEL_URL                       → THIS deployment's URL
+  //                                        (e.g. charlie-web-abc123-user.vercel.app)
+  //   - VERCEL_PROJECT_PRODUCTION_URL    → the stable production alias
+  //                                        (e.g. charlie-web.vercel.app)
+  // Both belong here: production traffic comes from the alias, but
+  // preview deployments (PRs, branch previews) come from VERCEL_URL.
+  const vercelDeployment = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : null;
+  const vercelProduction = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : null;
+  return [
+    ...fromEnv,
+    ...defaults,
+    ...(vercelDeployment ? [vercelDeployment] : []),
+    ...(vercelProduction ? [vercelProduction] : []),
+  ];
 }
 
 function jsonError(message: string, status: number): Response {
@@ -114,7 +129,12 @@ export default async function handler(req: Request): Promise<Response> {
   const origin = req.headers.get('origin') ?? '';
   const allowed = getAllowedOrigins();
   if (!allowed.includes(origin)) {
-    return jsonError('Origin not allowed', 403);
+    // Include the rejected origin in the error so debugging an
+    // ALLOWED_ORIGINS misconfig is one round-trip instead of guesswork.
+    return jsonError(
+      `Origin "${origin}" not in allow list. Set ALLOWED_ORIGINS in Vercel env vars to your production domain.`,
+      403,
+    );
   }
 
   // Validate the payload.
