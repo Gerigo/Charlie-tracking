@@ -30,6 +30,10 @@ interface DayTimelineProps {
   previewLimit?: number;
   /** Show eyebrow + section title above the list. Defaults to true. */
   showHeader?: boolean;
+  /** When provided, renders an edit pencil on each event card. */
+  onEdit?: (event: TrackedEvent) => void;
+  /** When provided, renders a trash icon on each event card. */
+  onDelete?: (event: TrackedEvent) => void;
 }
 
 export function DayTimeline({
@@ -37,6 +41,8 @@ export function DayTimeline({
   day,
   previewLimit = 5,
   showHeader = true,
+  onEdit,
+  onDelete,
 }: DayTimelineProps) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
@@ -165,6 +171,28 @@ export function DayTimeline({
                         </Text>
                       </View>
                     ))}
+                  </View>
+                ) : null}
+                {onEdit || onDelete ? (
+                  <View style={styles.cardActions}>
+                    {onEdit ? (
+                      <Pressable
+                        onPress={() => onEdit(event)}
+                        style={styles.actionBtn}
+                        hitSlop={6}
+                      >
+                        <Icon name="pencil-outline" size={15} color={theme.textSoft} />
+                      </Pressable>
+                    ) : null}
+                    {onDelete ? (
+                      <Pressable
+                        onPress={() => onDelete(event)}
+                        style={styles.actionBtn}
+                        hitSlop={6}
+                      >
+                        <Icon name="trash-outline" size={15} color={theme.textSoft} />
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -466,6 +494,15 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 4,
+    alignSelf: 'flex-end',
+    marginTop: -4,
+  },
+  actionBtn: {
+    padding: 4,
   },
   emptyWrap: {
     paddingVertical: spacing.lg,

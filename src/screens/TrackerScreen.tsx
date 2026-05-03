@@ -5,6 +5,7 @@ import {
 import { EditorialTopBar } from "@/src/components/editorial/TopBar";
 import { AppButton, AppInput, AppModal, Chip, Screen } from "@/src/components/ui";
 import { DayTimeline } from "@/src/components/timeline/DayTimeline";
+import { EventEditorModal } from "@/src/components/event/EventEditorModal";
 import { isStoolColorNormal, stoolColorLabelKey } from "@/src/constants/i18n";
 import type { AppTheme } from "@/src/constants/theme";
 import { radii, spacing } from "@/src/constants/theme";
@@ -15,7 +16,8 @@ import {
 } from "@/src/lib/feedback";
 import { useAppContext } from "@/src/providers/AppProvider";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
-import type { DiaperType, StoolColor } from "@/src/types/domain";
+import { confirmAction } from "@/src/lib/dialog";
+import type { DiaperType, StoolColor, TrackedEvent } from "@/src/types/domain";
 import { getCareOptionsWithDefaults, getVisitOptions } from "@/src/utils/careEvents";
 import { formatClock, formatDuration, formatRelativeShort } from "@/src/utils/date";
 import {
@@ -1056,6 +1058,7 @@ export function TrackerScreen() {
     feedingMode,
     currentFamily,
     isViewer,
+    deleteEvent,
   } = useAppContext();
   const [feedModalVisible, setFeedModalVisible] = useState(false);
   const [breastSide, setBreastSide] = useState<'left' | 'right' | null>(null);
@@ -1105,6 +1108,22 @@ export function TrackerScreen() {
     const i = setInterval(() => setLiveNow(Date.now()), 15000);
     return () => clearInterval(i);
   }, [activeSession]);
+
+  // Editor state for the timeline. Same idiom as Today/History — a
+  // non-null `editingEvent` opens the shared modal, save/cancel resets
+  // back to null. Only managers see the action buttons.
+  const [editingEvent, setEditingEvent] = useState<TrackedEvent | null>(null);
+  const handleDelete = (event: TrackedEvent) => {
+    confirmAction(
+      language === 'fr' ? 'Supprimer' : 'Delete',
+      language === 'fr' ? 'Supprimer cet événement ?' : 'Delete this event?',
+      () => void deleteEvent(event.id),
+      {
+        confirmLabel: language === 'fr' ? 'Supprimer' : 'Delete',
+        danger: true,
+      },
+    );
+  };
   const lastDiaper = getLastEventOfType(events, "diaper");
   const lastTemperature = getLastEventOfType(events, "temperature");
   const lastCare = useMemo(
@@ -1617,10 +1636,20 @@ export function TrackerScreen() {
         </QuickTile>
       </View>
 
-      {/* Read-only fil de la journée — same component as Today, no edit
-          buttons here. The user goes to History (or stays on Today) for
-          per-event actions. */}
-      <DayTimeline events={events} />
+      {/* Fil de la journée — same component as Today. Edit + delete
+          buttons appear only for managers (parents). Viewers (grandparents,
+          guests) see the read-only version. */}
+      <DayTimeline
+        events={events}
+        onEdit={isViewer ? undefined : setEditingEvent}
+        onDelete={isViewer ? undefined : handleDelete}
+      />
+
+      {/* Shared editor modal — opens when editingEvent is non-null. */}
+      <EventEditorModal
+        event={editingEvent}
+        onClose={() => setEditingEvent(null)}
+      />
 
       <AppModal visible={feedModalVisible} onClose={resetFeedModal}>
           <Pressable
