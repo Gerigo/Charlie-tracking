@@ -138,13 +138,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  // The actual phone-shaped frame. 480px is comfortably above iPhone
-  // Pro Max widths (~430pt) so we never crop content on real devices,
-  // but tight enough on desktop to keep the layout phone-feeling.
+  // The actual phone-shaped frame.
+  //   maxWidth 480  → above iPhone 16 Pro Max (~440pt) so no crop on
+  //                   real devices, snug on desktop browsers.
+  //   minWidth 320  → smallest Apple width still supported (iPhone SE
+  //                   1st gen). Below that, the user is shrinking their
+  //                   window past phone reality — we let the page
+  //                   horizontal-scroll instead of letting the layout
+  //                   pancake into illegibility.
   frameInner: {
     flex: 1,
     width: '100%',
     maxWidth: 480,
+    minWidth: 320,
   },
   shell: {
     flex: 1,

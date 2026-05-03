@@ -10,9 +10,13 @@ export default function Root({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        {/* Lock the scale so pinch-zoom (Android/Chrome) and accidental
+            ctrl+/desktop zoom can't break the carnet layout. iOS 10+
+            overrides `user-scalable=no` for accessibility, so VoiceOver
+            users can still zoom — that's fine and expected. */}
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no"
+          content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, shrink-to-fit=no"
         />
         <meta name="description" content="Le carnet du quotidien de Charlie." />
 

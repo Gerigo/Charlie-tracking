@@ -13,7 +13,7 @@
  * Without this, stale-while-revalidate keeps serving last-known JS until
  * the user reloads twice — frustrating after a deploy.
  */
-const CACHE_VERSION = 'charlie-v12-phone-frame';
+const CACHE_VERSION = 'charlie-v13-zoom-lock';
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.ico'];
 
 self.addEventListener('install', (event) => {
