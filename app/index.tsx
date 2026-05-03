@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import { FullScreenLoader, useAppContext } from '@/src/providers/AppProvider';
+import { useAppTheme } from '@/src/providers/ThemeProvider';
 import { SPATabBar, type SPATabName } from '@/src/components/navigation/SPATabBar';
 import { SPANavProvider } from '@/src/lib/spaNav';
 import { LoginScreen } from '@/src/screens/LoginScreen';
@@ -11,6 +12,26 @@ import { EvolutionScreen } from '@/src/screens/EvolutionScreen';
 import { GrowthScreen } from '@/src/screens/GrowthScreen';
 import { SettingsScreen } from '@/src/screens/SettingsScreen';
 import { HistoryScreen } from '@/src/screens/HistoryScreen';
+
+/**
+ * Phone-width frame for desktop browsers. The app was designed
+ * portrait-first and stretching it edge-to-edge on a wide window looks
+ * awkward (huge whitespace, tab bar dragging across the screen). This
+ * wrapper caps the visible frame at a phone-ish width and centres it,
+ * filling the surrounding gutter with the theme's cream background so
+ * it reads as intentional.
+ *
+ * On iPhone (PWA standalone or Safari), the viewport is already
+ * narrower than the cap → the wrapper is a no-op. No regression.
+ */
+function PhoneFrame({ children }: { children: ReactNode }) {
+  const { theme } = useAppTheme();
+  return (
+    <View style={[styles.frameOuter, { backgroundColor: theme.background }]}>
+      <View style={styles.frameInner}>{children}</View>
+    </View>
+  );
+}
 
 /**
  * Single-page application shell.
@@ -47,19 +68,31 @@ export default function IndexRoute() {
 
   // Loading shell — auth provider hasn't told us anything yet.
   if (!authReady || workspaceLoading) {
-    return <FullScreenLoader label="Carnet du quotidien" />;
+    return (
+      <PhoneFrame>
+        <FullScreenLoader label="Carnet du quotidien" />
+      </PhoneFrame>
+    );
   }
 
   // Not authenticated — render Login as a state, never as a route.
   // Once Firebase fires auth state change, `authUser` flips and this
   // component re-renders into the onboarding gate or the SPA shell.
   if (!authUser && !isSandbox) {
-    return <LoginScreen />;
+    return (
+      <PhoneFrame>
+        <LoginScreen />
+      </PhoneFrame>
+    );
   }
 
   // Authenticated but no family yet — render onboarding flow inline.
   if (!isSandbox && needsOnboarding) {
-    return <OnboardingScreen />;
+    return (
+      <PhoneFrame>
+        <OnboardingScreen />
+      </PhoneFrame>
+    );
   }
 
   const showHistory = () => setHistoryVisible(true);
@@ -71,31 +104,48 @@ export default function IndexRoute() {
   // (no in-progress forms across tabs).
   return (
     <SPANavProvider value={{ goToTab: setActiveTab, showHistory }}>
-      <View style={styles.shell}>
-        <View style={styles.body}>
-          {activeTab === 'tracker' ? <TrackerScreen /> : null}
-          {activeTab === 'today' ? <TodayScreen onShowHistory={showHistory} /> : null}
-          {activeTab === 'evolution' ? <EvolutionScreen /> : null}
-          {activeTab === 'growth' ? <GrowthScreen onShowHistory={showHistory} /> : null}
-          {activeTab === 'settings' ? <SettingsScreen /> : null}
+      <PhoneFrame>
+        <View style={styles.shell}>
+          <View style={styles.body}>
+            {activeTab === 'tracker' ? <TrackerScreen /> : null}
+            {activeTab === 'today' ? <TodayScreen onShowHistory={showHistory} /> : null}
+            {activeTab === 'evolution' ? <EvolutionScreen /> : null}
+            {activeTab === 'growth' ? <GrowthScreen onShowHistory={showHistory} /> : null}
+            {activeTab === 'settings' ? <SettingsScreen /> : null}
+          </View>
+
+          <SPATabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+          <Modal
+            transparent={false}
+            animationType="slide"
+            visible={historyVisible}
+            onRequestClose={hideHistory}
+          >
+            <HistoryScreen onClose={hideHistory} />
+          </Modal>
         </View>
-
-        <SPATabBar activeTab={activeTab} onTabChange={setActiveTab} />
-
-        <Modal
-          transparent={false}
-          animationType="slide"
-          visible={historyVisible}
-          onRequestClose={hideHistory}
-        >
-          <HistoryScreen onClose={hideHistory} />
-        </Modal>
-      </View>
+      </PhoneFrame>
     </SPANavProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  // Outer wrapper that fills the viewport. Cream backdrop comes from
+  // theme.background, so any gutter on a wide desktop screen looks
+  // intentional rather than a white void.
+  frameOuter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  // The actual phone-shaped frame. 480px is comfortably above iPhone
+  // Pro Max widths (~430pt) so we never crop content on real devices,
+  // but tight enough on desktop to keep the layout phone-feeling.
+  frameInner: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+  },
   shell: {
     flex: 1,
   },
