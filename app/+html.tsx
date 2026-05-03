@@ -23,7 +23,11 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" content="#1F1814" media="(prefers-color-scheme: dark)" />
         <meta name="application-name" content="Charlie" />
 
-        {/* iOS standalone install hints */}
+        {/* PWA standalone hints — both old (iOS pre-16.4) and new (iOS 16.4+
+            and cross-browser standard) capability meta tags. Apple ignores
+            the legacy one on recent iOS versions if `mobile-web-app-capable`
+            is missing. */}
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Charlie" />
