@@ -5,8 +5,15 @@
  *    sees a blank page when offline.
  *  - Static JS/CSS/fonts/icons: stale-while-revalidate.
  *  - Firestore/Auth/Storage requests: bypass the SW entirely (always live).
+ *
+ * ⚠️ BUMP CACHE_VERSION on every meaningful deploy. The activate handler
+ * deletes any cache whose name doesn't match the current version, so a
+ * version bump forces all installed clients (including the iOS home-screen
+ * PWA) to discard their old shell on next visit and pick up the new bundle.
+ * Without this, stale-while-revalidate keeps serving last-known JS until
+ * the user reloads twice — frustrating after a deploy.
  */
-const CACHE_VERSION = 'charlie-v1';
+const CACHE_VERSION = 'charlie-v3-carnet-aquarelle';
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.ico'];
 
 self.addEventListener('install', (event) => {
