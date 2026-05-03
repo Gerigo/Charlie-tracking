@@ -1,7 +1,7 @@
 interface NotificationPermissionResult {
   granted: boolean;
   canAskAgain: boolean;
-  unsupportedReason?: 'device-only' | 'expo-go' | 'web-unsupported';
+  unsupportedReason?: 'web-unsupported';
 }
 
 export async function requestNotificationsPermission(): Promise<NotificationPermissionResult> {

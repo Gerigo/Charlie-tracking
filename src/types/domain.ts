@@ -57,6 +57,7 @@ export interface Family {
   members?: FamilyMember[];
   parentNames: string[];
   visitTypes: string[];
+  careTypes: string[];
   premiumStatus: 'free' | 'premium';
   createdAt: number;
   updatedAt: number;

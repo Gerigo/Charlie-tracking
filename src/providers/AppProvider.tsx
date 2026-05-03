@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Icon } from '@/src/components/ui/Icon';
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { User } from 'firebase/auth';
 import { translate } from '@/src/constants/i18n';
+import { MOCK_STORAGE_KEY, type GrowthSpurtMockKey } from '@/src/lib/devMocks';
 import type {
   ActiveSession,
   AppLanguage,
@@ -42,6 +43,7 @@ import {
   createBabyProfile,
   createInitialSetup,
   deleteTrackedEvent,
+  restoreTrackedEvent,
   deleteLegacyTrackedEvent,
   LEGACY_TRACKER_BABY_ID,
   LEGACY_TRACKER_BIRTH_DATE,
@@ -59,6 +61,7 @@ import {
   selectDefaultBaby,
   signIn,
   signOut,
+  deleteAccount as deleteAccountRepo,
   signUp,
   startSleepSession,
   stopSleepSession,
@@ -111,6 +114,13 @@ interface ToastState {
   title: string;
   message?: string;
   kind: ToastKind;
+  /** Optional action button (e.g. "Undo" after a destructive action) */
+  action?: {
+    label: string;
+    onPress: () => void;
+  };
+  /** Override the default 4s auto-dismiss (ms) */
+  duration?: number;
 }
 
 interface SandboxState {
@@ -140,6 +150,13 @@ interface AppContextValue {
   workspaceLoading: boolean;
   needsOnboarding: boolean;
   syncStatus: SyncStatus;
+  /** Increments each time a fresh event arrives via Firestore listener.
+   * Lets UI fragments (e.g. SyncDot) trigger a brief animation. */
+  livePulseToken: number;
+  /** Dev-only growth-spurt mock — when not 'off', the GrowthSpurtBanner
+   * displays the corresponding mock analysis instead of running detection. */
+  growthSpurtMock: GrowthSpurtMockKey;
+  setGrowthSpurtMock: (key: GrowthSpurtMockKey) => void;
   lastSyncedAt: number | null;
   saving: boolean;
   notificationsGranted: boolean;
@@ -173,13 +190,14 @@ interface AppContextValue {
   updateMemberRole: (memberUid: string, role: MembershipRole) => Promise<void>;
   updateEvent: (eventId: string, updates: Partial<Pick<TrackedEvent, 'startTime' | 'endTime' | 'notes' | 'details'>>) => Promise<void>;
   deleteEvent: (eventId: string) => Promise<void>;
-  updateFamilyDetails: (input: { name?: string; visitTypes?: string[] }) => Promise<void>;
+  updateFamilyDetails: (input: { name?: string; visitTypes?: string[]; careTypes?: string[] }) => Promise<void>;
   setLanguagePreference: (nextLanguage: AppLanguage) => Promise<void>;
   setFeedingModePreference: (nextMode: FeedingMode) => Promise<void>;
   dismissToast: () => void;
   refreshData: () => void;
   requestNotificationAccess: () => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   enterSandbox: () => void;
   exitSandbox: () => void;
   debugSetSyncStatus?: (status: SyncStatus) => void;
@@ -269,6 +287,7 @@ function createSandboxState(language: AppLanguage): SandboxState {
     ],
     parentNames: ['Guillaume', 'Sophie'],
     visitTypes: ['Sage-femme', 'Pédiatre'],
+    careTypes: [],
     premiumStatus: 'free',
     createdAt: T - 30 * DAY,
     updatedAt: T,
@@ -419,6 +438,29 @@ function createSandboxState(language: AppLanguage): SandboxState {
   };
 }
 
+function remoteEventLabel(type: TrackedEvent['type'], language: AppLanguage): string {
+  if (language === 'fr') {
+    switch (type) {
+      case 'sleep': return 'Sommeil';
+      case 'feed': return 'Tétée';
+      case 'diaper': return 'Couche';
+      case 'temperature': return 'Température';
+      case 'medication': return 'Soin';
+      case 'growth': return 'Mesure';
+      default: return 'Événement';
+    }
+  }
+  switch (type) {
+    case 'sleep': return 'Sleep';
+    case 'feed': return 'Feed';
+    case 'diaper': return 'Diaper';
+    case 'temperature': return 'Temperature';
+    case 'medication': return 'Care';
+    case 'growth': return 'Growth';
+    default: return 'Event';
+  }
+}
+
 export function AppProvider({ children }: PropsWithChildren) {
   const { theme } = useAppTheme();
   const [languageState, setLanguageState] = useState<AppLanguage>('fr');
@@ -437,6 +479,33 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [legacyOverrides, setLegacyOverrides] = useState<LegacyWorkspaceOverrides>({});
   const [authReady, setAuthReady] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [optimisticEvents, setOptimisticEvents] = useState<TrackedEvent[]>([]);
+  const optimisticEventsRef = useRef<TrackedEvent[]>([]);
+  useEffect(() => {
+    optimisticEventsRef.current = optimisticEvents;
+  }, [optimisticEvents]);
+  const seenEventIdsRef = useRef<Set<string>>(new Set());
+  const seenEventIdsInitialisedRef = useRef(false);
+  const [livePulseToken, setLivePulseToken] = useState(0);
+  const [growthSpurtMock, setGrowthSpurtMockState] = useState<GrowthSpurtMockKey>('off');
+
+  // Hydrate the growth-spurt mock from AsyncStorage on first mount
+  useEffect(() => {
+    void AsyncStorage.getItem(MOCK_STORAGE_KEY)
+      .then((stored) => {
+        if (stored && [
+          'off', 'mild', 'probable', 'intense_3m', 'cluster_only', 'sleep_only',
+        ].includes(stored)) {
+          setGrowthSpurtMockState(stored as GrowthSpurtMockKey);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const setGrowthSpurtMock = useCallback((key: GrowthSpurtMockKey) => {
+    setGrowthSpurtMockState(key);
+    void AsyncStorage.setItem(MOCK_STORAGE_KEY, key).catch(() => undefined);
+  }, []);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing');
   const [isNetworkOffline, setIsNetworkOffline] = useState(false);
   const [debugSyncOverride, setDebugSyncOverride] = useState<SyncStatus | null>(null);
@@ -493,14 +562,19 @@ export function AppProvider({ children }: PropsWithChildren) {
       .catch(() => setLegacyOverrides({}));
   }, [authUser]);
 
-  const showToast = (title: string, message?: string, kind: ToastKind = 'success') => {
+  const showToast = (
+    title: string,
+    message?: string,
+    kind: ToastKind = 'success',
+    options?: { action?: { label: string; onPress: () => void }; duration?: number },
+  ) => {
     const id = Date.now();
-    setToast({ id, title, message, kind });
+    setToast({ id, title, message, kind, action: options?.action, duration: options?.duration });
     if (kind === 'error') triggerErrorFeedback();
     if (kind === 'success') triggerSuccessFeedback();
     setTimeout(() => {
       setToast((current) => (current?.id === id ? null : current));
-    }, 8000);
+    }, options?.duration ?? 8000);
   };
 
   useEffect(() => {
@@ -716,6 +790,43 @@ export function AppProvider({ children }: PropsWithChildren) {
       currentBabyState.id,
       currentBabyState.familyId,
       (nextEvents) => {
+        // Detect events that are new since last snapshot AND likely from
+        // another device (not matched by a recent optimistic). Used to
+        // trigger a subtle live-pulse + cross-device toast.
+        const seen = seenEventIdsRef.current;
+        const recentNew: TrackedEvent[] = [];
+        nextEvents.forEach((event) => {
+          if (!seen.has(event.id)) {
+            seen.add(event.id);
+            // Only flag as "new" if seenEventIds was already initialised
+            // (otherwise the entire initial fetch counts as new = noise)
+            if (seenEventIdsInitialisedRef.current) {
+              const ageMs = Date.now() - event.startTime;
+              if (ageMs < 60_000) recentNew.push(event);
+            }
+          }
+        });
+        if (recentNew.length > 0) {
+          setLivePulseToken((n) => n + 1);
+          // Surface a soft toast for events that we likely didn't trigger ourselves
+          recentNew.forEach((event) => {
+            const matchesOptimistic = optimisticEventsRef.current.some(
+              (opt) =>
+                opt.type === event.type &&
+                opt.babyId === event.babyId &&
+                Math.abs(opt.startTime - event.startTime) < 8000,
+            );
+            if (matchesOptimistic) return;
+            const label = remoteEventLabel(event.type, language);
+            showToast(
+              language === 'fr' ? 'Nouvelle activité' : 'New activity',
+              language === 'fr' ? `${label} enregistré sur un autre appareil` : `${label} recorded from another device`,
+              'success',
+              { duration: 3500 },
+            );
+          });
+        }
+        seenEventIdsInitialisedRef.current = true;
         setEventsState(nextEvents);
         setSyncStatus('live');
         setLastSyncedAt(now());
@@ -778,6 +889,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       members: [{ uid: authUser.uid, displayName, parentLabel: legacyOverrides.parentLabel ?? null, role }],
       parentNames: [displayName],
       visitTypes: legacyOverrides.visitTypes ?? [],
+      careTypes: [],
       premiumStatus: 'premium',
       createdAt: updatedAt,
       updatedAt,
@@ -839,13 +951,28 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const babies = sandbox ? sandbox.babies : (usingLegacyWorkspace && legacyBaby) ? [legacyBaby] : babiesState;
   const currentBaby = sandboxCurrentBaby ?? (usingLegacyWorkspace ? legacyBaby : null) ?? currentBabyState;
-  const events = sandbox && sandboxCurrentBaby
+  const baseEvents = sandbox && sandboxCurrentBaby
     ? sandbox.events.filter((event) => event.babyId === sandboxCurrentBaby.id).sort((left, right) => right.startTime - left.startTime)
     : usingLegacyWorkspace
       ? legacyEventsState
       : legacyEventsState.length > 0
         ? [...eventsState, ...legacyEventsState].sort((a, b) => b.startTime - a.startTime)
         : eventsState;
+  // Optimistic merge — events created locally appear instantly, hidden once
+  // the Firestore listener delivers a matching real event (same type + babyId
+  // within an 8s window).
+  const events = useMemo(() => {
+    if (optimisticEvents.length === 0) return baseEvents;
+    const survivors = optimisticEvents.filter((opt) => {
+      return !baseEvents.some((real) =>
+        real.type === opt.type &&
+        real.babyId === opt.babyId &&
+        Math.abs(real.startTime - opt.startTime) < 8000,
+      );
+    });
+    if (survivors.length === 0) return baseEvents;
+    return [...survivors, ...baseEvents].sort((a, b) => b.startTime - a.startTime);
+  }, [baseEvents, optimisticEvents]);
   const activeSession = sandbox && sandboxCurrentBaby
     ? sandbox.activeSessions[sandboxCurrentBaby.id] ?? null
     : usingLegacyWorkspace
@@ -971,6 +1098,45 @@ export function AppProvider({ children }: PropsWithChildren) {
     };
   };
 
+  /**
+   * Push an optimistic event to the local state so the UI updates instantly.
+   * Auto-cleanup after 4s — by then the Firestore listener will have delivered
+   * the real event (matched by type+babyId+timestamp window in the events
+   * memo, see baseEvents/events declaration).
+   */
+  const pushOptimistic = useCallback(
+    (
+      type: TrackedEvent['type'],
+      details: EventDetails,
+      notes?: string,
+      endTime?: number | null,
+    ) => {
+      if (isSandbox || usingLegacyWorkspace) return;
+      if (!currentBaby || !currentFamily || !authUser || !currentMembership) return;
+      const id = `__opt_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const event: TrackedEvent = {
+        id,
+        type,
+        babyId: currentBaby.id,
+        familyId: currentFamily.id,
+        startTime: Date.now(),
+        endTime: endTime ?? null,
+        details,
+        notes,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdByUserId: authUser.uid,
+        createdByRole: currentMembership.role,
+        createdByLabel: undefined,
+      };
+      setOptimisticEvents((prev) => [...prev, event]);
+      setTimeout(() => {
+        setOptimisticEvents((prev) => prev.filter((e) => e.id !== id));
+      }, 4000);
+    },
+    [isSandbox, usingLegacyWorkspace, currentBaby, currentFamily, authUser, currentMembership],
+  );
+
   const liveScope = () => {
     if (!currentFamily || !currentBaby || !authUser || !currentMembership) return null;
     // L'auteur d'un event est le "compte famille" — identifié par la combinaison de parents
@@ -1034,6 +1200,9 @@ export function AppProvider({ children }: PropsWithChildren) {
     workspaceLoading: effectiveWorkspaceLoading,
     needsOnboarding,
     syncStatus: debugSyncOverride ?? (isNetworkOffline ? 'offline' : isSandbox ? 'live' : syncStatus),
+    livePulseToken,
+    growthSpurtMock,
+    setGrowthSpurtMock,
     lastSyncedAt,
     saving,
     notificationsGranted,
@@ -1223,6 +1392,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
+      pushOptimistic('feed', details);
       await runMutation(async () => {
         await addFeedEvent(scope, details);
         showToast(
@@ -1258,6 +1428,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
+      pushOptimistic('diaper', { diaperType, ...(stoolColor ? { stoolColor } : {}) }, notes);
       await runMutation(async () => {
         await addDiaperEvent(scope, { diaperType, ...(stoolColor ? { stoolColor } : {}) }, notes);
         showToast(translate(language, 'toast.diaper_saved.title'));
@@ -1290,6 +1461,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
+      pushOptimistic('medication', { medicationName, careCategory }, notes);
       await runMutation(async () => {
         await addMedicationEvent(scope, { medicationName, careCategory }, notes);
         showToast(translate(language, careCategory === 'visit' ? 'toast.visit_saved.title' : 'toast.care_saved.title'));
@@ -1323,6 +1495,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
+      pushOptimistic('temperature', { temperature, temperaturePeriod: resolvedPeriod });
       await runMutation(async () => {
         await addTemperatureEvent(scope, { temperature, temperaturePeriod: resolvedPeriod });
         showToast(translate(language, 'toast.temperature_saved.title'));
@@ -1748,9 +1921,11 @@ export function AppProvider({ children }: PropsWithChildren) {
       });
     },
     deleteEvent: async (eventId) => {
+      // Capture full snapshot BEFORE deletion so we can offer an Undo path
+      const eventSnapshot = events.find((e) => e.id === eventId) ?? null;
+
       if (currentMembership && authUser) {
-        const event = events.find((e) => e.id === eventId);
-        if (!event || !canEditEvent({ ...currentMembership, userId: authUser.uid }, event)) {
+        if (!eventSnapshot || !canEditEvent({ ...currentMembership, userId: authUser.uid }, eventSnapshot)) {
           showToast(translate(language, 'toast.action_failed.title'), translate(language, 'error.read_only_role'), 'error');
           return;
         }
@@ -1758,7 +1933,22 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       if (isSandbox) {
         deleteSandboxEventById(eventId);
-        showToast(translate(language, 'toast.event_deleted.title'), translate(language, 'toast.event_deleted.body'), 'success');
+        showToast(
+          translate(language, 'toast.event_deleted.title'),
+          translate(language, 'toast.event_deleted.body'),
+          'success',
+          eventSnapshot
+            ? {
+                duration: 5000,
+                action: {
+                  label: language === 'fr' ? 'Annuler' : 'Undo',
+                  onPress: () => {
+                    appendSandboxEvent(eventSnapshot);
+                  },
+                },
+              }
+            : undefined,
+        );
         return;
       }
 
@@ -1772,10 +1962,31 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       await runMutation(async () => {
         await deleteTrackedEvent(eventId, currentBaby?.id);
-        showToast(translate(language, 'toast.event_deleted.title'), translate(language, 'toast.event_deleted.body'), 'success');
+        showToast(
+          translate(language, 'toast.event_deleted.title'),
+          translate(language, 'toast.event_deleted.body'),
+          'success',
+          eventSnapshot
+            ? {
+                duration: 5000,
+                action: {
+                  label: language === 'fr' ? 'Annuler' : 'Undo',
+                  onPress: () => {
+                    void restoreTrackedEvent(eventSnapshot).catch(() => {
+                      showToast(
+                        translate(language, 'toast.action_failed.title'),
+                        language === 'fr' ? "Impossible d'annuler" : 'Could not undo',
+                        'error',
+                      );
+                    });
+                  },
+                },
+              }
+            : undefined,
+        );
       });
     },
-    updateFamilyDetails: async ({ name, visitTypes }) => {
+    updateFamilyDetails: async ({ name, visitTypes, careTypes }) => {
       if (isSandbox) {
         setSandbox((current) => current ? {
           ...current,
@@ -1783,6 +1994,7 @@ export function AppProvider({ children }: PropsWithChildren) {
             ...current.family,
             name: name?.trim() || current.family.name,
             visitTypes: visitTypes ?? current.family.visitTypes,
+            careTypes: careTypes ?? current.family.careTypes,
             updatedAt: now(),
           },
         } : current);
@@ -1813,7 +2025,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setSaving(true);
       setSyncStatus('syncing');
       try {
-        await updateFamilyProfile(currentFamily.id, { name, visitTypes });
+        await updateFamilyProfile(currentFamily.id, { name, visitTypes, careTypes });
         setLastSyncedAt(now());
         setSyncStatus('live');
         showToast(translate(language, 'toast.family_updated.title'), translate(language, 'toast.family_updated.body'), 'success');
@@ -1884,13 +2096,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setNotificationsGranted(result.granted);
       showToast(
         translate(language, result.granted ? 'toast.notifications_on.title' : 'toast.notifications_off.title'),
-        result.granted
-          ? translate(language, 'toast.notifications_on.body')
-          : result.unsupportedReason === 'expo-go'
-            ? translate(language, 'toast.notifications_off.expo_go')
-            : result.unsupportedReason === 'device-only'
-              ? translate(language, 'toast.notifications_off.device_only')
-              : translate(language, 'toast.notifications_off.later'),
+        translate(language, result.granted ? 'toast.notifications_on.body' : 'toast.notifications_off.later'),
         result.granted ? 'success' : 'error'
       );
     },
@@ -1905,6 +2111,30 @@ export function AppProvider({ children }: PropsWithChildren) {
       }
       await signOut();
       showToast(translate(language, 'toast.logout.title'), translate(language, 'toast.logout.body'), 'success');
+    },
+    deleteAccount: async (password: string) => {
+      if (isSandbox) {
+        setSandbox(null);
+        return;
+      }
+      if (!authUser) throw new Error('Aucun utilisateur connecté');
+      try {
+        setSaving(true);
+        if (authUser) {
+          void AsyncStorage.removeItem(`${LEGACY_OVERRIDES_STORAGE_PREFIX}:${authUser.uid}`).catch(() => undefined);
+        }
+        await deleteAccountRepo({ password });
+        showToast(
+          language === 'fr' ? 'Compte supprimé' : 'Account deleted',
+          language === 'fr' ? 'Toutes vos données ont été effacées.' : 'All your data has been erased.',
+          'success',
+        );
+      } catch (error) {
+        showToast(translate(language, 'toast.action_failed.title'), mapError(error, language), 'error');
+        throw error;
+      } finally {
+        setSaving(false);
+      }
     },
     debugSetSyncStatus: canUseDevTools
       ? (status: SyncStatus) => {
@@ -1967,9 +2197,9 @@ export function AppProvider({ children }: PropsWithChildren) {
             const isError = toast.kind === 'error';
             const tint = isError ? theme.danger : theme.success;
             const icon = isError ? 'alert-circle' : 'checkmark-circle';
-            const backgroundColor = isError
-              ? (theme.isDark ? '#4B3033' : '#FFF5F4')
-              : (theme.isDark ? '#344034' : '#F5F9F2');
+            // Carnet d'aquarelle: tinted cream washes derived from the
+            // semantic colour, kept gentle so toasts read as paper notes.
+            const backgroundColor = `${tint}1A`;
 
             return (
           <View
@@ -1985,7 +2215,7 @@ export function AppProvider({ children }: PropsWithChildren) {
             <View style={[styles.toastMarker, { backgroundColor: tint }]} />
             <View style={styles.toastContent}>
               <View style={[styles.toastIcon, { backgroundColor: `${tint}18` }]}>
-                <Ionicons name={icon} size={18} color={tint} />
+                <Icon name={icon} size={18} color={tint} />
               </View>
               <View style={styles.toastTextBlock}>
                 <Text style={[styles.toastTitle, { color: theme.text, fontFamily: theme.fontBold }]}>{toast.title}</Text>
@@ -1995,6 +2225,23 @@ export function AppProvider({ children }: PropsWithChildren) {
                   </Text>
                 ) : null}
               </View>
+              {toast.action ? (
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    toast.action?.onPress();
+                    setToast((current) => (current?.id === toast.id ? null : current));
+                  }}
+                  style={({ pressed }) => [
+                    styles.toastAction,
+                    { backgroundColor: `${tint}1F`, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.toastActionLabel, { color: tint, fontFamily: theme.fontSemiBold }]}>
+                    {toast.action.label}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
             );
@@ -2015,10 +2262,32 @@ export function useAppContext() {
 
 export function FullScreenLoader({ label }: { label: string }) {
   const { theme } = useAppTheme();
+  const breath = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(breath, { toValue: 1, duration: 1100, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+        Animated.timing(breath, { toValue: 0.5, duration: 1100, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+      ]),
+    ).start();
+  }, [breath]);
+
   return (
     <View style={[styles.loaderScreen, { backgroundColor: theme.background }]}>
-      <ActivityIndicator color={theme.primary} size="large" />
-      <Text style={[styles.loaderLabel, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>{label}</Text>
+      <Animated.Text
+        style={[
+          styles.loaderBrand,
+          {
+            color: theme.primary,
+            fontFamily: theme.fontDisplayItalic,
+            opacity: breath,
+          },
+        ]}
+      >
+        Charlie.
+      </Animated.Text>
+      <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
     </View>
   );
 }
@@ -2028,10 +2297,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
+  },
+  loaderBrand: {
+    fontSize: 56,
+    lineHeight: 60,
+    letterSpacing: -1.4,
   },
   loaderLabel: {
-    fontSize: 15,
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    opacity: 0.85,
   },
   savingOverlay: {
     position: 'absolute',
@@ -2098,5 +2375,16 @@ const styles = StyleSheet.create({
   toastMessage: {
     marginTop: spacing.xs,
     lineHeight: 20,
+  },
+  toastAction: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    alignSelf: 'center',
+    marginLeft: spacing.sm,
+  },
+  toastActionLabel: {
+    fontSize: 13,
+    letterSpacing: 0.1,
   },
 });

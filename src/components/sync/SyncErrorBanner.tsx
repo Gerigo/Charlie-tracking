@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { radii, spacing } from '@/src/constants/theme';
@@ -67,7 +67,7 @@ export function SyncErrorBanner() {
     >
       {isOffline ? (
         <Animated.View style={styles.row}>
-          <Ionicons name={icon} size={16} color={theme.warning} />
+          <Icon name={icon} size={16} color={theme.warning} />
           <Text style={[styles.message, { color: theme.warning, fontFamily: theme.fontMedium }]}>
             {message}
           </Text>
@@ -82,7 +82,7 @@ export function SyncErrorBanner() {
           accessibilityLabel={`${message} ${cta}`}
           style={styles.row}
         >
-          <Ionicons name={icon} size={16} color={theme.warning} />
+          <Icon name={icon} size={16} color={theme.warning} />
           <Text style={[styles.message, { color: theme.warning, fontFamily: theme.fontMedium }]}>
             {message}
           </Text>

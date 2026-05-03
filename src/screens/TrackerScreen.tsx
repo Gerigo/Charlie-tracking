@@ -15,13 +15,14 @@ import {
 import { useAppContext } from "@/src/providers/AppProvider";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
 import type { DiaperType, StoolColor } from "@/src/types/domain";
-import { getVisitOptions } from "@/src/utils/careEvents";
-import { formatClock } from "@/src/utils/date";
+import { getCareOptionsWithDefaults, getVisitOptions } from "@/src/utils/careEvents";
+import { formatClock, formatRelativeShort } from "@/src/utils/date";
 import {
   getLastEventOfType,
   getLastFeedSide,
 } from "@/src/utils/eventSummaries";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Icon } from "@/src/components/ui/Icon";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   useCallback,
@@ -117,145 +118,102 @@ type ActionKind =
   | "visit";
 
 function getActionPalette(theme: AppTheme, kind: ActionKind, active?: boolean) {
+  // Carnet d'aquarelle: tile backgrounds are watercolour washes of the
+  // activity colour over the cream paper. Borders sit at slightly higher
+  // opacity than backgrounds — visible but soft. Hex `+ alpha-suffix`
+  // (e.g. `${color}14` ≈ 8% opacity) layers cleanly over the page.
   if (kind === "sleep") {
     return active
       ? {
-          background: theme.isDark ? "#251F21" : "#3A3134",
-          border: "rgba(244, 237, 238, 0.08)",
-          iconBackground: "rgba(255,255,255,0.08)",
+          background: theme.night,
+          border: "rgba(240, 230, 214, 0.10)",
+          iconBackground: "rgba(255,255,255,0.10)",
           emoji: "#FFFFFF",
           label: "#FFFFFF",
-          subtitle: "#E2D5D8",
+          subtitle: "rgba(240, 230, 214, 0.85)",
           accentA: "rgba(255,255,255,0.08)",
-          accentB: "rgba(255,255,255,0.12)",
-          eyebrow: "#E7D5D8",
+          accentB: "rgba(255,255,255,0.14)",
+          eyebrow: "rgba(240, 230, 214, 0.95)",
         }
       : {
-          background: theme.isDark ? "#42363A" : "#F2EBED",
-          border: theme.isDark
-            ? "rgba(228, 191, 198, 0.24)"
-            : "rgba(142, 102, 109, 0.16)",
-          iconBackground: theme.isDark
-            ? "rgba(228, 191, 198, 0.12)"
-            : "rgba(142, 102, 109, 0.1)",
+          background: `${theme.sleep}14`,
+          border: `${theme.sleep}33`,
+          iconBackground: `${theme.sleep}1F`,
           emoji: theme.sleep,
           label: theme.text,
           subtitle: theme.textMuted,
-          accentA: theme.isDark
-            ? "rgba(228, 191, 198, 0.08)"
-            : "rgba(142, 102, 109, 0.08)",
-          accentB: theme.isDark
-            ? "rgba(228, 191, 198, 0.14)"
-            : "rgba(142, 102, 109, 0.14)",
+          accentA: `${theme.sleep}10`,
+          accentB: `${theme.sleep}1C`,
           eyebrow: theme.sleep,
         };
   }
 
   if (kind === "breast" || kind === "bottle") {
     return {
-      background: theme.isDark ? "#463532" : "#FBF1EC",
-      border: theme.isDark
-        ? "rgba(228, 178, 158, 0.22)"
-        : "rgba(160, 108, 99, 0.16)",
-      iconBackground: theme.isDark
-        ? "rgba(228, 178, 158, 0.14)"
-        : "rgba(160, 108, 99, 0.1)",
+      background: `${theme.feed}14`,
+      border: `${theme.feed}33`,
+      iconBackground: `${theme.feed}1F`,
       emoji: theme.feed,
       label: theme.text,
       subtitle: theme.textMuted,
-      accentA: theme.isDark
-        ? "rgba(228, 178, 158, 0.09)"
-        : "rgba(160, 108, 99, 0.08)",
-      accentB: theme.isDark
-        ? "rgba(228, 178, 158, 0.16)"
-        : "rgba(160, 108, 99, 0.14)",
+      accentA: `${theme.feed}10`,
+      accentB: `${theme.feed}1C`,
       eyebrow: theme.feed,
     };
   }
 
   if (kind === "temperature") {
     return {
-      background: theme.isDark ? "#48362F" : "#FBF1EB",
-      border: theme.isDark
-        ? "rgba(232, 181, 142, 0.22)"
-        : "rgba(188, 139, 116, 0.16)",
-      iconBackground: theme.isDark
-        ? "rgba(232, 181, 142, 0.14)"
-        : "rgba(188, 139, 116, 0.1)",
+      background: `${theme.temperature}1A`,
+      border: `${theme.temperature}38`,
+      iconBackground: `${theme.temperature}24`,
       emoji: theme.temperature,
       label: theme.text,
       subtitle: theme.textMuted,
-      accentA: theme.isDark
-        ? "rgba(232, 181, 142, 0.1)"
-        : "rgba(188, 139, 116, 0.08)",
-      accentB: theme.isDark
-        ? "rgba(232, 181, 142, 0.16)"
-        : "rgba(188, 139, 116, 0.14)",
+      accentA: `${theme.temperature}14`,
+      accentB: `${theme.temperature}22`,
       eyebrow: theme.temperature,
     };
   }
 
   if (kind === "diaper") {
     return {
-      background: theme.isDark ? "#364032" : "#F3F5EE",
-      border: theme.isDark
-        ? "rgba(186, 200, 157, 0.22)"
-        : "rgba(142, 154, 114, 0.16)",
-      iconBackground: theme.isDark
-        ? "rgba(186, 200, 157, 0.14)"
-        : "rgba(142, 154, 114, 0.1)",
+      background: `${theme.diaper}14`,
+      border: `${theme.diaper}33`,
+      iconBackground: `${theme.diaper}1F`,
       emoji: theme.diaper,
       label: theme.text,
       subtitle: theme.textMuted,
-      accentA: theme.isDark
-        ? "rgba(186, 200, 157, 0.1)"
-        : "rgba(142, 154, 114, 0.08)",
-      accentB: theme.isDark
-        ? "rgba(186, 200, 157, 0.16)"
-        : "rgba(142, 154, 114, 0.14)",
+      accentA: `${theme.diaper}10`,
+      accentB: `${theme.diaper}1C`,
       eyebrow: theme.diaper,
     };
   }
 
   if (kind === "visit") {
     return {
-      background: theme.isDark ? "#313B42" : "#EEF4F7",
-      border: theme.isDark
-        ? "rgba(184, 199, 216, 0.22)"
-        : "rgba(123, 143, 161, 0.16)",
-      iconBackground: theme.isDark
-        ? "rgba(184, 199, 216, 0.14)"
-        : "rgba(123, 143, 161, 0.1)",
+      background: `${theme.visit}14`,
+      border: `${theme.visit}33`,
+      iconBackground: `${theme.visit}1F`,
       emoji: theme.visit,
       label: theme.text,
       subtitle: theme.textMuted,
-      accentA: theme.isDark
-        ? "rgba(184, 199, 216, 0.1)"
-        : "rgba(123, 143, 161, 0.08)",
-      accentB: theme.isDark
-        ? "rgba(184, 199, 216, 0.16)"
-        : "rgba(123, 143, 161, 0.14)",
+      accentA: `${theme.visit}10`,
+      accentB: `${theme.visit}1C`,
       eyebrow: theme.visit,
     };
   }
 
+  // Default fallback (care kind) — terracotta wash.
   return {
-    background: theme.isDark ? "#3D343A" : "#F7EEF1",
-    border: theme.isDark
-      ? "rgba(234, 184, 188, 0.22)"
-      : "rgba(128, 83, 84, 0.16)",
-    iconBackground: theme.isDark
-      ? "rgba(234, 184, 188, 0.14)"
-      : "rgba(128, 83, 84, 0.1)",
+    background: `${theme.primary}14`,
+    border: `${theme.primary}33`,
+    iconBackground: `${theme.primary}1F`,
     emoji: theme.primary,
     label: theme.text,
     subtitle: theme.textMuted,
-    accentA: theme.isDark
-      ? "rgba(234, 184, 188, 0.1)"
-      : "rgba(128, 83, 84, 0.08)",
-    accentB: theme.isDark
-      ? "rgba(234, 184, 188, 0.16)"
-      : "rgba(128, 83, 84, 0.14)",
+    accentA: `${theme.primary}10`,
+    accentB: `${theme.primary}1C`,
     eyebrow: theme.primary,
   };
 }
@@ -459,7 +417,7 @@ function AnimatedActionGlyph({
             },
           ]}
         >
-          <Ionicons name="add" size={9} color={accent} />
+          <Icon name="add" size={9} color={accent} />
         </Animated.View>
       ) : null}
     </View>
@@ -658,7 +616,7 @@ function ActionTile({
         </>
       ) : (
         <>
-          <Ionicons
+          <Icon
             name="moon"
             size={90}
             color="rgba(248, 238, 241, 0.08)"
@@ -668,7 +626,7 @@ function ActionTile({
             style={[
               styles.actionTileSleepZ,
               {
-                color: "#F4EDEE",
+                color: "#F0E6D6",
                 opacity: sleepDrift.interpolate({
                   inputRange: [0, 0.2, 0.95, 1],
                   outputRange: [0, 0.7, 0.24, 0],
@@ -731,6 +689,234 @@ function ActionTile({
           {label}
         </Text>
       </View>
+    </Pressable>
+  );
+}
+
+function QuickTile({
+  kind,
+  label,
+  lastLabel,
+  accent,
+  pulsing,
+  active,
+  confirmation,
+  onLongPress,
+  children,
+}: {
+  kind: ActionKind;
+  label: string;
+  /** "Dernier · il y a 1h", or fallback "—" */
+  lastLabel: string;
+  accent: string;
+  pulsing?: boolean;
+  active?: boolean;
+  /** When set, replaces lastLabel for ~2.5s with a mint check confirmation */
+  confirmation?: string | null;
+  onLongPress?: () => void;
+  children: ReactNode;
+}) {
+  const { theme } = useAppTheme();
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!pulsing) return;
+    pulse.setValue(0);
+    Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: false, easing: Easing.out(Easing.quad) }),
+      Animated.timing(pulse, { toValue: 0, duration: 800, useNativeDriver: false, easing: Easing.in(Easing.quad) }),
+    ]).start();
+  }, [pulsing, pulse]);
+
+  const baseBg = active ? theme.night : theme.surfaceLowest;
+  const pulseColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [baseBg, theme.mintSoft],
+  });
+
+  const glowOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.55],
+  });
+
+  const labelColor = active ? "#FFFFFF" : theme.text;
+  const lastColor = active ? "rgba(255,255,255,0.55)" : theme.textSoft;
+  const dotsColor = active ? "rgba(255,255,255,0.4)" : theme.textSoft;
+  const dividerColor = active ? "rgba(255,255,255,0.12)" : theme.hairline;
+
+  const showingConfirmation = Boolean(confirmation);
+
+  return (
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={350}
+      style={styles.quickTileWrap}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.quickTileGlow,
+          { backgroundColor: theme.mint, opacity: glowOpacity },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.quickTile,
+          {
+            backgroundColor: pulsing ? pulseColor : baseBg,
+            borderColor: active ? "rgba(255,255,255,0.10)" : theme.cardBorder,
+            shadowColor: active ? "#000" : theme.shadow,
+          },
+        ]}
+      >
+        {/* Subtle accent wash spanning the whole tile (top stronger, fades to bottom) */}
+        <View
+          pointerEvents="none"
+          style={[styles.quickTileAccentWash, { backgroundColor: `${accent}14` }]}
+        />
+
+        {/* Glass — top highlight gradient + bottom shade */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={
+            active
+              ? ["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(0,0,0,0.18)"]
+              : ["rgba(255,255,255,0.50)", "rgba(255,255,255,0.10)", "rgba(0,0,0,0.04)"]
+          }
+          locations={[0, 0.45, 1]}
+          style={styles.quickTileGlass}
+        />
+        <View pointerEvents="none" style={[styles.quickTileTopHairline, { backgroundColor: active ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)" }]} />
+
+        {/* Top row — icon bubble + ⋯ */}
+        <View style={styles.quickTileTop}>
+          <View style={[styles.quickTileIconBubble, { backgroundColor: `${accent}26` }]}>
+            <ActivityIcon kind={kind} size={24} color={active ? "#FFFFFF" : accent} />
+          </View>
+          {onLongPress ? (
+            <View style={styles.quickTileDots}>
+              <Icon name="ellipsis-horizontal" size={14} color={dotsColor} />
+            </View>
+          ) : null}
+        </View>
+
+        {/* Hero typography — label is THE design element */}
+        <View style={styles.quickTileType}>
+          <Text
+            numberOfLines={1}
+            style={[styles.quickTileLabel, { color: labelColor, fontFamily: theme.fontDisplayItalic }]}
+          >
+            {label}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.quickTileLast,
+              {
+                color: showingConfirmation ? theme.mint : lastColor,
+                fontFamily: theme.fontMedium,
+              },
+            ]}
+          >
+            {showingConfirmation ? `✓ ${confirmation}` : lastLabel}
+          </Text>
+        </View>
+
+        {/* Divider */}
+        <View style={[styles.quickTileDivider, { backgroundColor: dividerColor }]} />
+
+        {/* Chips footer */}
+        <View style={styles.quickTileFooter}>{children}</View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+function QuickChip({
+  children,
+  accent,
+  tone = "tinted",
+  disabled,
+  marked,
+  onPress,
+}: {
+  children: ReactNode;
+  accent: string;
+  tone?: "tinted" | "danger" | "ghost";
+  disabled?: boolean;
+  /** Marks this chip as the "last used" — shows a small dot indicator */
+  marked?: boolean;
+  onPress: () => void;
+}) {
+  const { theme } = useAppTheme();
+  const bg =
+    tone === "danger"
+      ? theme.danger
+      : tone === "ghost"
+        ? "transparent"
+        : marked
+          ? `${accent}33`
+          : `${accent}1F`;
+  const fg =
+    tone === "danger"
+      ? theme.onPrimary
+      : tone === "ghost"
+        ? theme.textSoft
+        : accent;
+  const borderColor = tone === "ghost"
+    ? theme.hairline
+    : marked
+      ? accent
+      : "transparent";
+
+  return (
+    <Pressable
+      onPress={() => {
+        if (disabled) return;
+        onPress();
+      }}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.quickChip,
+        { backgroundColor: bg, borderColor, opacity: disabled ? 0.45 : 1 },
+        pressed && !disabled ? { transform: [{ scale: 0.92 }] } : null,
+      ]}
+    >
+      <Text
+        numberOfLines={1}
+        style={[styles.quickChipLabel, { color: fg, fontFamily: theme.fontSemiBold }]}
+      >
+        {children}
+      </Text>
+    </Pressable>
+  );
+}
+
+function QuickIconChip({
+  icon,
+  accent,
+  disabled,
+  onPress,
+}: {
+  icon: string;
+  accent: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        if (disabled) return;
+        onPress();
+      }}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.quickIconChip,
+        { backgroundColor: `${accent}1F`, opacity: disabled ? 0.45 : 1 },
+        pressed && !disabled ? { transform: [{ scale: 0.92 }] } : null,
+      ]}
+    >
+      <Icon name={icon} size={15} color={accent} />
     </Pressable>
   );
 }
@@ -827,10 +1013,54 @@ export function TrackerScreen() {
   const [careNote, setCareNote] = useState("");
   const [visitNote, setVisitNote] = useState("");
   const [customCareName, setCustomCareName] = useState("");
+  const [selectedSavedCareType, setSelectedSavedCareType] = useState<string | null>(null);
   const [stoolColor, setStoolColor] = useState<StoolColor | null>(null);
+  // Inline tile state
+  const [inlineTemp, setInlineTemp] = useState(36.7);
+  const [pulseKind, setPulseKind] = useState<ActionKind | null>(null);
+  const [confirmation, setConfirmation] = useState<{ kind: ActionKind; message: string } | null>(null);
+  const triggerPulse = (kind: ActionKind, message: string) => {
+    setPulseKind(kind);
+    setConfirmation({ kind, message });
+    setTimeout(() => setPulseKind(null), 1200);
+    setTimeout(() => setConfirmation(null), 2800);
+  };
 
   const lastFeed = getLastEventOfType(events, "feed");
   const lastFeedSide = getLastFeedSide(events);
+  const lastSleep = getLastEventOfType(events, "sleep");
+  const lastDiaper = getLastEventOfType(events, "diaper");
+  const lastTemperature = getLastEventOfType(events, "temperature");
+  const lastCare = useMemo(
+    () =>
+      [...events]
+        .filter(
+          (e) =>
+            e.type === "medication" && e.details?.careCategory !== "visit",
+        )
+        .sort((a, b) => b.startTime - a.startTime)[0] ?? null,
+    [events],
+  );
+  const lastVisit = useMemo(
+    () =>
+      [...events]
+        .filter(
+          (e) =>
+            e.type === "medication" && e.details?.careCategory === "visit",
+        )
+        .sort((a, b) => b.startTime - a.startTime)[0] ?? null,
+    [events],
+  );
+
+  const relativeOrDash = (event: typeof lastFeed) =>
+    event ? formatRelativeShort(event.startTime, language).toLowerCase() : "—";
+
+  const lastLabelFor = (event: typeof lastFeed, fallback?: string) => {
+    if (!event) return fallback ?? (language === "fr" ? "—" : "—");
+    const rel = formatRelativeShort(event.startTime, language).toLowerCase();
+    return language === "fr" ? `Dernier · ${rel}` : `Last · ${rel}`;
+  };
+
 
   const selectedDiaper =
     DIAPER_ACTIONS.find((action) => action.key === selectedDiaperAction) ??
@@ -844,7 +1074,8 @@ export function TrackerScreen() {
     selectedDiaper && (!stoolColorRequired || stoolColor),
   );
   const canSaveCare = Boolean(
-    selectedCare && (!selectedCare.custom || customCareName.trim()),
+    selectedSavedCareType ||
+      (selectedCare && (!selectedCare.custom || customCareName.trim())),
   );
   const canSaveVisit = Boolean(selectedVisitAction);
   const stoolAssessmentNormal = stoolColor
@@ -864,15 +1095,6 @@ export function TrackerScreen() {
     [currentFamily, t],
   );
 
-  const feedEyebrow =
-    feedingMode === "bottle"
-      ? t("event.feed.bottle")
-      : feedingMode === "mixed"
-        ? language === "fr"
-          ? "Allaitement mixte"
-          : "Mixed feeding"
-        : t("event.feed.nursing");
-
   const resetDiaper = () => {
     setSelectedDiaperAction(null);
     setStoolColor(null);
@@ -883,7 +1105,13 @@ export function TrackerScreen() {
     setSelectedCareAction(null);
     setCareNote("");
     setCustomCareName("");
+    setSelectedSavedCareType(null);
   };
+
+  const careTypesEffective = useMemo(
+    () => getCareOptionsWithDefaults(currentFamily ?? null, language),
+    [currentFamily, language],
+  );
 
   const resetVisit = () => {
     setSelectedVisitAction(null);
@@ -970,13 +1198,17 @@ export function TrackerScreen() {
   };
 
   const handleCareSave = async () => {
-    if (!selectedCare) return;
     triggerImpactFeedback();
 
-    await recordMedication({
-      medicationName: selectedCare.custom
+    const medicationName = selectedSavedCareType
+      ? selectedSavedCareType
+      : selectedCare?.custom
         ? customCareName.trim()
-        : selectedCare.value,
+        : selectedCare?.value ?? "";
+    if (!medicationName) return;
+
+    await recordMedication({
+      medicationName,
       careCategory: "care",
       notes: careNote.trim() || undefined,
     });
@@ -1005,7 +1237,7 @@ export function TrackerScreen() {
 
       {isViewer ? (
         <View style={[styles.viewerBanner, { backgroundColor: `${theme.warning}15`, borderColor: `${theme.warning}30` }]}>
-          <Ionicons name="eye-outline" size={16} color={theme.warning} />
+          <Icon name="eye-outline" size={16} color={theme.warning} />
           <Text style={[styles.viewerBannerText, { color: theme.warning, fontFamily: theme.fontMedium }]}>
             {language === 'fr'
               ? 'Mode lecture seule — vous pouvez consulter mais pas enregistrer.'
@@ -1014,131 +1246,300 @@ export function TrackerScreen() {
         </View>
       ) : null}
 
-      <View style={styles.hero}>
-        <Text
-          style={[
-            styles.heroTitle,
-            { color: theme.text, fontFamily: theme.fontLight },
-          ]}
-        >
-          {t("tracker.title")}
-        </Text>
-        <Text
-          style={[
-            styles.heroSubtitle,
-            { color: theme.textMuted, fontFamily: theme.fontMedium },
-          ]}
-        >
-          {language === "fr"
-            ? "Touchez une action pour encoder rapidement."
-            : "Tap an action to log it quickly."}
-        </Text>
-      </View>
+      {/* Hint global pour le long-press */}
+      <Text style={[styles.gridHint, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>
+        <Icon name="ellipsis-horizontal" size={11} color={theme.textSoft} />
+        {"  "}
+        {language === "fr"
+          ? "Maintenir une tuile pour les options avancées"
+          : "Hold a tile for advanced options"}
+      </Text>
 
-      <View style={styles.grid}>
-        <ActionTile
+      <View style={styles.quickGrid}>
+        {/* ── Sleep ── */}
+        <QuickTile
           kind="sleep"
           label={t("tracker.sleep")}
-          eyebrow={
+          lastLabel={
             activeSession
-              ? t("tracker.sleep_mode_title")
-              : language === "fr"
-                ? "Action prioritaire"
-                : "Priority action"
+              ? language === "fr" ? "En cours" : "In progress"
+              : lastLabelFor(lastSleep)
           }
-          iconNode={
-            <AnimatedActionGlyph
-              kind="sleep"
-              accent={activeSession ? "#FFFFFF" : theme.sleep}
-              size={38}
-            />
-          }
+          accent={theme.sleep}
           active={Boolean(activeSession)}
-          disabled={saving || isViewer}
-          onPress={() => void handleSleepPress()}
-        />
-        <ActionTile
+          pulsing={pulseKind === "sleep"}
+          confirmation={confirmation?.kind === "sleep" ? confirmation.message : null}
+        >
+          <QuickChip
+            accent={activeSession ? "#FFFFFF" : theme.sleep}
+            tone={activeSession ? "danger" : "tinted"}
+            disabled={saving || isViewer}
+            onPress={() => {
+              void handleSleepPress();
+              triggerPulse(
+                "sleep",
+                activeSession
+                  ? language === "fr" ? "Arrêté" : "Stopped"
+                  : language === "fr" ? "Démarré" : "Started",
+              );
+            }}
+          >
+            {activeSession
+              ? language === "fr" ? "Arrêter" : "Stop"
+              : language === "fr" ? "Démarrer" : "Start"}
+          </QuickChip>
+        </QuickTile>
+
+        {/* ── Feed ── */}
+        <QuickTile
           kind={resolveFeedIconKind(undefined, feedingMode)}
           label={t("tracker.feed")}
-          eyebrow={feedEyebrow}
-          iconNode={
-            <AnimatedActionGlyph
-              kind={resolveFeedIconKind(undefined, feedingMode)}
-              accent={theme.feed}
-              size={38}
-            />
+          lastLabel={
+            lastFeedSide === "left"
+              ? lastFeed
+                ? `${lastLabelFor(lastFeed)} · G`
+                : lastLabelFor(lastFeed)
+              : lastFeedSide === "right"
+                ? lastFeed
+                  ? `${lastLabelFor(lastFeed)} · D`
+                  : lastLabelFor(lastFeed)
+                : lastLabelFor(lastFeed)
           }
-          active={feedModalVisible}
-          disabled={saving || isViewer}
-          onPress={() => {
+          accent={theme.feed}
+          pulsing={pulseKind === "breast" || pulseKind === "bottle"}
+          confirmation={
+            confirmation?.kind === "breast" || confirmation?.kind === "bottle"
+              ? confirmation.message
+              : null
+          }
+          onLongPress={() => {
             triggerSelectionFeedback();
             setFeedModalVisible(true);
           }}
-        />
-        <ActionTile
-          kind="temperature"
-          label={t("tracker.temperature")}
-          eyebrow={language === "fr" ? "Mesure rapide" : "Quick measure"}
-          iconNode={
-            <AnimatedActionGlyph
-              kind="temperature"
-              accent={theme.temperature}
-              size={38}
-            />
-          }
-          active={temperatureModalVisible}
-          disabled={saving || isViewer}
-          onPress={() => {
-            triggerSelectionFeedback();
-            setTemperatureModalVisible(true);
-          }}
-        />
-        <ActionTile
+        >
+          {feedingMode !== "bottle" ? (
+            <>
+              <QuickChip
+                accent={theme.feed}
+                marked={lastFeedSide === "left"}
+                disabled={saving || isViewer}
+                onPress={() => {
+                  triggerImpactFeedback();
+                  void recordFeed("left");
+                  triggerPulse("breast", language === "fr" ? "Sein G enregistré" : "Left recorded");
+                }}
+              >
+                G
+              </QuickChip>
+              <QuickChip
+                accent={theme.feed}
+                marked={lastFeedSide === "right"}
+                disabled={saving || isViewer}
+                onPress={() => {
+                  triggerImpactFeedback();
+                  void recordFeed("right");
+                  triggerPulse("breast", language === "fr" ? "Sein D enregistré" : "Right recorded");
+                }}
+              >
+                D
+              </QuickChip>
+            </>
+          ) : null}
+          <QuickChip
+            accent={theme.feed}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerSelectionFeedback();
+              setFeedModalVisible(true);
+            }}
+          >
+            {language === "fr" ? "Bib." : "Btl"}
+          </QuickChip>
+        </QuickTile>
+
+        {/* ── Diaper ── */}
+        <QuickTile
           kind="diaper"
           label={t("tracker.diaper")}
-          eyebrow={language === "fr" ? "Change" : "Change"}
-          iconNode={
-            <AnimatedActionGlyph
-              kind="diaper"
-              accent={theme.diaper}
-              size={38}
-            />
-          }
-          active={diaperModalVisible}
-          disabled={saving || isViewer}
-          onPress={() => {
+          lastLabel={lastLabelFor(lastDiaper)}
+          accent={theme.diaper}
+          pulsing={pulseKind === "diaper"}
+          confirmation={confirmation?.kind === "diaper" ? confirmation.message : null}
+          onLongPress={() => {
             triggerSelectionFeedback();
             setDiaperModalVisible(true);
           }}
-        />
-        <ActionTile
+        >
+          <QuickChip
+            accent={theme.diaper}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerImpactFeedback();
+              void recordDiaper({ diaperType: "wet" });
+              triggerPulse("diaper", language === "fr" ? "Pipi enregistré" : "Pee recorded");
+            }}
+          >
+            {t("tracker.pee")}
+          </QuickChip>
+          <QuickChip
+            accent={theme.diaper}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerImpactFeedback();
+              void recordDiaper({ diaperType: "dirty" });
+              triggerPulse("diaper", language === "fr" ? "Caca enregistré" : "Poop recorded");
+            }}
+          >
+            {t("tracker.poop")}
+          </QuickChip>
+          <QuickChip
+            accent={theme.diaper}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerImpactFeedback();
+              void recordDiaper({ diaperType: "both" });
+              triggerPulse("diaper", language === "fr" ? "Les 2 enregistrés" : "Both recorded");
+            }}
+          >
+            2
+          </QuickChip>
+        </QuickTile>
+
+        {/* ── Temperature ── */}
+        <QuickTile
+          kind="temperature"
+          label={t("tracker.temperature")}
+          lastLabel={lastLabelFor(lastTemperature)}
+          accent={theme.temperature}
+          pulsing={pulseKind === "temperature"}
+          confirmation={confirmation?.kind === "temperature" ? confirmation.message : null}
+          onLongPress={() => {
+            triggerSelectionFeedback();
+            setTemperatureModalVisible(true);
+          }}
+        >
+          <QuickIconChip
+            icon="remove-circle-outline"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => setInlineTemp((v) => Math.max(34, Math.round((v - 0.1) * 10) / 10))}
+          />
+          <View style={styles.tempValueWrap}>
+            <Text style={[styles.tempValue, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
+              {inlineTemp.toFixed(1)}°
+            </Text>
+          </View>
+          <QuickIconChip
+            icon="add-circle-outline"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => setInlineTemp((v) => Math.min(42, Math.round((v + 0.1) * 10) / 10))}
+          />
+          <QuickIconChip
+            icon="checkmark-circle"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerImpactFeedback();
+              void recordTemperature(inlineTemp);
+              triggerPulse(
+                "temperature",
+                language === "fr" ? `${inlineTemp.toFixed(1)}° enregistré` : `${inlineTemp.toFixed(1)}° saved`,
+              );
+            }}
+          />
+        </QuickTile>
+
+        {/* ── Care ── */}
+        <QuickTile
           kind="care"
           label={t("tracker.care")}
-          eyebrow={language === "fr" ? "Quotidien" : "Daily"}
-          iconNode={
-            <AnimatedActionGlyph kind="care" accent={theme.primary} size={38} />
-          }
-          active={careModalVisible}
-          disabled={saving || isViewer}
-          onPress={() => {
+          lastLabel={lastLabelFor(lastCare)}
+          accent={theme.primary}
+          pulsing={pulseKind === "care"}
+          confirmation={confirmation?.kind === "care" ? confirmation.message : null}
+          onLongPress={() => {
             triggerSelectionFeedback();
             setCareModalVisible(true);
           }}
-        />
-        <ActionTile
+        >
+          {careTypesEffective.slice(0, 2).map((careName) => (
+            <QuickChip
+              key={careName}
+              accent={theme.primary}
+              disabled={saving || isViewer}
+              onPress={() => {
+                triggerImpactFeedback();
+                void recordMedication({ medicationName: careName, careCategory: "care" });
+                triggerPulse(
+                  "care",
+                  language === "fr" ? `${careName} enregistré` : `${careName} saved`,
+                );
+              }}
+            >
+              {careName}
+            </QuickChip>
+          ))}
+          <QuickChip
+            accent={theme.primary}
+            tone="ghost"
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerSelectionFeedback();
+              setCareModalVisible(true);
+            }}
+          >
+            +
+          </QuickChip>
+        </QuickTile>
+
+        {/* ── Visit ── */}
+        <QuickTile
           kind="visit"
           label={t("tracker.visits")}
-          eyebrow={language === "fr" ? "Rendez-vous" : "Appointments"}
-          iconNode={
-            <AnimatedActionGlyph kind="visit" accent={theme.visit} size={38} />
-          }
-          active={visitModalVisible}
-          disabled={saving || isViewer}
-          onPress={() => {
+          lastLabel={lastLabelFor(lastVisit)}
+          accent={theme.visit}
+          pulsing={pulseKind === "visit"}
+          confirmation={confirmation?.kind === "visit" ? confirmation.message : null}
+          onLongPress={() => {
             triggerSelectionFeedback();
             setVisitModalVisible(true);
           }}
-        />
+        >
+          {BUILT_IN_VISIT_ACTIONS.slice(0, 2).map((action) => (
+            <QuickChip
+              key={action.key}
+              accent={theme.visit}
+              disabled={saving || isViewer}
+              onPress={() => {
+                triggerImpactFeedback();
+                void recordMedication({ medicationName: action.value, careCategory: "visit" });
+                const visitMsg =
+                  action.value === "midwife"
+                    ? language === "fr" ? "Sage-femme enregistrée" : "Midwife saved"
+                    : language === "fr" ? "Pédiatre enregistré" : "Pediatrician saved";
+                triggerPulse("visit", visitMsg);
+              }}
+            >
+              {action.value === "midwife"
+                ? language === "fr" ? "S-femme" : "Midwife"
+                : action.value === "pediatrician"
+                  ? language === "fr" ? "Pédiatre" : "Pedi."
+                  : t(action.labelKey)}
+            </QuickChip>
+          ))}
+          <QuickChip
+            accent={theme.visit}
+            tone="ghost"
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerSelectionFeedback();
+              setVisitModalVisible(true);
+            }}
+          >
+            +
+          </QuickChip>
+        </QuickTile>
       </View>
 
       <AppModal visible={feedModalVisible} onClose={resetFeedModal}>
@@ -1465,18 +1866,72 @@ export function TrackerScreen() {
               {t("tracker.care_subtitle")}
             </Text>
             <View style={styles.trackerChipsRow}>
-              {CARE_ACTIONS.map((action) => (
-                <Chip
-                  key={action.key}
-                  label={t(action.labelKey)}
-                  selected={selectedCareAction === action.key}
-                  tone="success"
-                  onPress={() => setSelectedCareAction(action.key)}
-                />
-              ))}
+              {careTypesEffective.map((name) => {
+                const selected = selectedSavedCareType === name;
+                return (
+                  <Pressable
+                    key={name}
+                    onPress={() => {
+                      triggerSelectionFeedback();
+                      setSelectedCareAction(null);
+                      setSelectedSavedCareType(selected ? null : name);
+                    }}
+                    style={[
+                      styles.savedCareChip,
+                      {
+                        backgroundColor: selected ? `${theme.primary}33` : theme.surfaceContainer,
+                        borderColor: selected ? theme.primary : "transparent",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.savedCareChipLabel,
+                        { color: theme.text, fontFamily: theme.fontSemiBold },
+                      ]}
+                    >
+                      {name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => {
+                  triggerSelectionFeedback();
+                  setSelectedSavedCareType(null);
+                  setSelectedCareAction("medication");
+                }}
+                style={[
+                  styles.savedCareChip,
+                  {
+                    backgroundColor: selectedCareAction === "medication" ? `${theme.primary}33` : "transparent",
+                    borderColor: selectedCareAction === "medication" ? theme.primary : theme.hairline,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.savedCareChipLabel,
+                    { color: theme.textSoft, fontFamily: theme.fontMedium },
+                  ]}
+                >
+                  {language === "fr" ? "Autre…" : "Other…"}
+                </Text>
+              </Pressable>
             </View>
 
-            {selectedCare?.custom ? (
+            <Text
+              style={[
+                styles.careHint,
+                { color: theme.textSoft, fontFamily: theme.fontRegular },
+              ]}
+            >
+              {language === "fr"
+                ? "Gérer la liste depuis Profil → Soins personnalisés"
+                : "Manage the list from Profile → Custom care"}
+            </Text>
+
+            {selectedCareAction === "medication" && !selectedSavedCareType ? (
               <AppInput
                 label={t("tracker.medication")}
                 value={customCareName}
@@ -1656,6 +2111,164 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  gridHint: {
+    fontSize: 11,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    marginBottom: spacing.xs,
+    opacity: 0.7,
+  },
+  quickGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  quickTileWrap: {
+    width: "47.5%",
+    position: "relative",
+  },
+  quickTileGlow: {
+    position: "absolute",
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 28,
+    filter: "blur(14px)" as never,
+  },
+  quickTile: {
+    // Slight asymmetric pinwheel — magazine-y, hint of personality
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 14,
+    borderWidth: 1,
+    padding: spacing.sm + 4,
+    minHeight: 162,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+    overflow: "hidden",
+    position: "relative",
+  },
+  quickTileAccentWash: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 1,
+  },
+  quickTileGlass: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  quickTileTopHairline: {
+    position: "absolute",
+    top: 0,
+    left: 16,
+    right: 28,
+    height: 1,
+  },
+  quickTileTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  quickTileIconBubble: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickTileDots: {
+    paddingLeft: 4,
+  },
+  quickTileType: {
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingTop: spacing.sm,
+    paddingBottom: 6,
+    gap: 2,
+  },
+  quickTileLabel: {
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
+  },
+  quickTileLast: {
+    fontSize: 10.5,
+    letterSpacing: 0.2,
+  },
+  quickTileDivider: {
+    height: 1,
+    marginBottom: 10,
+    opacity: 0.6,
+  },
+  quickTileFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  quickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickChipLabel: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
+  quickIconChip: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tempValueWrap: {
+    flex: 1,
+    alignItems: "center",
+  },
+  tempValue: {
+    fontSize: 17,
+    letterSpacing: -0.4,
+  },
+  subSectionLabel: {
+    fontSize: 11,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginTop: spacing.xs,
+  },
+  savedCareChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  savedCareChipLabel: {
+    fontSize: 13,
+    letterSpacing: 0.1,
+  },
+  careHint: {
+    fontSize: 11,
+    letterSpacing: 0.1,
+    opacity: 0.85,
+    marginTop: -spacing.xs,
   },
   grid: {
     flexDirection: "row",

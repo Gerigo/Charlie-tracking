@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { useRouter } from 'expo-router';
 import { parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
@@ -168,7 +168,7 @@ function MeasurementChart({
   if (data.length === 0) {
     return (
       <Card>
-        <Text style={[styles.chartTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
+        <Text style={[styles.chartTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
           {title}
         </Text>
         <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -228,7 +228,7 @@ function MeasurementChart({
       {/* Header */}
       <View style={styles.chartHeader}>
         <View style={styles.chartHeaderLeft}>
-          <Text style={[styles.chartTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
+          <Text style={[styles.chartTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
             {title}
           </Text>
           <Text style={[styles.chartMeta, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -298,14 +298,14 @@ function MeasurementChart({
         {/* ── OMS low / high dashed borders ── */}
         {showOms ? (
           <>
-            <Path d={createLinePath(lowPoints)}  stroke={theme.textSoft} strokeWidth={1.2} strokeDasharray="4 3" fill="none" opacity={0.5} />
-            <Path d={createLinePath(highPoints)} stroke={theme.textSoft} strokeWidth={1.2} strokeDasharray="4 3" fill="none" opacity={0.5} />
+            <Path d={createLinePath(lowPoints)}  stroke={theme.outline} strokeWidth={1} strokeDasharray="3 4" fill="none" opacity={0.32} />
+            <Path d={createLinePath(highPoints)} stroke={theme.outline} strokeWidth={1} strokeDasharray="3 4" fill="none" opacity={0.32} />
           </>
         ) : null}
 
         {/* ── OMS median ── */}
         {showOms ? (
-          <Path d={createLinePath(medPoints)} stroke={theme.textMuted} strokeWidth={1.5} fill="none" opacity={0.7} />
+          <Path d={createLinePath(medPoints)} stroke={theme.outline} strokeWidth={1.2} fill="none" opacity={0.45} />
         ) : null}
 
         {/* ── Data line ── */}
@@ -564,7 +564,7 @@ export function GrowthScreen() {
 
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontLight }]}>
+        <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
           {t('growth.title')}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -576,7 +576,7 @@ export function GrowthScreen() {
       <Card>
         <View style={styles.measureHero}>
           <View style={styles.measureHeroCopy}>
-            <Text style={[styles.secondaryTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
+            <Text style={[styles.secondaryTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
               {t('growth.new_measure')}
             </Text>
             <Text style={[styles.secondaryBody, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -622,7 +622,7 @@ export function GrowthScreen() {
       <Card>
         {/* Non-medical banner */}
         <View style={[styles.disclaimerBanner, { backgroundColor: `${theme.primary}12` }]}>
-          <Ionicons name="information-circle-outline" size={18} color={theme.primary} />
+          <Icon name="information-circle-outline" size={18} color={theme.primary} />
           <Text style={[styles.disclaimerBannerText, { color: theme.primary, fontFamily: theme.fontSemiBold }]}>
             {t('growth.oms')}
           </Text>
@@ -760,7 +760,7 @@ export function GrowthScreen() {
                     { backgroundColor: theme.surfaceLowest, shadowColor: theme.shadow },
                   ]}
                 >
-                  <Ionicons
+                  <Icon
                     name={icon}
                     size={18}
                     color={entry.type === 'temperature' ? theme.temperature : theme.primary}
@@ -817,7 +817,7 @@ export function GrowthScreen() {
               onPress={(e) => e.stopPropagation()}
             >
               <Text
-                style={[styles.secondaryTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}
+                style={[styles.secondaryTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}
               >
                 {t('growth.new_measure')}
               </Text>
@@ -888,8 +888,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   title: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 38,
+    lineHeight: 42,
+    letterSpacing: -0.6,
   },
   subtitle: {
     fontSize: 16,
@@ -921,7 +922,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   secondaryTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   secondaryBody: {
     fontSize: 14,
@@ -971,7 +974,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   chartTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   chartMeta: {
     fontSize: 12,

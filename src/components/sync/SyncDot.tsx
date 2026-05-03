@@ -7,12 +7,22 @@ import { useAppContext } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 
 export function SyncDot() {
-  const { syncStatus, language } = useAppContext();
+  const { syncStatus, language, livePulseToken } = useAppContext();
   const { theme } = useAppTheme();
   const router = useRouter();
 
   const pillOpacity = useRef(new Animated.Value(1)).current;
   const haloScale = useRef(new Animated.Value(1)).current;
+  const livePulseScale = useRef(new Animated.Value(1)).current;
+
+  // Brief mint pulse when a fresh event arrives from another device
+  useEffect(() => {
+    if (livePulseToken === 0) return;
+    Animated.sequence([
+      Animated.timing(livePulseScale, { toValue: 1.18, duration: 220, useNativeDriver: true }),
+      Animated.timing(livePulseScale, { toValue: 1, duration: 420, useNativeDriver: true }),
+    ]).start();
+  }, [livePulseToken, livePulseScale]);
 
   useEffect(() => {
     if (syncStatus === 'syncing') {
@@ -93,7 +103,7 @@ export function SyncDot() {
             backgroundColor: `${color}18`,
             borderColor: `${color}40`,
             opacity: pillOpacity,
-            transform: [{ scale: haloScale }],
+            transform: [{ scale: Animated.multiply(haloScale, livePulseScale) }],
           },
         ]}
       >

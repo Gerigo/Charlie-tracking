@@ -5,7 +5,7 @@ export default function IndexRoute() {
   const { authReady, authUser, workspaceLoading, needsOnboarding, isSandbox } = useAppContext();
 
   if (!authReady || workspaceLoading) {
-    return <FullScreenLoader label="Préparation de Luna..." />;
+    return <FullScreenLoader label="Carnet du quotidien" />;
   }
 
   if (!authUser && !isSandbox) {

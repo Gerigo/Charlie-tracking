@@ -26,9 +26,9 @@ import {
 const ADMIN_EMAIL = 'admin@charlie.com';
 const LEGACY_TRACKER_ID = 'charlie-shared';
 
-// IDs already created during the failed run
-const FAMILY_ID = 'VWSC9YSaNGRsckkkBS2i';
-const BABY_ID = '9t44nmNJUZTknZxL0PfX';
+// IDs already created during the failed run (2026-05-03)
+const FAMILY_ID = 'osWgSUAkUsuNv4SNrQzI';
+const BABY_ID = 'yZBl10Ybdph9ooGbguoe';
 const FAMILY_NAME = 'Famille Charlie';
 
 const firebaseConfig = {

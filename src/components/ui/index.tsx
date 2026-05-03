@@ -1,13 +1,15 @@
 import { radii, spacing } from "@/src/constants/theme";
+import { Wash } from "@/src/components/decor";
 import { triggerSelectionFeedback } from "@/src/lib/feedback";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
 import { LinearGradient } from "expo-linear-gradient";
-import type { PropsWithChildren, ReactNode } from "react";
+import { useCallback, useState, type PropsWithChildren, type ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -60,16 +62,48 @@ export function Screen({
   children,
   scroll = true,
   contentContainerStyle,
+  onRefresh,
 }: PropsWithChildren<{
   scroll?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /**
+   * Optional pull-to-refresh handler. Promise resolves when refresh is done —
+   * Firestore data is already live so the handler is mostly a UX gesture; a
+   * small delay (~600ms) is enough to give the user feedback.
+   */
+  onRefresh?: () => Promise<void> | void;
 }>) {
   const { theme } = useAppTheme();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        Promise.resolve(onRefresh()),
+        new Promise((resolve) => setTimeout(resolve, 600)),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [onRefresh]);
+
   const body = scroll ? (
     <ScrollView
       contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void handleRefresh()}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        ) : undefined
+      }
     >
       {children}
     </ScrollView>
@@ -84,23 +118,35 @@ export function Screen({
       style={[styles.safe, { backgroundColor: theme.background }]}
       edges={["top", "left", "right"]}
     >
-      <View
-        style={[
-          styles.backgroundOrbTop,
-          { backgroundColor: theme.headerGradientA },
-        ]}
+      {/* Watercolour atmosphere — rose, sage and ochre pigments blooming
+          on the cream paper background. Outside the content flow. */}
+      <Wash
+        color={theme.primaryContainer}
+        size={320}
+        top={-120}
+        right={-80}
+        opacity={theme.isDark ? 0.18 : 0.32}
       />
-      <View
-        style={[
-          styles.backgroundOrbMiddle,
-          { backgroundColor: theme.headerGradientB },
-        ]}
+      <Wash
+        color={theme.mint}
+        size={240}
+        top={180}
+        left={-60}
+        opacity={theme.isDark ? 0.14 : 0.22}
       />
-      <View
-        style={[
-          styles.backgroundOrbBottom,
-          { backgroundColor: theme.primaryGlow },
-        ]}
+      <Wash
+        color={theme.warning}
+        size={200}
+        bottom={-80}
+        right={-40}
+        opacity={theme.isDark ? 0.14 : 0.20}
+      />
+      <Wash
+        color={theme.primaryContainer}
+        size={140}
+        bottom={120}
+        left={-40}
+        opacity={theme.isDark ? 0.12 : 0.18}
       />
       <KeyboardAvoidingView
         style={styles.keyboardWrap}
@@ -218,6 +264,7 @@ export function Card({
         compact ? styles.cardCompact : null,
         {
           backgroundColor: theme.surfaceLowest,
+          borderColor: theme.cardBorder,
           shadowColor: theme.shadow,
         },
         style,
@@ -470,26 +517,57 @@ export function InlineStat({
   );
 }
 
-export function EmptyState({ title, body }: { title: string; body: string }) {
+export function EmptyState({
+  title,
+  body,
+  glyph,
+  ctaLabel,
+  onCtaPress,
+}: {
+  title: string;
+  body: string;
+  /** Optional decorative glyph (emoji or short string). Renders giant in Fraunces italic. */
+  glyph?: string;
+  /** Optional CTA — renders as a primary button below the body */
+  ctaLabel?: string;
+  onCtaPress?: () => void;
+}) {
   const { theme } = useAppTheme();
   return (
     <Card compact>
-      <Text
-        style={[
-          styles.emptyTitle,
-          { color: theme.text, fontFamily: theme.fontBold },
-        ]}
-      >
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.emptyBody,
-          { color: theme.textMuted, fontFamily: theme.fontRegular },
-        ]}
-      >
-        {body}
-      </Text>
+      <View style={styles.emptyInner}>
+        {glyph ? (
+          <Text
+            style={[
+              styles.emptyGlyph,
+              { color: theme.primary, fontFamily: theme.fontDisplayItalic },
+            ]}
+          >
+            {glyph}
+          </Text>
+        ) : null}
+        <Text
+          style={[
+            styles.emptyTitle,
+            { color: theme.text, fontFamily: theme.fontDisplayItalic },
+          ]}
+        >
+          {title}
+        </Text>
+        <Text
+          style={[
+            styles.emptyBody,
+            { color: theme.textMuted, fontFamily: theme.fontRegular },
+          ]}
+        >
+          {body}
+        </Text>
+        {ctaLabel && onCtaPress ? (
+          <View style={styles.emptyCta}>
+            <AppButton onPress={onCtaPress}>{ctaLabel}</AppButton>
+          </View>
+        ) : null}
+      </View>
     </Card>
   );
 }
@@ -559,34 +637,10 @@ const styles = StyleSheet.create({
   keyboardWrap: {
     flex: 1,
   },
-  backgroundOrbTop: {
-    position: "absolute",
-    top: -150,
-    right: -80,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-  },
-  backgroundOrbMiddle: {
-    position: "absolute",
-    top: 240,
-    left: -60,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-  },
-  backgroundOrbBottom: {
-    position: "absolute",
-    bottom: -140,
-    right: -50,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-  },
   scrollContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: spacing.xxl * 4,
     gap: spacing.lg,
   },
   sectionHeaderWrap: {
@@ -640,11 +694,15 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     borderRadius: radii.xl,
+    borderWidth: 1,
     padding: spacing.lg,
     gap: spacing.md,
-    shadowOpacity: 0.08,
-    shadowRadius: 36,
-    shadowOffset: { width: 0, height: 16 },
+    // Warmer, more present shadow — matches the watercolour identity where
+    // cards sit like loose papers on the cream notebook page.
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
   },
   cardCompact: {
     paddingVertical: spacing.lg,
@@ -691,7 +749,8 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   buttonPressed: {
-    transform: [{ scale: 0.985 }],
+    transform: [{ scale: 0.96 }],
+    opacity: 0.92,
   },
   buttonText: {
     fontSize: 15,
@@ -737,11 +796,33 @@ const styles = StyleSheet.create({
   inlineStatLabel: {
     fontSize: 12,
   },
+  emptyInner: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  emptyGlyph: {
+    fontSize: 56,
+    lineHeight: 60,
+    letterSpacing: -1.4,
+    marginBottom: spacing.xs,
+    opacity: 0.85,
+  },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
+    textAlign: 'center',
   },
   emptyBody: {
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
+  emptyCta: {
+    marginTop: spacing.md,
+    minWidth: 180,
   },
   divider: {
     height: 1,

@@ -8,6 +8,12 @@ import {
   Manrope_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/manrope';
+import {
+  Fraunces_300Light,
+  Fraunces_300Light_Italic,
+  Fraunces_400Regular,
+  Fraunces_500Medium,
+} from '@expo-google-fonts/fraunces';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +21,8 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { AppProvider } from '@/src/providers/AppProvider';
 import { AppThemeProvider, useAppTheme } from '@/src/providers/ThemeProvider';
+import { ConfirmDialogHost } from '@/src/components/ui/ConfirmDialogHost';
+import { DocumentMetaSync } from '@/src/components/sync/DocumentMetaSync';
 import { logger } from '@/src/utils/logger';
 
 // Capture console.error / console.warn from Firebase SDK and other libraries
@@ -39,6 +47,10 @@ export default function RootLayout() {
     Manrope_600SemiBold,
     Manrope_700Bold,
     Manrope_800ExtraBold,
+    Fraunces_300Light,
+    Fraunces_300Light_Italic,
+    Fraunces_400Regular,
+    Fraunces_500Medium,
   });
 
   useEffect(() => {
@@ -64,6 +76,7 @@ function ThemedRootLayout() {
   return (
     <AppProvider>
       <ThemeProvider value={navigationTheme}>
+        <DocumentMetaSync />
         <StatusBar style={theme.isDark ? 'light' : 'dark'} />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
@@ -71,6 +84,7 @@ function ThemedRootLayout() {
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="(app)" />
         </Stack>
+        <ConfirmDialogHost />
       </ThemeProvider>
     </AppProvider>
   );

@@ -1,4 +1,5 @@
 import { EditorialTopBar } from "@/src/components/editorial/TopBar";
+import { GrowthSpurtBanner } from "@/src/components/editorial/GrowthSpurtBanner";
 import {
   AppBadge,
   AppButton,
@@ -11,6 +12,7 @@ import { getActivityEmoji } from "@/src/constants/activityEmojis";
 import { stoolColorLabelKey } from "@/src/constants/i18n";
 import { radii, spacing } from "@/src/constants/theme";
 import { useI18n } from "@/src/hooks/useI18n";
+import { confirmAction } from "@/src/lib/dialog";
 import { triggerSelectionFeedback } from "@/src/lib/feedback";
 import { useAppContext } from "@/src/providers/AppProvider";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
@@ -32,13 +34,13 @@ import {
   formatRelativeShort,
 } from "@/src/utils/date";
 import { getDailySummary, getEventsForDay } from "@/src/utils/eventSummaries";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Icon } from "@/src/components/ui/Icon";
 import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { endOfDay, isSameDay, startOfDay } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Easing,
   Pressable,
@@ -676,7 +678,7 @@ function AnimatedSummaryIcon({
             },
           ]}
         >
-          <Ionicons name="add" size={9} color={accent} />
+          <Icon name="add" size={9} color={accent} />
         </Animated.View>
       ) : null}
     </View>
@@ -811,13 +813,18 @@ function SummaryTile({
           ? [
               styles.summaryTileSleepActive,
               {
-                backgroundColor: theme.isDark ? "#251F21" : "#3A3134",
-                borderColor: "rgba(244, 237, 238, 0.08)",
+                backgroundColor: theme.night,
+                borderColor: "rgba(240, 230, 214, 0.10)",
               },
             ]
           : {
-              backgroundColor: `${accent}10`,
-              borderColor: `${accent}26`,
+              // Carnet d'aquarelle: solid white paper so the tile reads as
+              // a card on the cream page. Accent tint is delivered by the
+              // animated orbs inside + a stronger tinted border, not by a
+              // near-invisible 6% wash that vanished on the new background.
+              backgroundColor: theme.surfaceLowest,
+              borderColor: `${accent}3D`,
+              shadowColor: theme.shadow,
             },
       ]}
     >
@@ -942,7 +949,7 @@ function SummaryTile({
         />
       ) : null}
       {isSleepActive ? (
-        <Ionicons
+        <Icon
           name="moon"
           size={88}
           color="rgba(248, 238, 241, 0.08)"
@@ -955,7 +962,7 @@ function SummaryTile({
             style={[
               styles.summaryTileSleepZPrimary,
               {
-                color: "#F4EDEE",
+                color: "#F0E6D6",
                 opacity: driftPrimary.interpolate({
                   inputRange: [0, 0.2, 0.95, 1],
                   outputRange: [0, 0.68, 0.22, 0],
@@ -983,7 +990,7 @@ function SummaryTile({
             style={[
               styles.summaryTileSleepZSecondary,
               {
-                color: "#E6D8DC",
+                color: "#D4C5B0",
                 opacity: driftSecondary.interpolate({
                   inputRange: [0, 0.25, 1],
                   outputRange: [0, 0.5, 0],
@@ -1022,14 +1029,14 @@ function SummaryTile({
         >
           <AnimatedSummaryIcon
             kind={iconKind}
-            accent={isSleepActive ? "#F4EDEE" : accent}
+            accent={isSleepActive ? "#F0E6D6" : accent}
           />
         </View>
         <Text
           style={[
             styles.summaryMeta,
             {
-              color: isSleepActive ? "#DCCBD0" : theme.textSoft,
+              color: isSleepActive ? "#A89682" : theme.textSoft,
               fontFamily: theme.fontMedium,
             },
           ]}
@@ -1054,7 +1061,7 @@ function SummaryTile({
         style={[
           styles.summaryValue,
           {
-            color: isSleepActive ? "#F4EDEE" : accent,
+            color: isSleepActive ? "#F0E6D6" : accent,
             fontFamily: theme.fontBold,
           },
         ]}
@@ -1066,7 +1073,7 @@ function SummaryTile({
           style={[
             styles.summaryValue,
             {
-              color: isSleepActive ? "#F4EDEE" : accent,
+              color: isSleepActive ? "#F0E6D6" : accent,
               fontFamily: theme.fontBold,
             },
           ]}
@@ -1080,7 +1087,7 @@ function SummaryTile({
           style={[
             styles.summaryBody,
             {
-              color: isSleepActive ? "#E9DDE0" : theme.textMuted,
+              color: isSleepActive ? "#D4C5B0" : theme.textMuted,
               fontFamily: theme.fontRegular,
             },
           ]}
@@ -1102,6 +1109,59 @@ function SummaryTile({
   );
 }
 
+/**
+ * Detail list — used in Today to surface care + visit events with timestamp,
+ * not just aggregate badges. Each item is a row: dot · label · time, with
+ * an optional note line below.
+ */
+function DetailListBlock({
+  title,
+  accent,
+  items,
+}: {
+  title: string;
+  accent: string;
+  items: Array<{ id: string; label: string; time: string; note?: string }>;
+}) {
+  const { theme } = useAppTheme();
+  return (
+    <View style={[styles.detailBlock, { backgroundColor: theme.surfaceLowest, borderColor: theme.cardBorder, shadowColor: theme.shadow }]}>
+      <View style={styles.detailBlockHeader}>
+        <Text style={[styles.detailBlockTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
+          {title}
+        </Text>
+        <View style={[styles.detailBlockCount, { backgroundColor: `${accent}1F` }]}>
+          <Text style={[styles.detailBlockCountLabel, { color: accent, fontFamily: theme.fontSemiBold }]}>
+            {items.length}
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.detailBlockDivider, { backgroundColor: theme.hairline }]} />
+      <View style={styles.detailBlockList}>
+        {items.map((item, index) => (
+          <View key={item.id} style={styles.detailBlockRow}>
+            <View style={[styles.detailBlockDot, { backgroundColor: accent }]} />
+            <View style={styles.detailBlockRowText}>
+              <Text style={[styles.detailBlockLabel, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
+                {item.label}
+              </Text>
+              {item.note ? (
+                <Text style={[styles.detailBlockNote, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
+                  {item.note}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={[styles.detailBlockTime, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>
+              {item.time}
+            </Text>
+            {index < items.length - 1 ? null : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function TodayScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
@@ -1117,6 +1177,7 @@ export function TodayScreen() {
     updateEvent,
     viewerRole,
     saving,
+    refreshData,
   } = useAppContext();
   const canManageEvent = (_event: TrackedEvent) =>
     viewerRole === "manager";
@@ -1436,8 +1497,12 @@ export function TodayScreen() {
   });
 
   return (
-    <Screen>
+    <Screen onRefresh={refreshData}>
       <EditorialTopBar />
+
+      {currentBaby ? (
+        <GrowthSpurtBanner events={events} baby={currentBaby} />
+      ) : null}
 
       <View
         style={[
@@ -1446,16 +1511,34 @@ export function TodayScreen() {
             ? [
                 styles.heroCardSleep,
                 {
-                  backgroundColor: theme.isDark ? "#251F21" : "#3A3134",
+                  backgroundColor: theme.night,
                   shadowColor: theme.shadow,
                 },
               ]
             : {
-                backgroundColor: theme.surfaceLowest,
+                backgroundColor: theme.cream,
                 shadowColor: theme.shadow,
               },
         ]}
       >
+        {/* Glass — top highlight gradient + bottom shade */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={
+            liveSleepActive
+              ? ["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(0,0,0,0.18)"]
+              : ["rgba(255,255,255,0.50)", "rgba(255,255,255,0.08)", "rgba(0,0,0,0.04)"]
+          }
+          locations={[0, 0.45, 1]}
+          style={styles.heroGlass}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.heroTopHairline,
+            { backgroundColor: liveSleepActive ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)" },
+          ]}
+        />
         <View style={styles.heroTopRow}>
           <View style={styles.heroDateWrap}>
             <Pressable
@@ -1469,7 +1552,7 @@ export function TodayScreen() {
                 },
               ]}
             >
-              <Ionicons
+              <Icon
                 name="calendar-outline"
                 size={15}
                 color={theme.primary}
@@ -1506,7 +1589,7 @@ export function TodayScreen() {
           </View>
         </View>
         {liveSleepActive ? (
-          <Ionicons
+          <Icon
             name="moon"
             size={180}
             color="rgba(248, 238, 241, 0.08)"
@@ -1518,7 +1601,7 @@ export function TodayScreen() {
             <Animated.Text
               style={[
                 styles.heroSleepZ,
-                { color: "#F4EDEE" },
+                { color: "#F0E6D6" },
                 zStyle(driftA, 30, 0.78),
               ]}
             >
@@ -1527,7 +1610,7 @@ export function TodayScreen() {
             <Animated.Text
               style={[
                 styles.heroSleepZSecondary,
-                { color: "#E8DADF" },
+                { color: "#D4C5B0" },
                 zStyle(driftB, 22, 0.62),
               ]}
             >
@@ -1536,7 +1619,7 @@ export function TodayScreen() {
             <Animated.Text
               style={[
                 styles.heroSleepZSmall,
-                { color: "#DCCAD0" },
+                { color: "#A89682" },
                 zStyle(driftC, 16, 0.48),
               ]}
             >
@@ -1548,7 +1631,7 @@ export function TodayScreen() {
           style={[
             styles.heroEyebrow,
             {
-              color: liveSleepActive ? "#E7D5D8" : theme.textSoft,
+              color: liveSleepActive ? "#D4C5B0" : theme.textSoft,
               fontFamily: theme.fontBold,
             },
           ]}
@@ -1573,7 +1656,7 @@ export function TodayScreen() {
                 styles.heroValueInline,
                 {
                   color: liveSleepActive ? "#FFFFFF" : theme.text,
-                  fontFamily: theme.fontBold,
+                  fontFamily: theme.fontDisplayItalic,
                 },
               ]}
             >
@@ -1586,7 +1669,7 @@ export function TodayScreen() {
               styles.heroTitle,
               {
                 color: liveSleepActive ? "#FFFFFF" : theme.text,
-                fontFamily: theme.fontLight,
+                fontFamily: theme.fontDisplay,
               },
             ]}
           >
@@ -1718,6 +1801,34 @@ export function TodayScreen() {
         />
       </View>
 
+      {/* ── Soins du jour — détail horodaté ── */}
+      {careEvents.length > 0 ? (
+        <DetailListBlock
+          title={language === "fr" ? "Soins du jour" : "Care today"}
+          accent={theme.primary}
+          items={careEvents.map((event) => ({
+            id: event.id,
+            label: translateCareLabel(event.details?.medicationName, t) ?? event.details?.medicationName ?? t("tracker.care"),
+            time: formatClock(event.startTime),
+            note: event.notes,
+          }))}
+        />
+      ) : null}
+
+      {/* ── Rendez-vous du jour — détail horodaté ── */}
+      {visitEvents.length > 0 ? (
+        <DetailListBlock
+          title={language === "fr" ? "Rendez-vous du jour" : "Appointments today"}
+          accent={theme.visit}
+          items={visitEvents.map((event) => ({
+            id: event.id,
+            label: translateCareLabel(event.details?.medicationName, t) ?? event.details?.medicationName ?? t("tracker.visits"),
+            time: formatClock(event.startTime),
+            note: event.notes,
+          }))}
+        />
+      ) : null}
+
       <View style={styles.timelineSection}>
         <View style={styles.timelineHeader}>
           <View style={styles.timelineHeaderCopy}>
@@ -1750,7 +1861,7 @@ export function TodayScreen() {
                 { backgroundColor: theme.surfaceLowest },
               ]}
             >
-              <Ionicons
+              <Icon
                 name={showAllTimeline ? "remove" : "add"}
                 size={16}
                 color={theme.primary}
@@ -1805,7 +1916,15 @@ export function TodayScreen() {
                 <View
                   style={[
                     styles.timelineCard,
-                    { backgroundColor: `${accent}0D`, borderLeftColor: accent },
+                    {
+                      // Carnet d'aquarelle: white paper card with a coloured
+                      // bookmark accent on the left edge. The 5% wash that
+                      // used to fill these vanished against the new cream bg.
+                      backgroundColor: theme.surfaceLowest,
+                      borderLeftColor: accent,
+                      borderColor: theme.cardBorder,
+                      shadowColor: theme.shadow,
+                    },
                   ]}
                 >
                   <View style={styles.timelineCardRow}>
@@ -1904,7 +2023,7 @@ export function TodayScreen() {
                           style={styles.timelineActionBtn}
                           hitSlop={6}
                         >
-                          <Ionicons
+                          <Icon
                             name="pencil-outline"
                             size={16}
                             color={theme.textSoft}
@@ -1912,19 +2031,20 @@ export function TodayScreen() {
                         </Pressable>
                         <Pressable
                           onPress={() => {
-                            Alert.alert(
+                            confirmAction(
                               language === "fr" ? "Supprimer" : "Delete",
                               language === "fr" ? "Supprimer cet événement ?" : "Delete this event?",
-                              [
-                                { text: language === "fr" ? "Annuler" : "Cancel", style: "cancel" },
-                                { text: language === "fr" ? "Supprimer" : "Delete", style: "destructive", onPress: () => void deleteEvent(event.id) },
-                              ],
+                              () => void deleteEvent(event.id),
+                              {
+                                confirmLabel: language === "fr" ? "Supprimer" : "Delete",
+                                danger: true,
+                              },
                             );
                           }}
                           style={styles.timelineActionBtn}
                           hitSlop={6}
                         >
-                          <Ionicons
+                          <Icon
                             name="trash-outline"
                             size={16}
                             color={theme.textSoft}
@@ -1945,11 +2065,11 @@ export function TodayScreen() {
         onPress={() => { triggerSelectionFeedback(); router.push('/(app)/(tabs)/history'); }}
         style={styles.historyLink}
       >
-        <Ionicons name="time-outline" size={15} color={theme.textSoft} />
+        <Icon name="time-outline" size={15} color={theme.textSoft} />
         <Text style={[styles.historyLinkLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>
           {language === 'fr' ? 'Voir tout l\'historique' : 'View full history'}
         </Text>
-        <Ionicons name="chevron-forward" size={14} color={theme.textSoft} />
+        <Icon name="chevron-forward" size={14} color={theme.textSoft} />
       </Pressable>
 
       <AppModal visible={Boolean(editingEvent)} onClose={closeEditor}>
@@ -2260,6 +2380,21 @@ const styles = StyleSheet.create({
     shadowRadius: 36,
     shadowOffset: { width: 0, height: 16 },
     overflow: "hidden",
+    position: "relative",
+  },
+  heroGlass: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  heroTopHairline: {
+    position: "absolute",
+    top: 0,
+    left: radii.xl,
+    right: radii.xl,
+    height: 1,
   },
   heroCardSleep: {
     minHeight: 220,
@@ -2324,8 +2459,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.3,
   },
   heroTitleRow: {
     flexDirection: "column",
@@ -2336,8 +2472,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   heroValueInline: {
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 44,
+    lineHeight: 52,
+    letterSpacing: -0.5,
   },
   summaryGrid: {
     flexDirection: "row",
@@ -2354,6 +2491,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     position: "relative",
+    // Carnet identity: soft warm shadow so the tile reads as a paper card
+    // resting on the cream page. Sleep-active state overrides this with
+    // a deeper shadow tuned for the dark hero.
+    shadowOpacity: 0.10,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   summaryTileSleepActive: {
     shadowOpacity: 0.12,
@@ -2501,6 +2645,73 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: "auto",
   },
+  detailBlock: {
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    // Carnet identity: warmer shadow so the block lifts off the cream page.
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+    gap: spacing.xs,
+  },
+  detailBlockHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  detailBlockTitle: {
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  detailBlockCount: {
+    minWidth: 24,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  detailBlockCountLabel: {
+    fontSize: 12,
+    letterSpacing: 0.1,
+  },
+  detailBlockDivider: {
+    height: 1,
+    opacity: 0.5,
+  },
+  detailBlockList: {
+    gap: spacing.xs + 2,
+    paddingTop: 4,
+  },
+  detailBlockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  detailBlockDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  detailBlockRowText: {
+    flex: 1,
+    gap: 1,
+  },
+  detailBlockLabel: {
+    fontSize: 14,
+    letterSpacing: 0.05,
+  },
+  detailBlockNote: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  detailBlockTime: {
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
   timelineSection: {
     gap: spacing.md,
     paddingBottom: spacing.lg,
@@ -2568,6 +2779,15 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.md,
     borderLeftWidth: 3,
+    // Carnet identity: subtle border on remaining 3 edges + warm shadow,
+    // so the card sits on the cream page like a journal entry.
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    shadowOpacity: 0.10,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   timelineCardRow: {
     flexDirection: "row",

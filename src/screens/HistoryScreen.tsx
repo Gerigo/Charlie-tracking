@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { format } from 'date-fns';
 import { fr as dateFnsFr } from 'date-fns/locale';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIcon } from '@/src/components/editorial/ActivityIcon';
 import { AppButton, AppInput, AppModal, Card, Chip, EmptyState, Screen, SectionTitle } from '@/src/components/ui';
 import { radii, spacing } from '@/src/constants/theme';
 import { stoolColorLabelKey } from '@/src/constants/i18n';
 import { useI18n } from '@/src/hooks/useI18n';
+import { confirmAction } from '@/src/lib/dialog';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
 import { useAppContext } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
@@ -111,7 +112,7 @@ export function HistoryScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { events, familyMembers, viewerRole, updateEvent, deleteEvent, saving } = useAppContext();
+  const { events, familyMembers, viewerRole, updateEvent, deleteEvent, saving, refreshData } = useAppContext();
   const canManageEvent = (_event: TrackedEvent) =>
     viewerRole === 'manager';
   const [editingEvent, setEditingEvent] = useState<TrackedEvent | null>(null);
@@ -250,7 +251,7 @@ export function HistoryScreen() {
   const hasMore = daySections.length > maxDays;
 
   return (
-    <Screen>
+    <Screen onRefresh={refreshData}>
       <SectionTitle
         eyebrow={t('history.eyebrow')}
         title={t('history.title')}
@@ -263,7 +264,7 @@ export function HistoryScreen() {
             }}
             style={[styles.backButton, { backgroundColor: theme.surfaceRaised }]}
           >
-            <Ionicons name="close" size={18} color={theme.primary} />
+            <Icon name="close" size={18} color={theme.primary} />
           </Pressable>
         )}
       />
@@ -311,22 +312,23 @@ export function HistoryScreen() {
                           {canManageEvent(event) ? (
                             <View style={styles.actionRow}>
                               <Pressable onPress={() => openEditor(event)} style={styles.iconAction}>
-                                <Ionicons name="create-outline" size={18} color={theme.textSoft} />
+                                <Icon name="create-outline" size={18} color={theme.textSoft} />
                               </Pressable>
                               <Pressable
                                 onPress={() => {
-                                  Alert.alert(
+                                  confirmAction(
                                     language === 'fr' ? 'Supprimer' : 'Delete',
                                     language === 'fr' ? 'Supprimer cet événement ?' : 'Delete this event?',
-                                    [
-                                      { text: language === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-                                      { text: language === 'fr' ? 'Supprimer' : 'Delete', style: 'destructive', onPress: () => void deleteEvent(event.id) },
-                                    ],
+                                    () => void deleteEvent(event.id),
+                                    {
+                                      confirmLabel: language === 'fr' ? 'Supprimer' : 'Delete',
+                                      danger: true,
+                                    },
                                   );
                                 }}
                                 style={styles.iconAction}
                               >
-                                <Ionicons name="trash-outline" size={18} color={theme.danger} />
+                                <Icon name="trash-outline" size={18} color={theme.danger} />
                               </Pressable>
                             </View>
                           ) : null}

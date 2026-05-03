@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { Text } from 'react-native';
 import type { FeedSide, FeedingMode } from '@/src/types/domain';
 import { getActivityEmoji } from '@/src/constants/activityEmojis';
@@ -38,6 +38,6 @@ export function ActivityIcon({ kind, size, color }: { kind: ActivityIconKind; si
     case 'data':
       return <Text style={{ fontSize: size, lineHeight: size * 1.3, textAlign: 'center', textAlignVertical: 'center' }}>{getActivityEmoji(kind)}</Text>;
     default:
-      return <Ionicons name="sparkles-outline" size={size} color={color} />;
+      return <Icon name="sparkles-outline" size={size} color={color} />;
   }
 }

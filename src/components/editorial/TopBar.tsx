@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { editorialAssets, getBabyAvatarUri } from '@/src/constants/editorialAssets';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
 import { spacing } from '@/src/constants/theme';
@@ -22,58 +23,85 @@ export function EditorialTopBar({
   const { currentBaby, profile, currentFamily, language } = useAppContext();
   const router = useRouter();
   const resolvedTitle = title ?? currentBaby?.firstName ?? 'Luna';
-  // Baby photo takes priority over avatar illustration
   const resolvedImageUri = imageUri ?? currentBaby?.photoUrl ?? getBabyAvatarUri(currentBaby?.avatarKey);
-  // User photo for the profile button, fallback to editorial asset
   const resolvedProfileUri = profileImageUri ?? profile?.photoUrl ?? editorialAssets.familyHero;
-  // Label du compte famille : combinaison de parents (Papa & Maman / Papa / etc.) si définie,
-  // sinon fallback sur le premier parentName connu ou le prénom de l'utilisateur.
   const headerLabel = currentFamily?.parentsCombination
     ? comboLabel(currentFamily.parentsCombination, language)
     : (currentFamily?.parentNames?.[0] ?? profile?.displayName?.split(' ')[0] ?? null);
 
+  // Carnet d'aquarelle — translucent cream paper (matches background tokens).
+  const shellBg = theme.isDark
+    ? 'rgba(31, 24, 20, 0.55)'
+    : 'rgba(250, 243, 232, 0.62)';
+  const innerStroke = theme.isDark ? 'rgba(240, 230, 214, 0.10)' : 'rgba(168, 98, 77, 0.10)';
+
   return (
     <>
       <SyncErrorBanner />
-      <View style={[styles.wrap, { backgroundColor: theme.background }]}>
-        <View style={styles.left}>
-          <View style={[styles.avatar, { backgroundColor: theme.secondaryContainer }]}>
-            {resolvedImageUri ? <Image source={{ uri: resolvedImageUri }} style={styles.avatarImage} /> : null}
-          </View>
-          <Text style={[styles.title, { color: theme.primary, fontFamily: theme.fontSemiBold }]}>{resolvedTitle}</Text>
-          <SyncDot />
-        </View>
-        <Pressable
-          style={styles.profileBtn}
-          onPress={() => {
-            triggerSelectionFeedback();
-            router.push('/(app)/(tabs)/settings');
-          }}
+      <View
+        style={[
+          styles.shell,
+          {
+            shadowColor: theme.shadow,
+            borderColor: innerStroke,
+          },
+        ]}
+      >
+        <BlurView
+          intensity={theme.isDark ? 32 : 40}
+          tint={theme.isDark ? 'dark' : 'light'}
+          style={[styles.blur, { backgroundColor: shellBg }]}
         >
-          {headerLabel ? (
-            <Text
-              style={[styles.profileName, { color: theme.textSoft, fontFamily: theme.fontMedium }]}
-              numberOfLines={1}
-            >
-              {headerLabel}
-            </Text>
-          ) : null}
-          <View style={[styles.iconButton, { backgroundColor: theme.surfaceRaised }]}>
-            <Image source={{ uri: resolvedProfileUri }} style={styles.profileImage} />
+          <View style={styles.left}>
+            <View style={[styles.avatar, { backgroundColor: theme.secondaryContainer }]}>
+              {resolvedImageUri ? <Image source={{ uri: resolvedImageUri }} style={styles.avatarImage} /> : null}
+            </View>
+            <Text style={[styles.title, { color: theme.primary, fontFamily: theme.fontDisplay }]}>{resolvedTitle}</Text>
+            <SyncDot />
           </View>
-        </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.profileBtn, pressed ? { opacity: 0.85, transform: [{ scale: 0.96 }] } : null]}
+            onPress={() => {
+              triggerSelectionFeedback();
+              router.push('/(app)/(tabs)/settings');
+            }}
+          >
+            {headerLabel ? (
+              <Text
+                style={[styles.profileName, { color: theme.textSoft, fontFamily: theme.fontMedium }]}
+                numberOfLines={1}
+              >
+                {headerLabel}
+              </Text>
+            ) : null}
+            <View style={[styles.iconButton, { backgroundColor: theme.surfaceRaised, borderColor: innerStroke }]}>
+              <Image source={{ uri: resolvedProfileUri }} style={styles.profileImage} />
+            </View>
+          </Pressable>
+        </BlurView>
       </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  shell: {
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  blur: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   left: {
     flexDirection: 'row',
@@ -82,9 +110,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     overflow: 'hidden',
   },
   avatarImage: {
@@ -92,25 +120,27 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
-    fontSize: 18,
-    letterSpacing: -0.3,
+    fontSize: 22,
+    letterSpacing: -0.4,
   },
   profileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    paddingLeft: 6,
   },
   profileName: {
     fontSize: 13,
     maxWidth: 120,
   },
   iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderWidth: 1,
   },
   profileImage: {
     width: '100%',

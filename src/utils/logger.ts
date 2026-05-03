@@ -1,12 +1,9 @@
 /**
- * Logger structuré pour Charlie Mobile.
+ * Logger structuré pour Charlie.
  *
  * Niveaux  : debug < info < warn < error
  * Outputs  : console (toujours) + buffer mémoire (tous niveaux, 300 entrées max)
  *            + Firestore collection `appLogs` (warn + error uniquement)
- *
- * Intégration Sentry optionnelle : appeler `logger.setSentryClient(Sentry)`
- * après initialisation de Sentry pour activer la capture automatique.
  *
  * ─── Conformité RGPD ──────────────────────────────────────────────────────────
  * • userId  : jamais stocké en clair dans Firestore. Remplacé par un hash
@@ -51,11 +48,6 @@ export interface LogEntry {
   userHash?: string;
 }
 
-interface SentryLike {
-  addBreadcrumb: (opts: { message: string; level: string; data?: Record<string, unknown>; category?: string }) => void;
-  captureException: (error: Error) => void;
-}
-
 // ─── Native console (captured before any monkey-patching) ────────────────────
 // Using .bind() to preserve the original function references even if patched later.
 const _nativeConsole = {
@@ -86,7 +78,6 @@ function notifyListeners() {
 
 let _userId: string | undefined;
 let _userHash: string | undefined;
-let _sentry: SentryLike | undefined;
 let _interceptorInstalled = false;
 let _emitting = false; // recursion guard for console interceptor
 const _appVersion = (Constants.expoConfig?.version ?? '?');
@@ -229,14 +220,6 @@ function emit(
     _nativeConsole.log(prefix, ...[data].filter(Boolean));
   }
 
-  // Sentry (breadcrumb pour tous, captureException pour error)
-  if (_sentry) {
-    _sentry.addBreadcrumb({ message, level, data: sanitizeData(data), category: context });
-    if (level === 'error' && error instanceof Error) {
-      _sentry.captureException(error);
-    }
-  }
-
   // Firestore : uniquement warn + error (évite le bruit)
   if (levelWeight(level) >= levelWeight('warn')) {
     void persistToFirestore(entry);
@@ -295,9 +278,6 @@ export const logger = {
     _userId = userId;
     _userHash = userId ? djb2Hash(userId) : undefined;
   },
-
-  /** Injecter le client Sentry après son initialisation */
-  setSentryClient: (sentry: SentryLike) => { _sentry = sentry; },
 
   /** Vider le buffer mémoire (ne supprime pas Firestore) */
   clearBuffer: () => { logBuffer.splice(0); notifyListeners(); },

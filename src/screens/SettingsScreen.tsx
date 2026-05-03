@@ -7,7 +7,9 @@ import {
 import { feedingModeLabelKey } from "@/src/constants/i18n";
 import { radii, spacing } from "@/src/constants/theme";
 import { useI18n } from "@/src/hooks/useI18n";
+import { confirmAction } from "@/src/lib/dialog";
 import { canUseDevTools } from "@/src/lib/env";
+import { GROWTH_SPURT_MOCK_OPTIONS } from "@/src/lib/devMocks";
 import { triggerSelectionFeedback } from "@/src/lib/feedback";
 import { useAppContext } from "@/src/providers/AppProvider";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
@@ -22,15 +24,15 @@ import type {
   MembershipRole,
   ParentsCombination,
 } from "@/src/types/domain";
-import { normalizeVisitTypes } from "@/src/utils/careEvents";
+import { getDefaultCareTypes, normalizeCareTypes, normalizeVisitTypes } from "@/src/utils/careEvents";
 import { formatDateTime } from "@/src/utils/date";
 import { PARENTS_COMBINATION_OPTIONS, comboLabel } from "@/src/utils/parentsCombinationMap";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Icon } from "@/src/components/ui/Icon";
 import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { useMemo, useState, type ReactNode } from "react";
-import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 function formatBabyAge(birthDate: string, language: AppLanguage) {
   const birth = new Date(birthDate);
@@ -139,15 +141,6 @@ const birthPickerStyles = StyleSheet.create({
   picker: { alignSelf: "flex-start" },
 });
 
-const PARENT_LABEL_PRESETS = [
-  "Papa",
-  "Maman",
-  "Père",
-  "Mère",
-  "Parrain",
-  "Marraine",
-];
-
 async function pickPhoto(): Promise<string | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== "granted") return null;
@@ -167,7 +160,7 @@ function ToggleRow({
   enabled,
   onPress,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
+  icon: string;
   label: string;
   enabled: boolean;
   onPress: () => void;
@@ -183,7 +176,7 @@ function ToggleRow({
       style={styles.settingRow}
     >
       <View style={styles.settingLeft}>
-        <Ionicons name={icon} size={18} color={theme.primaryContainer} />
+        <Icon name={icon} size={18} color={theme.primaryContainer} />
         <Text
           style={[
             styles.settingLabel,
@@ -219,7 +212,7 @@ function LinkRow({
   label,
   onPress,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
+  icon: string;
   label: string;
   onPress?: () => void;
 }) {
@@ -234,7 +227,7 @@ function LinkRow({
       style={styles.settingRow}
     >
       <View style={styles.settingLeft}>
-        <Ionicons name={icon} size={18} color={theme.primaryContainer} />
+        <Icon name={icon} size={18} color={theme.primaryContainer} />
         <Text
           style={[
             styles.settingLabel,
@@ -244,7 +237,7 @@ function LinkRow({
           {label}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={theme.textSoft} />
+      <Icon name="chevron-forward" size={18} color={theme.textSoft} />
     </Pressable>
   );
 }
@@ -370,6 +363,7 @@ export function SettingsScreen() {
     notificationsGranted,
     requestNotificationAccess,
     logout,
+    deleteAccount,
     isSandbox,
     exitSandbox,
     language: appLanguage,
@@ -381,7 +375,6 @@ export function SettingsScreen() {
     updateBabyAvatar,
     updateBabyInfo,
     updateUserInfo,
-    updateMyFamilyLabel,
     joinFamily,
     updateFamilyDetails,
     removeFamilyMember,
@@ -393,6 +386,8 @@ export function SettingsScreen() {
     viewerRole,
     profile,
     debugSetSyncStatus,
+    growthSpurtMock,
+    setGrowthSpurtMock,
   } = useAppContext();
 
   const shareLink = "https://sleeptracker-71e30.web.app";
@@ -407,6 +402,11 @@ export function SettingsScreen() {
   const [securityVisible, setSecurityVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [visitTypesVisible, setVisitTypesVisible] = useState(false);
+  const [careTypesVisible, setCareTypesVisible] = useState(false);
+  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState("");
+  const [deleteAccountSaving, setDeleteAccountSaving] = useState(false);
   const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [avatarTargetBaby, setAvatarTargetBaby] = useState<BabyProfile | null>(
     null,
@@ -422,6 +422,10 @@ export function SettingsScreen() {
   const [visitDraft, setVisitDraft] = useState("");
   const [visitTypesDraft, setVisitTypesDraft] = useState<string[]>(
     currentFamily?.visitTypes ?? [],
+  );
+  const [careDraft, setCareDraft] = useState("");
+  const [careTypesDraft, setCareTypesDraft] = useState<string[]>(
+    currentFamily?.careTypes ?? [],
   );
   const [childName, setChildName] = useState("");
   const [childBirthDate, setChildBirthDate] = useState(
@@ -447,9 +451,6 @@ export function SettingsScreen() {
 
   // --- Add child extra state ---
   const [childSetAsActive, setChildSetAsActive] = useState(false);
-
-  // --- Parent label editing state ---
-  const [editLabelDraft, setEditLabelDraft] = useState("");
 
   // --- Join family by code state ---
   const [joinCodeDraft, setJoinCodeDraft] = useState("");
@@ -565,6 +566,16 @@ export function SettingsScreen() {
     setVisitTypesVisible(true);
   };
 
+  const openCareTypes = () => {
+    if (!canManageFamily) return;
+    triggerSelectionFeedback();
+    setCareDraft("");
+    const existing = currentFamily?.careTypes ?? [];
+    // Seed with language-aware defaults if the family hasn't customised yet
+    setCareTypesDraft(existing.length > 0 ? existing : getDefaultCareTypes(language));
+    setCareTypesVisible(true);
+  };
+
   const openAddChild = (mode: 'create' | 'join' = 'create') => {
     if (mode === 'create' && !canManageFamily) return;
     triggerSelectionFeedback();
@@ -626,6 +637,29 @@ export function SettingsScreen() {
     setVisitTypesVisible(false);
   };
 
+  const addCareDraft = () => {
+    const nextValue = careDraft.trim();
+    if (!nextValue) return;
+    setCareTypesDraft((current) =>
+      normalizeCareTypes([...current, nextValue]),
+    );
+    setCareDraft("");
+  };
+
+  const removeCareDraft = (value: string) => {
+    setCareTypesDraft((current) => current.filter((item) => item !== value));
+  };
+
+  const saveCareTypes = async () => {
+    const merged = careDraft.trim()
+      ? normalizeCareTypes([...careTypesDraft, careDraft.trim()])
+      : normalizeCareTypes(careTypesDraft);
+    setCareTypesDraft(merged);
+    setCareDraft('');
+    await updateFamilyDetails({ careTypes: merged });
+    setCareTypesVisible(false);
+  };
+
   const saveNewChild = async () => {
     await addBaby({
       firstName: childName,
@@ -641,16 +675,12 @@ export function SettingsScreen() {
   const openEditParent = () => {
     triggerSelectionFeedback();
     setEditDisplayName(profile?.displayName ?? "");
-    setEditLabelDraft(myMember?.parentLabel ?? "");
     setEditParentVisible(true);
   };
 
   const saveEditParent = async () => {
     try {
       await updateUserInfo({ displayName: editDisplayName });
-      if (editLabelDraft.trim() !== (myMember?.parentLabel ?? "")) {
-        await updateMyFamilyLabel(editLabelDraft.trim());
-      }
       setEditParentVisible(false);
     } catch {
       setEditParentVisible(false);
@@ -713,7 +743,7 @@ export function SettingsScreen() {
             ]}
           >
             <View style={[styles.parentsComboIcon, { backgroundColor: `${theme.primary}22` }]}>
-              <Ionicons name="people" size={20} color={theme.primary} />
+              <Icon name="people" size={20} color={theme.primary} />
             </View>
             <View style={styles.parentsComboBody}>
               <Text style={[styles.parentsComboTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
@@ -725,7 +755,7 @@ export function SettingsScreen() {
                   : "Tell us if this account is managed by Dad, Mom, or both."}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.primary} />
+            <Icon name="chevron-forward" size={20} color={theme.primary} />
           </Pressable>
         ) : null}
 
@@ -738,11 +768,11 @@ export function SettingsScreen() {
               { backgroundColor: theme.surfaceRaised, borderColor: theme.hairline },
             ]}
           >
-            <Ionicons name="people-outline" size={18} color={theme.primary} />
+            <Icon name="people-outline" size={18} color={theme.primary} />
             <Text style={[styles.parentsComboTextSet, { color: theme.text, fontFamily: theme.fontMedium }]}>
               {comboLabel(currentFamily.parentsCombination, language)}
             </Text>
-            <Ionicons name="create-outline" size={16} color={theme.textMuted} />
+            <Icon name="create-outline" size={16} color={theme.textMuted} />
           </Pressable>
         ) : null}
 
@@ -791,7 +821,7 @@ export function SettingsScreen() {
                   { backgroundColor: theme.primaryContainer },
                 ]}
               >
-                <Ionicons name="camera" size={10} color={theme.primary} />
+                <Icon name="camera" size={10} color={theme.primary} />
               </View>
             </Pressable>
             <View style={styles.memberCopy}>
@@ -827,7 +857,7 @@ export function SettingsScreen() {
               </Text>
             </View>
             <Pressable onPress={openEditParent} style={styles.editLabelBtn}>
-              <Ionicons name="create-outline" size={16} color={theme.primary} />
+              <Icon name="create-outline" size={16} color={theme.primary} />
             </Pressable>
           </View>
         ) : null}
@@ -903,14 +933,14 @@ export function SettingsScreen() {
                       },
                     ]}
                   >
-                    <Ionicons
+                    <Icon
                       name={isSelected ? "checkmark" : "ellipse-outline"}
                       size={14}
                       color={isSelected ? theme.primary : theme.textSoft}
                     />
                   </Pressable>
                   <Pressable onPress={() => openEditBaby(baby)}>
-                    <Ionicons name="chevron-forward" size={18} color={theme.textSoft} />
+                    <Icon name="chevron-forward" size={18} color={theme.textSoft} />
                   </Pressable>
                 </View>
               </View>
@@ -931,7 +961,7 @@ export function SettingsScreen() {
 
                       return (
                         <View key={m.uid} style={styles.coParentRow}>
-                          <Ionicons name="person-outline" size={12} color={theme.textSoft} />
+                          <Icon name="person-outline" size={12} color={theme.textSoft} />
                           <Text
                             style={[styles.childMeta, { color: theme.textSoft, fontFamily: theme.fontMedium, flex: 1 }]}
                             numberOfLines={1}
@@ -950,22 +980,17 @@ export function SettingsScreen() {
                               hitSlop={8}
                               onPress={() => {
                                 triggerSelectionFeedback();
-                                Alert.alert(
+                                confirmAction(
                                   language === 'fr' ? 'Donner accès complet' : 'Grant full access',
                                   language === 'fr'
                                     ? `Donner à ${m.parentLabel ?? m.displayName} le plein accès (enregistrement, modification) ?`
                                     : `Give ${m.parentLabel ?? m.displayName} full access (record, edit)?`,
-                                  [
-                                    { text: language === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-                                    {
-                                      text: language === 'fr' ? 'Confirmer' : 'Confirm',
-                                      onPress: () => { void updateMemberRole(m.uid, 'manager'); },
-                                    },
-                                  ],
+                                  () => { void updateMemberRole(m.uid, 'manager'); },
+                                  { confirmLabel: language === 'fr' ? 'Confirmer' : 'Confirm' },
                                 );
                               }}
                             >
-                              <Ionicons name="checkmark-circle-outline" size={16} color={theme.primary} />
+                              <Icon name="checkmark-circle-outline" size={16} color={theme.primary} />
                             </Pressable>
                           ) : null}
 
@@ -975,23 +1000,20 @@ export function SettingsScreen() {
                               hitSlop={8}
                               onPress={() => {
                                 triggerSelectionFeedback();
-                                Alert.alert(
+                                confirmAction(
                                   language === 'fr' ? "Retirer l'accès" : 'Remove access',
                                   language === 'fr'
                                     ? `Retirer ${m.parentLabel ?? m.displayName} de la famille ?`
                                     : `Remove ${m.parentLabel ?? m.displayName} from the family?`,
-                                  [
-                                    { text: language === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-                                    {
-                                      text: language === 'fr' ? 'Retirer' : 'Remove',
-                                      style: 'destructive',
-                                      onPress: () => { void removeFamilyMember(m.uid); },
-                                    },
-                                  ],
+                                  () => { void removeFamilyMember(m.uid); },
+                                  {
+                                    confirmLabel: language === 'fr' ? 'Retirer' : 'Remove',
+                                    danger: true,
+                                  },
                                 );
                               }}
                             >
-                              <Ionicons name="remove-circle-outline" size={15} color={theme.warning} />
+                              <Icon name="remove-circle-outline" size={15} color={theme.warning} />
                             </Pressable>
                           ) : null}
                         </View>
@@ -1012,7 +1034,7 @@ export function SettingsScreen() {
             onPress={() => openAddChild('create')}
             style={[styles.addChildRow, { borderColor: `${theme.primary}30` }]}
           >
-            <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
+            <Icon name="add-circle-outline" size={18} color={theme.primary} />
             <Text
               style={[
                 styles.sectionAction,
@@ -1027,7 +1049,7 @@ export function SettingsScreen() {
             onPress={() => openAddChild('join')}
             style={styles.joinChildRow}
           >
-            <Ionicons name="person-add-outline" size={15} color={theme.textSoft} />
+            <Icon name="person-add-outline" size={15} color={theme.textSoft} />
             <Text
               style={[
                 styles.sectionAction,
@@ -1036,7 +1058,7 @@ export function SettingsScreen() {
             >
               {language === "fr" ? "Ajouter un enfant par code" : "Add a child by code"}
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={theme.textSoft} />
+            <Icon name="chevron-forward" size={14} color={theme.textSoft} />
           </Pressable>
         )}
       </View>
@@ -1101,6 +1123,11 @@ export function SettingsScreen() {
             onPress={openVisitTypes}
           />
           <LinkRow
+            icon="heart-outline"
+            label={language === "fr" ? "Soins personnalisés" : "Custom care"}
+            onPress={openCareTypes}
+          />
+          <LinkRow
             icon="folder-open-outline"
             label={language === "fr" ? "Données" : "Data"}
             onPress={() => { triggerSelectionFeedback(); setDataVisible(true); }}
@@ -1129,7 +1156,7 @@ export function SettingsScreen() {
           onPress={() => { triggerSelectionFeedback(); setSyncInfoVisible(true); }}
         >
           <View style={styles.settingLeft}>
-            <Ionicons
+            <Icon
               name="shield-checkmark-outline"
               size={18}
               color={
@@ -1145,11 +1172,11 @@ export function SettingsScreen() {
             </Text>
           </View>
           {syncMeta.tone === "success" ? (
-            <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+            <Icon name="checkmark-circle" size={18} color={theme.primary} />
           ) : syncMeta.tone === "warning" ? (
             <AppBadge label={language === "fr" ? "À vérifier" : "Check"} tone="warning" />
           ) : (
-            <Ionicons name="ellipsis-horizontal" size={16} color={theme.textSoft} />
+            <Icon name="ellipsis-horizontal" size={16} color={theme.textSoft} />
           )}
         </Pressable>
         <LinkRow
@@ -1170,6 +1197,46 @@ export function SettingsScreen() {
       <AppButton onPress={isSandbox ? exitSandbox : logout}>
         {isSandbox ? t("settings.quit_sandbox") : t("settings.logout")}
       </AppButton>
+
+      {/* ── DANGER ZONE — RGPD account deletion ── */}
+      {!isSandbox && authUser ? (
+        <View style={styles.dangerZone}>
+          <Text
+            style={[
+              styles.dangerZoneTitle,
+              { color: theme.danger, fontFamily: theme.fontBold },
+            ]}
+          >
+            {language === 'fr' ? 'Zone dangereuse' : 'Danger zone'}
+          </Text>
+          <Text
+            style={[
+              styles.dangerZoneBody,
+              { color: theme.textMuted, fontFamily: theme.fontRegular },
+            ]}
+          >
+            {language === 'fr'
+              ? "La suppression de votre compte efface définitivement vos données : famille, bébés, événements, photos, soins. Cette action est irréversible."
+              : 'Deleting your account permanently erases all your data: family, babies, events, photos, care. This action cannot be undone.'}
+          </Text>
+          <Pressable
+            onPress={() => {
+              triggerSelectionFeedback();
+              setDeleteAccountPassword("");
+              setDeleteAccountConfirmText("");
+              setDeleteAccountVisible(true);
+            }}
+            style={({ pressed }) => [
+              styles.dangerBtn,
+              { borderColor: theme.danger, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[styles.dangerBtnLabel, { color: theme.danger, fontFamily: theme.fontSemiBold }]}>
+              {language === 'fr' ? 'Supprimer mon compte' : 'Delete my account'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {isSandbox ? (
         <Text
@@ -1210,6 +1277,55 @@ export function SettingsScreen() {
         </View>
       ) : null}
 
+      {/* ── DEV : Growth-spurt mock selector — dev tools / sandbox ── */}
+      {canUseDevTools ? (
+        <View style={[styles.devPanel, { backgroundColor: `${theme.warning}12`, borderColor: `${theme.warning}30` }]}>
+          <Text style={[styles.devPanelTitle, { color: theme.warning, fontFamily: theme.fontBold }]}>
+            {language === 'fr' ? '🛠 Mock — pic de croissance' : '🛠 Growth-spurt mock'}
+          </Text>
+          <Text style={[styles.devPanelHint, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
+            {language === 'fr'
+              ? "Force l'affichage de la bannière dans Today avec un scénario simulé."
+              : "Force the Today banner to render a simulated scenario."}
+          </Text>
+          <View style={styles.devPanelStack}>
+            {GROWTH_SPURT_MOCK_OPTIONS.map((opt) => {
+              const active = growthSpurtMock === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => { triggerSelectionFeedback(); setGrowthSpurtMock(opt.key); }}
+                  style={[
+                    styles.mockOption,
+                    {
+                      backgroundColor: active ? theme.warning : `${theme.warning}10`,
+                      borderColor: active ? theme.warning : `${theme.warning}40`,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.mockOptionLabel,
+                      { color: active ? theme.background : theme.warning, fontFamily: theme.fontSemiBold },
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.mockOptionDescription,
+                      { color: active ? theme.background : theme.textMuted, fontFamily: theme.fontRegular },
+                    ]}
+                  >
+                    {opt.description}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
       {/* ════════════════ MODALS ════════════════ */}
 
       {/* Edit parent profile (nom + rôle/alias fusionnés) */}
@@ -1233,7 +1349,7 @@ export function SettingsScreen() {
             </View>
           )}
           <View style={[styles.memberCameraBtn, { backgroundColor: theme.primaryContainer }]}>
-            <Ionicons name="camera" size={10} color={theme.primary} />
+            <Icon name="camera" size={10} color={theme.primary} />
           </View>
         </Pressable>
 
@@ -1243,36 +1359,6 @@ export function SettingsScreen() {
           value={editDisplayName}
           onChangeText={setEditDisplayName}
           placeholder={language === "fr" ? "Votre nom" : "Your name"}
-        />
-
-        {/* Alias / rôle dans la famille */}
-        <Text style={[styles.subSectionLabel, { color: theme.textSoft, fontFamily: theme.fontBold }]}>
-          {language === "fr" ? "Mon rôle dans la famille" : "My role in the family"}
-        </Text>
-        <View style={styles.labelPresetsWrap}>
-          {PARENT_LABEL_PRESETS.map((preset) => (
-            <Pressable
-              key={preset}
-              onPress={() => { triggerSelectionFeedback(); setEditLabelDraft(preset); }}
-              style={[
-                styles.labelPresetChip,
-                {
-                  backgroundColor: editLabelDraft === preset ? theme.secondaryContainer : theme.surfaceRaised,
-                  borderColor: editLabelDraft === preset ? theme.primary : "transparent",
-                },
-              ]}
-            >
-              <Text style={[styles.visitChipLabel, { color: theme.text, fontFamily: editLabelDraft === preset ? theme.fontBold : theme.fontMedium }]}>
-                {preset}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <AppInput
-          label={language === "fr" ? "Ou saisir librement" : "Or type a custom label"}
-          value={editLabelDraft}
-          onChangeText={setEditLabelDraft}
-          placeholder={language === "fr" ? "Grand-mère, Nounou…" : "Grandma, Nanny…"}
         />
 
         <View style={styles.modalActions}>
@@ -1326,7 +1412,7 @@ export function SettingsScreen() {
                 { backgroundColor: theme.primaryContainer },
               ]}
             >
-              <Ionicons name="camera" size={14} color={theme.primary} />
+              <Icon name="camera" size={14} color={theme.primary} />
             </View>
           </Pressable>
         ) : null}
@@ -1604,7 +1690,7 @@ export function SettingsScreen() {
               >
                 {visitName}
               </Text>
-              <Ionicons name="close" size={14} color={theme.textSoft} />
+              <Icon name="close" size={14} color={theme.textSoft} />
             </Pressable>
           ))}
         </View>
@@ -1623,6 +1709,174 @@ export function SettingsScreen() {
           >
             {language === 'fr' ? 'Sauver' : 'Save'}
           </AppButton>
+        </View>
+      </ModalSheet>
+
+      {/* Care types */}
+      <ModalSheet
+        visible={careTypesVisible}
+        title={language === "fr" ? "Soins personnalisés" : "Custom care"}
+        onClose={() => setCareTypesVisible(false)}
+      >
+        <Text
+          style={[
+            styles.syncBody,
+            { color: theme.textMuted, fontFamily: theme.fontRegular },
+          ]}
+        >
+          {language === "fr"
+            ? "Ajoutez les soins récurrents (crème, ostéopathie, kiné…) pour les retrouver en un clic dans le tracker."
+            : "Add recurring care actions (cream, osteopathy, physio…) to access them in one tap from the tracker."}
+        </Text>
+        <AppInput
+          label={language === "fr" ? "Nom du soin" : "Care name"}
+          value={careDraft}
+          onChangeText={setCareDraft}
+          placeholder={language === "fr" ? "Ostéopathie, Crème…" : "Osteopathy, Cream…"}
+          onSubmitEditing={addCareDraft}
+        />
+        {careDraft.trim() ? (
+          <Pressable
+            onPress={addCareDraft}
+            style={({ pressed }) => [
+              styles.addCareDraftBtn,
+              { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
+            ]}
+          >
+            <Icon name="add" size={16} color={theme.onPrimary} />
+            <Text style={[styles.addCareDraftLabel, { color: theme.onPrimary, fontFamily: theme.fontSemiBold }]}>
+              {language === "fr" ? "Ajouter à ma liste" : "Add to my list"}
+            </Text>
+          </Pressable>
+        ) : null}
+        <View style={styles.chipsWrap}>
+          {careTypesDraft.map((careName) => (
+            <Pressable
+              key={careName}
+              onPress={() => removeCareDraft(careName)}
+              style={[
+                styles.visitChip,
+                {
+                  backgroundColor: theme.surfaceRaised,
+                  borderColor: theme.cardBorderStrong,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.visitChipLabel,
+                  { color: theme.text, fontFamily: theme.fontMedium },
+                ]}
+              >
+                {careName}
+              </Text>
+              <Icon name="close" size={14} color={theme.textSoft} />
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.modalActions}>
+          <AppButton
+            style={styles.modalButton}
+            variant="secondary"
+            onPress={() => setCareTypesVisible(false)}
+          >
+            {t("common.cancel")}
+          </AppButton>
+          <AppButton
+            style={styles.modalButton}
+            disabled={saving}
+            onPress={() => void saveCareTypes()}
+          >
+            {language === 'fr' ? 'Sauver' : 'Save'}
+          </AppButton>
+        </View>
+      </ModalSheet>
+
+      {/* Delete account — RGPD */}
+      <ModalSheet
+        visible={deleteAccountVisible}
+        title={language === 'fr' ? 'Supprimer mon compte' : 'Delete account'}
+        onClose={() => setDeleteAccountVisible(false)}
+      >
+        <Text
+          style={[
+            styles.syncBody,
+            { color: theme.danger, fontFamily: theme.fontMedium },
+          ]}
+        >
+          {language === 'fr'
+            ? '⚠️ Cette action est définitive et irréversible.'
+            : '⚠️ This action is final and cannot be undone.'}
+        </Text>
+        <Text
+          style={[
+            styles.syncBody,
+            { color: theme.textMuted, fontFamily: theme.fontRegular },
+          ]}
+        >
+          {language === 'fr'
+            ? "Vous allez supprimer : votre profil, votre famille, tous les bébés associés, l'historique complet des événements, les soins, photos et codes d'invitation. Une fois supprimé, rien n'est récupérable."
+            : 'You will delete: your profile, family, all associated babies, the complete event history, care, photos, and invite codes. Nothing can be recovered.'}
+        </Text>
+        <AppInput
+          label={language === 'fr' ? 'Mot de passe (vérification)' : 'Password (verification)'}
+          value={deleteAccountPassword}
+          onChangeText={setDeleteAccountPassword}
+          placeholder="••••••••"
+          secureTextEntry
+        />
+        <AppInput
+          label={language === 'fr' ? 'Tapez SUPPRIMER pour confirmer' : 'Type DELETE to confirm'}
+          value={deleteAccountConfirmText}
+          onChangeText={setDeleteAccountConfirmText}
+          placeholder={language === 'fr' ? 'SUPPRIMER' : 'DELETE'}
+          autoCapitalize="characters"
+        />
+        <View style={styles.modalActions}>
+          <AppButton
+            style={styles.modalButton}
+            variant="secondary"
+            onPress={() => setDeleteAccountVisible(false)}
+          >
+            {t('common.cancel')}
+          </AppButton>
+          <Pressable
+            disabled={
+              deleteAccountSaving ||
+              !deleteAccountPassword.trim() ||
+              deleteAccountConfirmText.trim().toUpperCase() !== (language === 'fr' ? 'SUPPRIMER' : 'DELETE')
+            }
+            onPress={async () => {
+              setDeleteAccountSaving(true);
+              try {
+                await deleteAccount(deleteAccountPassword);
+                setDeleteAccountVisible(false);
+              } catch {
+                // toast already shown by provider
+              } finally {
+                setDeleteAccountSaving(false);
+              }
+            }}
+            style={({ pressed }) => [
+              styles.modalButton,
+              styles.dangerCommitBtn,
+              {
+                backgroundColor: theme.danger,
+                opacity:
+                  deleteAccountSaving ||
+                  !deleteAccountPassword.trim() ||
+                  deleteAccountConfirmText.trim().toUpperCase() !== (language === 'fr' ? 'SUPPRIMER' : 'DELETE')
+                    ? 0.4
+                    : pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.dangerCommitLabel, { color: theme.onPrimary, fontFamily: theme.fontBold }]}>
+              {deleteAccountSaving
+                ? language === 'fr' ? 'Suppression…' : 'Deleting…'
+                : language === 'fr' ? 'Supprimer définitivement' : 'Delete forever'}
+            </Text>
+          </Pressable>
         </View>
       </ModalSheet>
 
@@ -1856,7 +2110,7 @@ export function SettingsScreen() {
             : { backgroundColor: `${theme.primary}0D` },
         ]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Ionicons
+            <Icon
               name={syncStatus === 'error' ? 'alert-circle' : syncStatus === 'syncing' ? 'sync' : 'checkmark-circle'}
               size={16}
               color={syncStatus === 'error' ? theme.warning : syncStatus === 'syncing' ? theme.textSoft : theme.primary}
@@ -1936,7 +2190,7 @@ export function SettingsScreen() {
               onPress={() => setLogsVisible(false)}
               style={styles.logsModalClose}
             >
-              <Ionicons name="close" size={22} color={theme.textSoft} />
+              <Icon name="close" size={22} color={theme.textSoft} />
             </Pressable>
           </View>
           <LogsScreen />
@@ -2450,6 +2704,30 @@ const styles = StyleSheet.create({
   devPanelBtnText: {
     fontSize: 12,
   },
+  devPanelHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  devPanelStack: {
+    gap: 6,
+  },
+  mockOption: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  mockOptionLabel: {
+    fontSize: 12.5,
+    letterSpacing: 0.1,
+  },
+  mockOptionDescription: {
+    fontSize: 11,
+    lineHeight: 14,
+    opacity: 0.85,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(27, 28, 25, 0.22)",
@@ -2485,6 +2763,62 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  addCareDraftBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    marginTop: -spacing.xs,
+  },
+  addCareDraftLabel: {
+    fontSize: 13,
+    letterSpacing: 0.1,
+  },
+  dangerZone: {
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.25)',
+    backgroundColor: 'rgba(186, 26, 26, 0.04)',
+    gap: spacing.sm,
+  },
+  dangerZoneTitle: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  dangerZoneBody: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  dangerBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+  },
+  dangerBtnLabel: {
+    fontSize: 13,
+    letterSpacing: 0.1,
+  },
+  dangerCommitBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+  },
+  dangerCommitLabel: {
+    fontSize: 14,
+    letterSpacing: 0.1,
   },
   visitChip: {
     minHeight: 34,

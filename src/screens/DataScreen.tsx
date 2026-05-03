@@ -2,7 +2,7 @@ import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { format } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -166,7 +166,7 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
               {t('data.title')}
             </Text>
             <Pressable onPress={onClose} style={styles.modalCloseBtn} hitSlop={12}>
-              <Ionicons name="close" size={22} color={theme.textSoft} />
+              <Icon name="close" size={22} color={theme.textSoft} />
             </Pressable>
           </View>
         ) : (
@@ -185,7 +185,7 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
             {t('data.title')}
           </Text>
           <Pressable onPress={onClose} style={styles.modalCloseBtn} hitSlop={12}>
-            <Ionicons name="close" size={22} color={theme.textSoft} />
+            <Icon name="close" size={22} color={theme.textSoft} />
           </Pressable>
         </View>
       ) : (
@@ -229,7 +229,7 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
           >
             <View style={styles.dateCardHeader}>
               <Text style={[styles.dateLabel, { color: theme.textSoft, fontFamily: theme.fontBold }]}>{t('common.from')}</Text>
-              <Ionicons name="calendar-outline" size={16} color={theme.primary} />
+              <Icon name="calendar-outline" size={16} color={theme.primary} />
             </View>
             <Text style={[styles.dateValue, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
               {formatVisibleDate(selectedRange.fromDate, language)}
@@ -242,7 +242,7 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
           >
             <View style={styles.dateCardHeader}>
               <Text style={[styles.dateLabel, { color: theme.textSoft, fontFamily: theme.fontBold }]}>{t('common.to')}</Text>
-              <Ionicons name="calendar-outline" size={16} color={theme.primary} />
+              <Icon name="calendar-outline" size={16} color={theme.primary} />
             </View>
             <Text style={[styles.dateValue, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
               {formatVisibleDate(selectedRange.toDate, language)}
@@ -317,42 +317,23 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
             <DateTimePicker
               value={pickerValue}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               locale={language}
               themeVariant={theme.isDark ? 'dark' : 'light'}
               textColor={theme.text}
               accentColor={theme.primary}
               maximumDate={parseDateKey(bounds.maxDate)}
               minimumDate={parseDateKey(bounds.minDate)}
-              onChange={(event, selected) => {
-                if (Platform.OS === 'android') {
-                  if (event.type === 'dismissed') {
-                    closePicker();
-                    return;
-                  }
-                  if (selected) {
-                    setPickerValue(selected);
-                    const nextKey = format(selected, 'yyyy-MM-dd');
-                    setRangePreset('custom');
-                    if (pickerField === 'from') setFromDate(nextKey);
-                    if (pickerField === 'to') setToDate(nextKey);
-                  }
-                  closePicker();
-                  return;
+              onChange={(_event, selected) => {
+                if (selected) {
+                  setPickerValue(selected);
+                  const nextKey = format(selected, 'yyyy-MM-dd');
+                  setRangePreset('custom');
+                  if (pickerField === 'from') setFromDate(nextKey);
+                  if (pickerField === 'to') setToDate(nextKey);
                 }
-                if (selected) setPickerValue(selected);
+                closePicker();
               }}
             />
-            {Platform.OS === 'ios' ? (
-              <View style={styles.modalActions}>
-                <AppButton style={styles.modalButton} variant="secondary" onPress={closePicker}>
-                  {t('common.cancel')}
-                </AppButton>
-                <AppButton style={styles.modalButton} onPress={confirmPicker}>
-                  {t('common.save')}
-                </AppButton>
-              </View>
-            ) : null}
           </Pressable>
         </Pressable>
       </Modal>

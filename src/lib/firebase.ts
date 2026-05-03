@@ -1,10 +1,8 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAuth, initializeAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { canUseDevTools, env, isFirebaseConfigured } from './env';
-import { createReactNativePersistence } from './firebasePersistence';
 
 const firebaseConfig = {
   apiKey: env.firebaseApiKey,
@@ -21,13 +19,10 @@ export const firebaseApp = isFirebaseConfigured
 
 export const firebaseAuth = firebaseApp
   ? (() => {
-      try {
-        return initializeAuth(firebaseApp, {
-          persistence: createReactNativePersistence(AsyncStorage),
-        });
-      } catch {
-        return getAuth(firebaseApp);
-      }
+      const auth = getAuth(firebaseApp);
+      // Persist sessions in localStorage so reloads keep the user signed in.
+      void setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+      return auth;
     })()
   : null;
 

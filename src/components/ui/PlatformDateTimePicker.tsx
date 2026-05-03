@@ -1,5 +1,13 @@
-import React from 'react';
-import { StyleProp, View, ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { DayPicker } from 'react-day-picker';
+import { fr as dateFnsFr } from 'date-fns/locale';
+import { format } from 'date-fns';
+import { useAppTheme } from '@/src/providers/ThemeProvider';
+import { radii, spacing } from '@/src/constants/theme';
+import { TimeStepper } from '@/src/components/ui/TimeStepper';
+import 'react-day-picker/style.css';
 
 type Mode = 'date' | 'time' | 'datetime';
 
@@ -22,30 +30,6 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function dateToInputValue(d: Date, mode: Mode): string {
-  const y = d.getFullYear();
-  const m = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mm = pad(d.getMinutes());
-  if (mode === 'date') return `${y}-${m}-${dd}`;
-  if (mode === 'time') return `${hh}:${mm}`;
-  return `${y}-${m}-${dd}T${hh}:${mm}`;
-}
-
-function inputValueToDate(value: string, mode: Mode, base: Date): Date | null {
-  if (!value) return null;
-  if (mode === 'time') {
-    const [hh, mm] = value.split(':').map(Number);
-    if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
-    const d = new Date(base);
-    d.setHours(hh, mm, 0, 0);
-    return d;
-  }
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 export default function PlatformDateTimePicker({
   value,
   mode = 'date',
@@ -54,31 +38,126 @@ export default function PlatformDateTimePicker({
   onChange,
   style,
   textColor,
-  themeVariant,
+  accentColor,
 }: Props) {
-  const inputType = mode === 'date' ? 'date' : mode === 'time' ? 'time' : 'datetime-local';
+  const { theme } = useAppTheme();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const inputElement = React.createElement('input', {
-    type: inputType,
-    value: dateToInputValue(value, mode),
-    min: minimumDate ? dateToInputValue(minimumDate, mode) : undefined,
-    max: maximumDate ? dateToInputValue(maximumDate, mode) : undefined,
-    onChange: (event: { target: { value: string } }) => {
-      const next = inputValueToDate(event.target.value, mode, value);
-      onChange({ type: 'set' }, next ?? undefined);
-    },
-    style: {
-      fontFamily: 'inherit',
-      fontSize: 16,
-      padding: '6px 8px',
-      borderRadius: 8,
-      border: '1px solid rgba(127,127,127,0.3)',
-      backgroundColor: 'transparent',
-      color: textColor ?? 'inherit',
-      colorScheme: themeVariant ?? 'normal',
-      outline: 'none',
-    },
-  });
+  const resolvedColor = textColor ?? theme.text;
+  const resolvedAccent = accentColor ?? theme.primary;
 
-  return <View style={style}>{inputElement}</View>;
+  // ── Time mode → editorial stepper ──
+  if (mode === 'time') {
+    return (
+      <View style={style}>
+        <TimeStepper
+          value={value}
+          onChange={(next) => onChange({ type: 'set' }, next)}
+        />
+      </View>
+    );
+  }
+
+  // ── Date / Datetime → custom modal calendar ──
+  const labelText = format(value, mode === 'datetime' ? "d MMMM yyyy 'à' HH:mm" : 'd MMMM yyyy', { locale: dateFnsFr });
+
+  return (
+    <View style={style}>
+      <Pressable
+        onPress={() => setPickerOpen(true)}
+        style={({ pressed }) => [
+          styles.trigger,
+          {
+            backgroundColor: theme.surfaceContainerHigh,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <Text style={[styles.triggerLabel, { color: resolvedColor, fontFamily: theme.fontMedium }]}>
+          {labelText}
+        </Text>
+      </Pressable>
+
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <BlurView
+          intensity={theme.isDark ? 28 : 36}
+          tint={theme.isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+        <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.calendarCard,
+              {
+                backgroundColor: theme.surfaceLowest,
+                borderColor: theme.cardBorder,
+                shadowColor: theme.shadow,
+              },
+            ]}
+          >
+            <DayPicker
+              mode="single"
+              selected={value}
+              onSelect={(d) => {
+                if (!d) return;
+                const next = new Date(value);
+                next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                onChange({ type: 'set' }, next);
+                setPickerOpen(false);
+              }}
+              startMonth={minimumDate}
+              endMonth={maximumDate}
+              disabled={[
+                ...(minimumDate ? [{ before: minimumDate }] : []),
+                ...(maximumDate ? [{ after: maximumDate }] : []),
+              ]}
+              locale={dateFnsFr}
+              showOutsideDays
+              styles={{
+                root: {
+                  '--rdp-accent-color': resolvedAccent,
+                  '--rdp-accent-background-color': `${resolvedAccent}26`,
+                  '--rdp-background-color': theme.surfaceLowest,
+                  fontFamily: theme.fontMedium,
+                  color: resolvedColor,
+                  margin: 0,
+                  padding: spacing.sm,
+                } as React.CSSProperties,
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  trigger: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  triggerLabel: {
+    fontSize: 15,
+    letterSpacing: -0.1,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 14, 16, 0.32)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  calendarCard: {
+    borderRadius: radii.xl,
+    padding: spacing.sm,
+    borderWidth: 1,
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
+  },
+});

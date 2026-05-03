@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/src/components/ui';
 import { radii, spacing } from '@/src/constants/theme';
@@ -19,7 +19,7 @@ export function SocialScreen() {
         ]}
       >
         <View style={[styles.iconWrap, { backgroundColor: `${theme.evolution}22` }]}>
-          <Ionicons name="heart-outline" size={40} color={theme.evolution} />
+          <Icon name="heart-outline" size={40} color={theme.evolution} />
         </View>
         <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
           {fr ? 'Bientôt disponible' : 'Coming soon'}

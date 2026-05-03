@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -183,7 +183,7 @@ export function OnboardingScreen() {
     <Screen>
       <View style={styles.header}>
         <Pressable onPress={() => void handleBack()} style={[styles.backButton, { backgroundColor: theme.surfaceRaised }]}>
-          <Ionicons name="arrow-back" size={20} color={theme.primary} />
+          <Icon name="arrow-back" size={20} color={theme.primary} />
         </Pressable>
         <Text style={[styles.step, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>{t('onboarding.step')}</Text>
       </View>
@@ -196,7 +196,7 @@ export function OnboardingScreen() {
       {path === 'choice' ? (
         <>
           <View style={styles.hero}>
-            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontBold }]}>
+            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
               {t('onboarding.title')}
             </Text>
             <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -218,7 +218,7 @@ export function OnboardingScreen() {
       {path === 'create' ? (
         <>
           <View style={styles.hero}>
-            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontBold }]}>
+            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
               {t('onboarding.title')}
             </Text>
             <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -308,7 +308,7 @@ export function OnboardingScreen() {
       {path === 'invite-code' ? (
         <>
           <View style={styles.hero}>
-            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontBold }]}>
+            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
               {t('join.title')}
             </Text>
             <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
@@ -351,10 +351,10 @@ export function OnboardingScreen() {
       {path === 'invite-role' ? (
         <>
           <View style={styles.hero}>
-            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontBold }]}>
+            <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
               {t('join.family_found')}
             </Text>
-            <Text style={[styles.familyNameHighlight, { color: theme.primary, fontFamily: theme.fontBold }]}>
+            <Text style={[styles.familyNameHighlight, { color: theme.primary, fontFamily: theme.fontDisplayItalic }]}>
               {familyInfo?.familyName}
             </Text>
           </View>
@@ -443,10 +443,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   progressTrack: {
-    height: 6,
+    height: 3,
     borderRadius: radii.pill,
     overflow: 'hidden',
     marginTop: spacing.md,
+    opacity: 0.7,
   },
   progressFill: {
     height: '100%',
@@ -455,18 +456,21 @@ const styles = StyleSheet.create({
   hero: {
     gap: spacing.sm,
     marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 38,
+    lineHeight: 42,
+    letterSpacing: -0.6,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 26,
+    fontSize: 15,
+    lineHeight: 22,
   },
   familyNameHighlight: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: -0.4,
   },
   questionBlock: {
     gap: spacing.md,

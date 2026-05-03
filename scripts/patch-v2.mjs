@@ -14,7 +14,7 @@ import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
 const ADMIN_EMAIL = 'admin@charlie.com';
-const FAMILY_ID = 'VWSC9YSaNGRsckkkBS2i';
+const FAMILY_ID = 'osWgSUAkUsuNv4SNrQzI';
 const PARENTS_COMBINATION = 'papa_maman';
 const PARENT_NAMES = ['Papa', 'Maman'];
 

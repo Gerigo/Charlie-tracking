@@ -1,6 +1,9 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser as firebaseDeleteUser,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -175,6 +178,7 @@ function toFamily(id: string, data: any): Family {
     members: rawMembers.map(toFamilyMember),
     parentNames: Array.isArray(data.parentNames) ? data.parentNames : [],
     visitTypes: Array.isArray(data.visitTypes) ? data.visitTypes.filter((value: unknown) => typeof value === 'string') : [],
+    careTypes: Array.isArray(data.careTypes) ? data.careTypes.filter((value: unknown) => typeof value === 'string') : [],
     premiumStatus: data.premiumStatus === 'premium' ? 'premium' : 'free',
     createdAt: typeof data.createdAt === 'number' ? data.createdAt : now(),
     updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : now(),
@@ -359,6 +363,83 @@ export async function signOut() {
   await firebaseSignOut(requireAuth());
 }
 
+/**
+ * RGPD — cascade-deletes all data the user owns:
+ *  - if owner of a family: family, babies, events, activeSessions, inviteCodes,
+ *    guestSessions tied to that family
+ *  - userProfile
+ *  - guestSession (if user was a guest)
+ *  - finally the Firebase Auth account itself
+ *
+ * Re-authentication is required immediately before because Firebase Auth
+ * forbids `deleteUser` after a long-lived session for security reasons.
+ */
+export async function deleteAccount(input: { password: string }): Promise<void> {
+  const auth = requireAuth();
+  const db = requireFirestore();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Aucun utilisateur connecté.');
+  if (!user.email) throw new Error("Suppression auto impossible pour ce type de compte.");
+
+  // Re-auth — required by Firebase before deleting an account
+  const credential = EmailAuthProvider.credential(user.email, input.password);
+  await reauthenticateWithCredential(user, credential);
+
+  const uid = user.uid;
+
+  // 1. Resolve the user's familyId (if any) to scope the cascade
+  const profileSnap = await getDoc(doc(db, 'userProfiles', uid));
+  const profileData = profileSnap.exists() ? profileSnap.data() : null;
+  const familyId: string | null =
+    typeof profileData?.familyId === 'string'
+      ? profileData.familyId
+      : typeof profileData?.defaultFamilyId === 'string'
+        ? profileData.defaultFamilyId
+        : null;
+
+  // 2. If owner of the family → cascade family-scoped data
+  if (familyId) {
+    const familySnap = await getDoc(doc(db, 'families', familyId));
+    const isOwner = familySnap.exists() && familySnap.data().ownerUserId === uid;
+    if (isOwner) {
+      await cascadeDeleteFamily(db, familyId);
+    }
+  }
+
+  // 3. Delete guest session if any
+  try { await deleteDoc(doc(db, 'guestSessions', uid)); } catch { /* not a guest */ }
+
+  // 4. Delete the user profile
+  try { await deleteDoc(doc(db, 'userProfiles', uid)); } catch { /* tolerate */ }
+
+  // 5. Finally delete the Firebase Auth account — this also signs the user out
+  await firebaseDeleteUser(user);
+}
+
+async function cascadeDeleteFamily(db: ReturnType<typeof requireFirestore>, familyId: string): Promise<void> {
+  // Delete in chunks of 400 to stay under the Firestore 500-write batch limit.
+  const BATCH = 400;
+  async function deleteWhere(collectionName: string, fieldName: string, value: string) {
+    const snap = await getDocs(query(collection(db, collectionName), where(fieldName, '==', value)));
+    let buffer: Array<{ ref: ReturnType<typeof doc> }> = snap.docs.map((d) => ({ ref: d.ref }));
+    while (buffer.length > 0) {
+      const chunk = buffer.slice(0, BATCH);
+      buffer = buffer.slice(BATCH);
+      const batch = writeBatch(db);
+      chunk.forEach((c) => batch.delete(c.ref));
+      await batch.commit();
+    }
+  }
+
+  await deleteWhere('events', 'familyId', familyId);
+  await deleteWhere('activeSessions', 'familyId', familyId);
+  await deleteWhere('babies', 'familyId', familyId);
+  await deleteWhere('inviteCodes', 'familyId', familyId);
+  await deleteWhere('guestSessions', 'familyId', familyId);
+  // Finally the family itself
+  try { await deleteDoc(doc(db, 'families', familyId)); } catch { /* tolerate */ }
+}
+
 /** Met à jour la combinaison de parents de la famille et synchronise parentNames. */
 export async function updateFamilyParentsCombination(
   familyId: string,
@@ -533,6 +614,7 @@ export async function createInitialSetup(user: User, input: InitialSetupInput) {
     parentsCombination: 'papa_maman',
     parentNames: comboToParentNames('papa_maman'),
     visitTypes: [],
+    careTypes: [],
     premiumStatus: 'free',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -904,12 +986,13 @@ export async function createBabyProfile(params: {
 
 export async function updateFamilyProfile(
   familyId: string,
-  updates: Partial<Pick<Family, 'name' | 'parentNames' | 'visitTypes'>>
+  updates: Partial<Pick<Family, 'name' | 'parentNames' | 'visitTypes' | 'careTypes'>>
 ) {
   await setDoc(doc(requireFirestore(), 'families', familyId), {
     ...(updates.name ? { name: updates.name.trim() } : {}),
     ...(updates.parentNames ? { parentNames: updates.parentNames.filter(Boolean) } : {}),
     ...(updates.visitTypes ? { visitTypes: updates.visitTypes.map((value) => value.trim()).filter(Boolean) } : {}),
+    ...(updates.careTypes ? { careTypes: updates.careTypes.map((value) => value.trim()).filter(Boolean) } : {}),
     updatedAt: now(),
   }, { merge: true });
 }
@@ -928,7 +1011,6 @@ async function uploadPhoto(path: string, uri: string): Promise<string> {
   const ref = storageRef(storage, path);
   await uploadBytes(ref, blob);
   const url = await getDownloadURL(ref);
-  // Libérer le blob pour éviter les fuites mémoire sur Android
   if (typeof (blob as any).close === 'function') (blob as any).close();
   return url;
 }
@@ -1010,6 +1092,30 @@ export async function deleteTrackedEvent(eventId: string, babyId?: string) {
   if (activeSession.eventId === eventId) {
     await deleteDoc(activeSessionRef);
   }
+}
+
+/**
+ * Re-creates a previously-deleted event with its original ID. Used by the
+ * "Undo" toast pattern after deleteEvent. Caller must hold the original
+ * TrackedEvent shape captured before delete.
+ */
+export async function restoreTrackedEvent(event: TrackedEvent): Promise<void> {
+  const db = requireFirestore();
+  await setDoc(doc(db, 'events', event.id), {
+    type: event.type,
+    familyId: event.familyId,
+    babyId: event.babyId,
+    startTime: event.startTime,
+    endTime: event.endTime ?? null,
+    details: sanitizeDetails(event.details ?? {}),
+    notes: event.notes ?? null,
+    createdAt: event.createdAt,
+    updatedAt: now(),
+    createdByUserId: event.createdByUserId,
+    createdByRole: event.createdByRole,
+    ...(event.createdByLabel ? { createdByLabel: event.createdByLabel } : {}),
+    serverCreatedAt: serverTimestamp(),
+  });
 }
 
 async function createLegacyInstantEvent(

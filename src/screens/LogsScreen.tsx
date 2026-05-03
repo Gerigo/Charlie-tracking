@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { useEffect, useReducer, useState } from 'react';
 import {
   Pressable,
@@ -78,7 +78,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
         </Text>
         {/* Expand indicator */}
         {hasExtra ? (
-          <Ionicons
+          <Icon
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={14}
             color={theme.textMuted}
@@ -154,13 +154,13 @@ export function LogsScreen() {
         })}
         <View style={styles.statSpacer} />
         <Pressable onPress={shareAll} style={styles.actionBtn}>
-          <Ionicons name="share-outline" size={18} color={theme.textSoft} />
+          <Icon name="share-outline" size={18} color={theme.textSoft} />
         </Pressable>
         <Pressable
           onPress={() => { logger.clearBuffer(); }}
           style={styles.actionBtn}
         >
-          <Ionicons name="trash-outline" size={18} color={LEVEL_CONFIG.error.color} />
+          <Icon name="trash-outline" size={18} color={LEVEL_CONFIG.error.color} />
         </Pressable>
       </View>
 
@@ -201,7 +201,7 @@ export function LogsScreen() {
       {/* Entries */}
       {entries.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="document-text-outline" size={32} color={theme.textMuted} />
+          <Icon name="document-text-outline" size={32} color={theme.textMuted} />
           <Text style={[styles.emptyText, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>
             Aucun log pour ce filtre
           </Text>

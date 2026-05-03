@@ -14,6 +14,7 @@ const translations = {
     "common.loading": "Chargement...",
     "common.continue": "Continuer",
     "common.cancel": "Annuler",
+    "common.confirm": "Confirmer",
     "common.view_all": "Voir tout",
     "common.view_more": "Voir plus",
     "common.view_less": "Voir moins",
@@ -322,10 +323,6 @@ const translations = {
     "toast.notifications_off.title": "Notifications non activées",
     "toast.notifications_on.body":
       "Les rappels natifs pourront être branchés dans la prochaine phase.",
-    "toast.notifications_off.expo_go":
-      "Expo Go ne gère pas complètement les notifications. On les testera proprement dans une vraie build iOS.",
-    "toast.notifications_off.device_only":
-      "Les notifications se testent sur appareil réel ou build dédiée, pas sur simulateur.",
     "toast.notifications_off.later":
       "Vous pourrez autoriser les notifications plus tard dans Réglages.",
     "toast.sandbox_closed.title": "Mode test fermé",
@@ -419,6 +416,7 @@ const translations = {
     "common.loading": "Loading...",
     "common.continue": "Continue",
     "common.cancel": "Cancel",
+    "common.confirm": "Confirm",
     "common.view_all": "View all",
     "common.view_more": "View more",
     "common.view_less": "View less",
@@ -725,10 +723,6 @@ const translations = {
     "toast.notifications_off.title": "Notifications not enabled",
     "toast.notifications_on.body":
       "Native reminders can be wired in during the next phase.",
-    "toast.notifications_off.expo_go":
-      "Expo Go does not fully support notifications. We will validate them properly in a real iOS build.",
-    "toast.notifications_off.device_only":
-      "Notifications are tested on a physical device or dedicated build, not in the simulator.",
     "toast.notifications_off.later":
       "You can allow notifications later in Settings.",
     "toast.sandbox_closed.title": "Test mode closed",

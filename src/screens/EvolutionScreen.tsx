@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon } from '@/src/components/ui/Icon';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
@@ -59,7 +59,7 @@ function SummaryInsightCard({
   caption,
   accent,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: string;
   title: string;
   value: string;
   caption: string;
@@ -70,7 +70,7 @@ function SummaryInsightCard({
     <Card>
       <View style={styles.summaryInsightHeader}>
         <View style={[styles.summaryInsightIcon, { backgroundColor: `${accent}14` }]}>
-          <Ionicons name={icon} size={18} color={accent} />
+          <Icon name={icon} size={18} color={accent} />
         </View>
         <View style={styles.summaryInsightCopy}>
           <Text style={[styles.summaryInsightTitle, { color: theme.textSoft, fontFamily: theme.fontBold }]}>{title}</Text>
@@ -118,7 +118,7 @@ function LineChartCard({
 
   return (
     <Card>
-      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontSemiBold, marginBottom: spacing.sm }]}>{title}</Text>
+      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines + labels */}
         {[0, 1, 2, 3].map((step) => {
@@ -236,7 +236,7 @@ function BarChartCard({
 
   return (
     <Card>
-      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontSemiBold, marginBottom: spacing.sm }]}>{title}</Text>
+      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines (3 levels) */}
         {[0, 1, 2, 3].map((step) => {
@@ -353,7 +353,7 @@ function TemperatureChartCard({
 
   return (
     <Card>
-      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontSemiBold, marginBottom: spacing.sm }]}>{title}</Text>
+      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
       <Svg width={width} height={CHART_HEIGHT}>
           {[0, 1, 2, 3].map((step) => {
             const value = Number((minValue + ((maxValue - minValue) * step) / 3).toFixed(1));
@@ -512,7 +512,7 @@ function HourlyTrendCard({ hour, sleep, awake, meal }: { hour: string; sleep: nu
       <Text style={[styles.trendHour, { color: theme.text, fontFamily: theme.fontBold }]}>{hour}</Text>
       {lines.map((line) => (
         <View key={line.key} style={[styles.trendLine, { opacity: line.value === dominantValue ? 1 : 0.62 }]}>
-          <Ionicons name={line.icon} size={13} color={line.color} />
+          <Icon name={line.icon} size={13} color={line.color} />
           <View style={[styles.trendTrack, { backgroundColor: theme.surfaceContainerHigh }]}>
             <View style={[styles.trendFill, { width: `${line.value}%`, backgroundColor: line.color, height: line.value === dominantValue ? 10 : 8 }]} />
           </View>
@@ -583,7 +583,7 @@ function TrendHeatmap({
   return (
     <Card>
       {/* Title */}
-      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontSemiBold, marginBottom: 6 }]}>
+      <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: 6 }]}>
         {t('evolution.trend_title')}
       </Text>
       {/* Range chips — below title, smaller */}
@@ -612,7 +612,7 @@ function TrendHeatmap({
               key={row.key}
               style={[styles.hmapIconCell, { height: HMAP_ROW_H, marginBottom: i < rows.length - 1 ? HMAP_ROW_GAP : 0 }]}
             >
-              <Ionicons name={row.icon} size={15} color={row.color} />
+              <Icon name={row.icon} size={15} color={row.color} />
             </View>
           ))}
         </View>
@@ -683,7 +683,7 @@ function TrendHeatmap({
               {t('evolution.trend_title')}
             </Text>
             <Pressable onPress={() => setDetailVisible(false)} style={styles.detailModalClose}>
-              <Ionicons name="close" size={22} color={theme.textSoft} />
+              <Icon name="close" size={22} color={theme.textSoft} />
             </Pressable>
           </View>
           {/* Scrollable grid */}
@@ -745,7 +745,7 @@ export function EvolutionScreen() {
       <EditorialTopBar />
 
       <View style={styles.hero}>
-        <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontLight }]}>{t('evolution.title')}</Text>
+        <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>{t('evolution.title')}</Text>
         <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>{t('evolution.subtitle')}</Text>
       </View>
 
@@ -861,7 +861,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   trendRangeRow: {
     flexDirection: 'row',
