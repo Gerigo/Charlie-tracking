@@ -13,7 +13,7 @@ export default function AuthLayout() {
   }
 
   if (isSandbox || (authUser && !needsOnboarding)) {
-    return <Redirect href="/(app)/(tabs)/tracker" />;
+    return <Redirect href="/tracker" />;
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;

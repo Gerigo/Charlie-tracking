@@ -559,9 +559,7 @@ export function GrowthScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.screenContent}>
-      <EditorialTopBar />
-
+    <Screen contentContainerStyle={styles.screenContent} topBar={<EditorialTopBar />}>
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
@@ -720,7 +718,7 @@ export function GrowthScreen() {
           <Pressable
             onPress={() => {
               triggerSelectionFeedback();
-              router.push('/(app)/(tabs)/history');
+              router.push('/history');
             }}
           >
             <Text style={[styles.historyLink, { color: theme.primary, fontFamily: theme.fontBold }]}>

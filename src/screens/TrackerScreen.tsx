@@ -775,18 +775,23 @@ function QuickTile({
           style={[styles.quickTileAccentWash, { backgroundColor: `${accent}14` }]}
         />
 
-        {/* Glass — top highlight gradient + bottom shade */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={
-            active
-              ? ["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(0,0,0,0.18)"]
-              : ["rgba(255,255,255,0.50)", "rgba(255,255,255,0.10)", "rgba(0,0,0,0.04)"]
-          }
-          locations={[0, 0.45, 1]}
-          style={styles.quickTileGlass}
-        />
-        <View pointerEvents="none" style={[styles.quickTileTopHairline, { backgroundColor: active ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)" }]} />
+        {/* Carnet identity = paper, not glass. Active state keeps a subtle
+            highlight (light on dark hero); inactive renders no gloss so
+            text reads cleanly on the white tile. */}
+        {active ? (
+          <>
+            <LinearGradient
+              pointerEvents="none"
+              colors={["rgba(255,255,255,0.14)", "rgba(255,255,255,0.02)", "rgba(0,0,0,0.12)"]}
+              locations={[0, 0.45, 1]}
+              style={styles.quickTileGlass}
+            />
+            <View
+              pointerEvents="none"
+              style={[styles.quickTileTopHairline, { backgroundColor: "rgba(255,255,255,0.14)" }]}
+            />
+          </>
+        ) : null}
 
         {/* Top row — icon bubble + ⋯ */}
         <View style={styles.quickTileTop}>
@@ -1232,9 +1237,7 @@ export function TrackerScreen() {
   };
 
   return (
-    <Screen>
-      <EditorialTopBar />
-
+    <Screen topBar={<EditorialTopBar />}>
       {isViewer ? (
         <View style={[styles.viewerBanner, { backgroundColor: `${theme.warning}15`, borderColor: `${theme.warning}30` }]}>
           <Icon name="eye-outline" size={16} color={theme.warning} />

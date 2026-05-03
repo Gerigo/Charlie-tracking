@@ -31,7 +31,7 @@ interface Props {
  */
 export function GrowthSpurtBanner({ events, baby }: Props) {
   const { theme } = useAppTheme();
-  const { growthSpurtMock } = useAppContext();
+  const { growthSpurtMock, growthBannerHidden, setGrowthBannerHidden } = useAppContext();
 
   const realAnalysis = useMemo(() => detectGrowthSpurt(events, baby), [events, baby]);
   const mockAnalysis = useMemo(() => getGrowthSpurtMockAnalysis(growthSpurtMock), [growthSpurtMock]);
@@ -89,6 +89,31 @@ export function GrowthSpurtBanner({ events, baby }: Props) {
       ? `Fenêtre typique : ${analysis.ageWindowLabel}. Confiance ${Math.round(analysis.confidence)}/100.`
       : `Confiance ${Math.round(analysis.confidence)}/100.`;
 
+  // Hidden by user — render a tiny "show" pill so they can bring it back.
+  if (growthBannerHidden) {
+    return (
+      <Pressable
+        onPress={() => {
+          triggerSelectionFeedback();
+          setGrowthBannerHidden(false);
+        }}
+        style={({ pressed }) => [
+          styles.reopenPill,
+          {
+            backgroundColor: theme.surfaceLowest,
+            borderColor: theme.cardBorder,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <Icon name="sparkles-outline" size={14} color={theme.primary} />
+        <Text style={[styles.reopenLabel, { color: theme.primary, fontFamily: theme.fontSemiBold }]}>
+          Afficher l'analyse
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View
       style={[
@@ -105,6 +130,19 @@ export function GrowthSpurtBanner({ events, baby }: Props) {
       ]}
     >
       <View pointerEvents="none" style={[styles.accentStripe, { backgroundColor: accent }]} />
+
+      {/* Hide button — tucked top-right. Persists in AsyncStorage so the
+          choice survives reloads. Reopen pill replaces the banner. */}
+      <Pressable
+        onPress={() => {
+          triggerSelectionFeedback();
+          setGrowthBannerHidden(true);
+        }}
+        hitSlop={10}
+        style={[styles.closeBtn, { backgroundColor: theme.surfaceContainer }]}
+      >
+        <Icon name="close" size={14} color={theme.textSoft} />
+      </Pressable>
 
       {/* Decorative "tape" pinning the journal page in the top-left corner.
           Always present — it's the silent identity marker of the banner. */}
@@ -271,8 +309,33 @@ const styles = StyleSheet.create({
   stampWrap: {
     position: 'absolute',
     top: -12,
-    right: 16,
+    right: 64, // pushed left to leave room for the close button
     zIndex: 2,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  reopenPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  reopenLabel: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   accentStripe: {
     position: 'absolute',

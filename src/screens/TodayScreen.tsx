@@ -1497,9 +1497,7 @@ export function TodayScreen() {
   });
 
   return (
-    <Screen onRefresh={refreshData}>
-      <EditorialTopBar />
-
+    <Screen onRefresh={refreshData} topBar={<EditorialTopBar />}>
       {currentBaby ? (
         <GrowthSpurtBanner events={events} baby={currentBaby} />
       ) : null}
@@ -1521,24 +1519,23 @@ export function TodayScreen() {
               },
         ]}
       >
-        {/* Glass — top highlight gradient + bottom shade */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={
-            liveSleepActive
-              ? ["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(0,0,0,0.18)"]
-              : ["rgba(255,255,255,0.50)", "rgba(255,255,255,0.08)", "rgba(0,0,0,0.04)"]
-          }
-          locations={[0, 0.45, 1]}
-          style={styles.heroGlass}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.heroTopHairline,
-            { backgroundColor: liveSleepActive ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)" },
-          ]}
-        />
+        {/* Carnet identity = paper, not glass. Active (sleep dark) keeps a
+            subtle moonlight highlight; inactive renders no gloss so the
+            text reads cleanly on the white card. */}
+        {liveSleepActive ? (
+          <>
+            <LinearGradient
+              pointerEvents="none"
+              colors={["rgba(255,255,255,0.14)", "rgba(255,255,255,0.02)", "rgba(0,0,0,0.12)"]}
+              locations={[0, 0.45, 1]}
+              style={styles.heroGlass}
+            />
+            <View
+              pointerEvents="none"
+              style={[styles.heroTopHairline, { backgroundColor: "rgba(255,255,255,0.14)" }]}
+            />
+          </>
+        ) : null}
         <View style={styles.heroTopRow}>
           <View style={styles.heroDateWrap}>
             <Pressable
@@ -2062,7 +2059,7 @@ export function TodayScreen() {
 
       {/* ── Lien vers l'historique complet ── */}
       <Pressable
-        onPress={() => { triggerSelectionFeedback(); router.push('/(app)/(tabs)/history'); }}
+        onPress={() => { triggerSelectionFeedback(); router.push('/history'); }}
         style={styles.historyLink}
       >
         <Icon name="time-outline" size={15} color={theme.textSoft} />

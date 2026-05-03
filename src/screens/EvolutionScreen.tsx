@@ -733,17 +733,14 @@ export function EvolutionScreen() {
 
   if (!dashboardData.overview && !trendData.overview && visibleTemperatureByDay.length === 0) {
     return (
-      <Screen>
-        <EditorialTopBar />
+      <Screen topBar={<EditorialTopBar />}>
         <EmptyState title={t('evolution.title')} body={t('evolution.no_data')} />
       </Screen>
     );
   }
 
   return (
-    <Screen>
-      <EditorialTopBar />
-
+    <Screen topBar={<EditorialTopBar />}>
       <View style={styles.hero}>
         <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>{t('evolution.title')}</Text>
         <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>{t('evolution.subtitle')}</Text>

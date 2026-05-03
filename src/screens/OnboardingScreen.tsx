@@ -99,7 +99,7 @@ export function OnboardingScreen() {
     // From choice screen — go back to login
     if (authUser) {
       await logout();
-      router.replace('/(auth)/login');
+      router.replace('/login');
       return;
     }
 
@@ -108,7 +108,7 @@ export function OnboardingScreen() {
       return;
     }
 
-    router.replace('/(auth)/login');
+    router.replace('/login');
   };
 
   const submitSetup = async (options?: { skip?: boolean }) => {
@@ -123,7 +123,7 @@ export function OnboardingScreen() {
     });
 
     if (success) {
-      router.replace('/(app)/(tabs)/tracker');
+      router.replace('/tracker');
     }
   };
 
@@ -165,7 +165,7 @@ export function OnboardingScreen() {
       // Listeners Firestore mettent à jour needsOnboarding → la navigation
       // se fait automatiquement via l'index quand memberships.length > 0.
       // On navigue aussi explicitement pour les cas où l'index ne redirige pas.
-      router.replace('/(app)/(tabs)/tracker');
+      router.replace('/tracker');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[JoinFamily] error:', msg);

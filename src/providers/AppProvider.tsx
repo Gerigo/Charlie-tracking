@@ -6,6 +6,8 @@ import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View 
 import type { User } from 'firebase/auth';
 import { translate } from '@/src/constants/i18n';
 import { MOCK_STORAGE_KEY, type GrowthSpurtMockKey } from '@/src/lib/devMocks';
+
+const GROWTH_BANNER_HIDDEN_KEY = '@charlie:growth_banner_hidden';
 import type {
   ActiveSession,
   AppLanguage,
@@ -157,6 +159,10 @@ interface AppContextValue {
    * displays the corresponding mock analysis instead of running detection. */
   growthSpurtMock: GrowthSpurtMockKey;
   setGrowthSpurtMock: (key: GrowthSpurtMockKey) => void;
+  /** User-controlled visibility of the GrowthSpurtBanner on the Today
+   * screen. Persists across reloads via AsyncStorage. */
+  growthBannerHidden: boolean;
+  setGrowthBannerHidden: (hidden: boolean) => void;
   lastSyncedAt: number | null;
   saving: boolean;
   notificationsGranted: boolean;
@@ -488,6 +494,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const seenEventIdsInitialisedRef = useRef(false);
   const [livePulseToken, setLivePulseToken] = useState(0);
   const [growthSpurtMock, setGrowthSpurtMockState] = useState<GrowthSpurtMockKey>('off');
+  const [growthBannerHidden, setGrowthBannerHiddenState] = useState<boolean>(false);
 
   // Hydrate the growth-spurt mock from AsyncStorage on first mount
   useEffect(() => {
@@ -502,9 +509,23 @@ export function AppProvider({ children }: PropsWithChildren) {
       .catch(() => undefined);
   }, []);
 
+  // Hydrate the banner hidden flag.
+  useEffect(() => {
+    void AsyncStorage.getItem(GROWTH_BANNER_HIDDEN_KEY)
+      .then((stored) => {
+        if (stored === 'true') setGrowthBannerHiddenState(true);
+      })
+      .catch(() => undefined);
+  }, []);
+
   const setGrowthSpurtMock = useCallback((key: GrowthSpurtMockKey) => {
     setGrowthSpurtMockState(key);
     void AsyncStorage.setItem(MOCK_STORAGE_KEY, key).catch(() => undefined);
+  }, []);
+
+  const setGrowthBannerHidden = useCallback((hidden: boolean) => {
+    setGrowthBannerHiddenState(hidden);
+    void AsyncStorage.setItem(GROWTH_BANNER_HIDDEN_KEY, hidden ? 'true' : 'false').catch(() => undefined);
   }, []);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing');
   const [isNetworkOffline, setIsNetworkOffline] = useState(false);
@@ -1203,6 +1224,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     livePulseToken,
     growthSpurtMock,
     setGrowthSpurtMock,
+    growthBannerHidden,
+    setGrowthBannerHidden,
     lastSyncedAt,
     saving,
     notificationsGranted,

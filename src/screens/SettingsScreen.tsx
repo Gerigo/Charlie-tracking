@@ -700,9 +700,7 @@ export function SettingsScreen() {
   };
 
   return (
-    <Screen>
-      <EditorialTopBar />
-
+    <Screen topBar={<EditorialTopBar />}>
       {/* ── FAMILLE (unified adults + babies) ── */}
       <View
         style={[

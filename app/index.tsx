@@ -9,12 +9,12 @@ export default function IndexRoute() {
   }
 
   if (!authUser && !isSandbox) {
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   if (!isSandbox && needsOnboarding) {
     return <Redirect href="/onboarding" />;
   }
 
-  return <Redirect href="/(app)/(tabs)/tracker" />;
+  return <Redirect href="/tracker" />;
 }

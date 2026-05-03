@@ -63,6 +63,7 @@ export function Screen({
   scroll = true,
   contentContainerStyle,
   onRefresh,
+  topBar,
 }: PropsWithChildren<{
   scroll?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -72,6 +73,12 @@ export function Screen({
    * small delay (~600ms) is enough to give the user feedback.
    */
   onRefresh?: () => Promise<void> | void;
+  /**
+   * Optional sticky element (typically `<EditorialTopBar />`) rendered OUTSIDE
+   * the ScrollView so it stays pinned at the top while the body scrolls.
+   * Pass nothing if the screen doesn't need a top bar.
+   */
+  topBar?: ReactNode;
 }>) {
   const { theme } = useAppTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -152,6 +159,10 @@ export function Screen({
         style={styles.keyboardWrap}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        {/* Sticky top bar — rendered above the ScrollView so it doesn't
+            scroll away. Padded over the safe-area top, doesn't affect the
+            scrollable body. */}
+        {topBar ? <View style={styles.stickyTopBar}>{topBar}</View> : null}
         {body}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -636,6 +647,11 @@ const styles = StyleSheet.create({
   },
   keyboardWrap: {
     flex: 1,
+  },
+  stickyTopBar: {
+    // No absolute positioning — flow item above the ScrollView. The
+    // EditorialTopBar provides its own background blur + padding.
+    zIndex: 10,
   },
   scrollContent: {
     paddingHorizontal: spacing.md,

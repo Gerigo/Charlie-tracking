@@ -157,41 +157,31 @@ export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
     );
   };
 
+  // Sticky header — either the editorial top bar (tab mode) or a modal
+  // header with a close button (when DataScreen is opened as a modal).
+  const stickyHeader = onClose ? (
+    <View style={[styles.modalHeader, { borderBottomColor: theme.hairline }]}>
+      <Text style={[styles.modalTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
+        {t('data.title')}
+      </Text>
+      <Pressable onPress={onClose} style={styles.modalCloseBtn} hitSlop={12}>
+        <Icon name="close" size={22} color={theme.textSoft} />
+      </Pressable>
+    </View>
+  ) : (
+    <EditorialTopBar />
+  );
+
   if (events.length === 0) {
     return (
-      <Screen>
-        {onClose ? (
-          <View style={[styles.modalHeader, { borderBottomColor: theme.hairline }]}>
-            <Text style={[styles.modalTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-              {t('data.title')}
-            </Text>
-            <Pressable onPress={onClose} style={styles.modalCloseBtn} hitSlop={12}>
-              <Icon name="close" size={22} color={theme.textSoft} />
-            </Pressable>
-          </View>
-        ) : (
-          <EditorialTopBar />
-        )}
+      <Screen topBar={stickyHeader}>
         <EmptyState title={t('data.title')} body={t('data.empty_period')} />
       </Screen>
     );
   }
 
   return (
-    <Screen>
-      {onClose ? (
-        <View style={[styles.modalHeader, { borderBottomColor: theme.hairline }]}>
-          <Text style={[styles.modalTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-            {t('data.title')}
-          </Text>
-          <Pressable onPress={onClose} style={styles.modalCloseBtn} hitSlop={12}>
-            <Icon name="close" size={22} color={theme.textSoft} />
-          </Pressable>
-        </View>
-      ) : (
-        <EditorialTopBar />
-      )}
-
+    <Screen topBar={stickyHeader}>
       <View style={styles.hero}>
         <Text style={[styles.title, { color: theme.text, fontFamily: theme.fontLight }]}>{t('data.title')}</Text>
         <Text style={[styles.subtitle, { color: theme.textMuted, fontFamily: theme.fontRegular }]}>{t('data.subtitle')}</Text>

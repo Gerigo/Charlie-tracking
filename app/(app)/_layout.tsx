@@ -9,7 +9,7 @@ export default function AppLayout() {
   }
 
   if (!authUser && !isSandbox) {
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   if (!isSandbox && needsOnboarding) {
