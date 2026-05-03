@@ -2220,17 +2220,17 @@ export function AppProvider({ children }: PropsWithChildren) {
             const isError = toast.kind === 'error';
             const tint = isError ? theme.danger : theme.success;
             const icon = isError ? 'alert-circle' : 'checkmark-circle';
-            // Carnet d'aquarelle: tinted cream washes derived from the
-            // semantic colour, kept gentle so toasts read as paper notes.
-            const backgroundColor = `${tint}1A`;
-
+            // Carnet d'aquarelle: solid white paper card with a coloured
+            // accent stripe on the left — same idiom as timeline cards.
+            // The previous tint-wash background was illegible whenever
+            // it landed on top of existing text.
             return (
           <View
             style={[
               styles.toast,
               {
-                backgroundColor,
-                borderColor: `${tint}28`,
+                backgroundColor: theme.surfaceLowest,
+                borderColor: `${tint}55`,
                 shadowColor: theme.shadow,
               },
             ]}
