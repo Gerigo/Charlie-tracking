@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useSPANav } from '@/src/lib/spaNav';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { editorialAssets, getBabyAvatarUri } from '@/src/constants/editorialAssets';
@@ -21,7 +21,7 @@ export function EditorialTopBar({
 }) {
   const { theme } = useAppTheme();
   const { currentBaby, profile, currentFamily, language } = useAppContext();
-  const router = useRouter();
+  const { goToTab } = useSPANav();
   const resolvedTitle = title ?? currentBaby?.firstName ?? 'Luna';
   const resolvedImageUri = imageUri ?? currentBaby?.photoUrl ?? getBabyAvatarUri(currentBaby?.avatarKey);
   const resolvedProfileUri = profileImageUri ?? profile?.photoUrl ?? editorialAssets.familyHero;
@@ -63,7 +63,7 @@ export function EditorialTopBar({
             style={({ pressed }) => [styles.profileBtn, pressed ? { opacity: 0.85, transform: [{ scale: 0.96 }] } : null]}
             onPress={() => {
               triggerSelectionFeedback();
-              router.push('/(app)/(tabs)/settings');
+              goToTab('settings');
             }}
           >
             {headerLabel ? (

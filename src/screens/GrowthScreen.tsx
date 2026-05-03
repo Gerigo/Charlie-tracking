@@ -1,5 +1,4 @@
 import { Icon } from '@/src/components/ui/Icon';
-import { useRouter } from 'expo-router';
 import { parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -470,10 +469,9 @@ function toTemperatureChartData(events: TrackedEvent[], language: 'fr' | 'en') {
 
 // ─── GrowthScreen ─────────────────────────────────────────────────────────────
 
-export function GrowthScreen() {
+export function GrowthScreen({ onShowHistory }: { onShowHistory?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const router = useRouter();
   const { currentBaby, events, saving, recordGrowth, isViewer } = useAppContext();
   const [window, setWindow] = useState<ChartWindow>('all');
   const [measureModalVisible, setMeasureModalVisible] = useState(false);
@@ -718,7 +716,7 @@ export function GrowthScreen() {
           <Pressable
             onPress={() => {
               triggerSelectionFeedback();
-              router.push('/history');
+              onShowHistory?.();
             }}
           >
             <Text style={[styles.historyLink, { color: theme.primary, fontFamily: theme.fontBold }]}>

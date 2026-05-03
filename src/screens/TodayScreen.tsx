@@ -37,7 +37,6 @@ import { getDailySummary, getEventsForDay } from "@/src/utils/eventSummaries";
 import { Icon } from "@/src/components/ui/Icon";
 import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import { endOfDay, isSameDay, startOfDay } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1162,8 +1161,7 @@ function DetailListBlock({
   );
 }
 
-export function TodayScreen() {
-  const router = useRouter();
+export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
   const {
@@ -2059,7 +2057,7 @@ export function TodayScreen() {
 
       {/* ── Lien vers l'historique complet ── */}
       <Pressable
-        onPress={() => { triggerSelectionFeedback(); router.push('/history'); }}
+        onPress={() => { triggerSelectionFeedback(); onShowHistory?.(); }}
         style={styles.historyLink}
       >
         <Icon name="time-outline" size={15} color={theme.textSoft} />

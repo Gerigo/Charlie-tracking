@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useRouter } from 'expo-router';
+// HistoryScreen is rendered as a full-screen Modal in the SPA shell.
+// Closing is driven by an `onClose` callback prop, not router.back.
 import { Icon } from '@/src/components/ui/Icon';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { format } from 'date-fns';
@@ -108,8 +109,7 @@ function eventSummary(event: TrackedEvent, t: ReturnType<typeof useI18n>['t']) {
 
 const stoolColors: StoolColor[] = ['jaune_pale', 'beige', 'blanc_mastic', 'jaune_or', 'ocre_bronze', 'vert', 'marron', 'noir', 'blanc', 'rouge'];
 
-export function HistoryScreen() {
-  const router = useRouter();
+export function HistoryScreen({ onClose }: { onClose?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
   const { events, familyMembers, viewerRole, updateEvent, deleteEvent, saving, refreshData } = useAppContext();
@@ -260,7 +260,7 @@ export function HistoryScreen() {
           <Pressable
             onPress={() => {
               triggerSelectionFeedback();
-              router.back();
+              onClose?.();
             }}
             style={[styles.backButton, { backgroundColor: theme.surfaceRaised }]}
           >

@@ -1,15 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
-import { useRouter } from 'expo-router';
 import { radii, spacing } from '@/src/constants/theme';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
+import { useSPANav } from '@/src/lib/spaNav';
 import { useAppContext } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 
 export function SyncDot() {
   const { syncStatus, language, livePulseToken } = useAppContext();
   const { theme } = useAppTheme();
-  const router = useRouter();
+  const { goToTab } = useSPANav();
 
   const pillOpacity = useRef(new Animated.Value(1)).current;
   const haloScale = useRef(new Animated.Value(1)).current;
@@ -91,7 +91,7 @@ export function SyncDot() {
       hitSlop={{ top: 10, right: 10, bottom: 10, left: 4 }}
       onPress={() => {
         triggerSelectionFeedback();
-        router.push('/(app)/(tabs)/settings');
+        goToTab('settings');
       }}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}

@@ -1,6 +1,8 @@
 import { Icon } from '@/src/components/ui/Icon';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
-import { useRouter } from 'expo-router';
+// Router was only used to navigate after auth/setup transitions. In the
+// SPA shell, those transitions are state-driven (the parent re-renders
+// when authUser / needsOnboarding flip), so the router import is gone.
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppButton, AppInput, Chip, Screen } from '@/src/components/ui';
@@ -27,7 +29,6 @@ const ROLE_OPTIONS = [
 
 export function OnboardingScreen() {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const { authUser, completeInitialSetup, joinFamily, saving, profile, logout, language } = useAppContext();
   const { t } = useI18n();
 
@@ -96,19 +97,13 @@ export function OnboardingScreen() {
       return;
     }
 
-    // From choice screen — go back to login
+    // From the choice screen — there's nowhere "behind" us in the SPA
+    // (no route stack). Logging out flips `authUser` in the parent and
+    // it re-renders LoginScreen automatically. If the user wasn't even
+    // logged in (sandbox), this is a no-op.
     if (authUser) {
       await logout();
-      router.replace('/login');
-      return;
     }
-
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace('/login');
   };
 
   const submitSetup = async (options?: { skip?: boolean }) => {
@@ -122,9 +117,10 @@ export function OnboardingScreen() {
       partnerDisplayName,
     });
 
-    if (success) {
-      router.replace('/tracker');
-    }
+    // On success, AppProvider flips `needsOnboarding` to false and the
+    // SPA shell parent re-renders into the tabbed app. No navigation
+    // call needed — the state change drives the transition.
+    void success;
   };
 
   const handleVerifyCode = async () => {
@@ -162,10 +158,9 @@ export function OnboardingScreen() {
     setInviteError('');
     try {
       await joinFamily(inviteCode, parentLabel);
-      // Listeners Firestore mettent à jour needsOnboarding → la navigation
-      // se fait automatiquement via l'index quand memberships.length > 0.
-      // On navigue aussi explicitement pour les cas où l'index ne redirige pas.
-      router.replace('/tracker');
+      // Firestore listeners flip needsOnboarding to false once the
+      // membership is created — the SPA parent re-renders into the
+      // tabbed app automatically.
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[JoinFamily] error:', msg);

@@ -1,4 +1,3 @@
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -13,6 +12,14 @@ import { useI18n } from '@/src/hooks/useI18n';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 
+/**
+ * State-based tab bar — visually identical to SanctuaryTabBar (the
+ * route-based one we used inside Expo Router's `<Tabs>`), but driven by
+ * a simple `activeTab` + `onTabChange` API. This is what makes the SPA
+ * shell work: tab switches change React state, never the URL, so iOS
+ * PWA stays anchored to its `start_url` and never exits standalone.
+ */
+
 const TAB_BAR_HEIGHT = 70;
 const TAB_BAR_BOTTOM_INSET = 18;
 const TAB_BAR_SIDE_INSET = 14;
@@ -22,6 +29,13 @@ function withAlpha(hex: string, alpha: string) {
   return `${hex}${alpha}`;
 }
 
+export type SPATabName =
+  | 'tracker'
+  | 'today'
+  | 'evolution'
+  | 'growth'
+  | 'settings';
+
 interface RouteMeta {
   label: string;
   color: string;
@@ -29,7 +43,11 @@ interface RouteMeta {
   iconActive: string;
 }
 
-function routeMeta(name: string, theme: ReturnType<typeof useAppTheme>['theme'], t: ReturnType<typeof useI18n>['t']): RouteMeta {
+function tabMeta(
+  name: SPATabName,
+  theme: ReturnType<typeof useAppTheme>['theme'],
+  t: ReturnType<typeof useI18n>['t'],
+): RouteMeta {
   switch (name) {
     case 'today':
       return { label: t('tab.today'), color: theme.today, icon: 'today-outline', iconActive: 'today' };
@@ -37,21 +55,11 @@ function routeMeta(name: string, theme: ReturnType<typeof useAppTheme>['theme'],
       return { label: t('tab.log'), color: theme.tracker, icon: 'add-circle-outline', iconActive: 'add-circle' };
     case 'evolution':
       return { label: t('tab.evolution'), color: theme.evolution, icon: 'stats-chart-outline', iconActive: 'stats-chart' };
-    case 'data':
-      return { label: t('tab.data'), color: theme.data, icon: 'folder-open-outline', iconActive: 'folder-open' };
     case 'growth':
       return { label: t('tab.growth'), color: theme.growth, icon: 'analytics-outline', iconActive: 'analytics' };
     case 'settings':
       return { label: t('tab.settings'), color: theme.settings, icon: 'person-circle-outline', iconActive: 'person-circle' };
-    case 'social':
-      return { label: t('tab.social'), color: theme.evolution, icon: 'heart-outline', iconActive: 'heart' };
-    default:
-      return { label: name, color: theme.primary, icon: 'ellipse-outline', iconActive: 'ellipse' };
   }
-}
-
-interface Props extends BottomTabBarProps {
-  hiddenRoutes?: string[];
 }
 
 interface TabItemProps {
@@ -110,37 +118,45 @@ function TabItem({ meta, focused, onPress, inactiveColor, fontFamily }: TabItemP
   );
 }
 
-export function SanctuaryTabBar({ state, navigation, hiddenRoutes = [] }: Props) {
+interface SPATabBarProps {
+  activeTab: SPATabName;
+  onTabChange: (tab: SPATabName) => void;
+  /** Order of tabs in the bar — defaults to a sensible vertical-first layout. */
+  tabs?: readonly SPATabName[];
+}
+
+const DEFAULT_TABS: readonly SPATabName[] = [
+  'today',
+  'tracker',
+  'evolution',
+  'growth',
+  'settings',
+];
+
+export function SPATabBar({ activeTab, onTabChange, tabs = DEFAULT_TABS }: SPATabBarProps) {
   const { theme } = useAppTheme();
   const { t } = useI18n();
 
-  const visibleRoutes = useMemo(
-    () => state.routes.filter((r) => !hiddenRoutes.includes(r.name)),
-    [state.routes, hiddenRoutes],
-  );
-
-  const visibleActiveIndex = useMemo(() => {
-    const activeRouteName = state.routes[state.index]?.name;
-    const idx = visibleRoutes.findIndex((r) => r.name === activeRouteName);
+  const activeMeta = tabMeta(activeTab, theme, t);
+  const activeIndex = useMemo(() => {
+    const idx = tabs.indexOf(activeTab);
     return idx === -1 ? 0 : idx;
-  }, [state.routes, state.index, visibleRoutes]);
-
-  const activeMeta = routeMeta(visibleRoutes[visibleActiveIndex]?.name ?? 'today', theme, t);
+  }, [tabs, activeTab]);
 
   const [rowWidth, setRowWidth] = useState(0);
-  const tabCount = visibleRoutes.length;
+  const tabCount = tabs.length;
   const tabWidth = tabCount > 0 ? rowWidth / tabCount : 0;
 
   const bloomX = useSharedValue(0);
 
   useEffect(() => {
     if (tabWidth === 0) return;
-    bloomX.value = withSpring(visibleActiveIndex * tabWidth, {
+    bloomX.value = withSpring(activeIndex * tabWidth, {
       damping: 22,
       stiffness: 260,
       mass: 0.9,
     });
-  }, [visibleActiveIndex, tabWidth, bloomX]);
+  }, [activeIndex, tabWidth, bloomX]);
 
   const bloomStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: bloomX.value }],
@@ -180,37 +196,25 @@ export function SanctuaryTabBar({ state, navigation, hiddenRoutes = [] }: Props)
                 pointerEvents="none"
                 style={[
                   styles.bloom,
-                  {
-                    left: BLOOM_INSET,
-                    backgroundColor: bloomBg,
-                  },
+                  { left: BLOOM_INSET, backgroundColor: bloomBg },
                   bloomStyle,
                 ]}
               />
             ) : null}
-
-            {visibleRoutes.map((route) => {
-              const realIndex = state.routes.findIndex((r) => r.key === route.key);
-              const focused = realIndex === state.index;
-              const meta = routeMeta(route.name, theme, t);
-
+            {tabs.map((tabName) => {
+              const meta = tabMeta(tabName, theme, t);
+              const focused = tabName === activeTab;
               return (
                 <TabItem
-                  key={route.key}
+                  key={tabName}
                   meta={meta}
                   focused={focused}
                   inactiveColor={inactiveColor}
                   fontFamily={theme.fontMedium}
                   onPress={() => {
-                    const event = navigation.emit({
-                      type: 'tabPress',
-                      target: route.key,
-                      canPreventDefault: true,
-                    });
-                    if (!focused && !event.defaultPrevented) {
-                      triggerSelectionFeedback();
-                      navigation.navigate(route.name);
-                    }
+                    if (focused) return;
+                    triggerSelectionFeedback();
+                    onTabChange(tabName);
                   }}
                 />
               );
