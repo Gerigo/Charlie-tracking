@@ -163,11 +163,14 @@ export function SPATabBar({ activeTab, onTabChange, tabs = DEFAULT_TABS }: SPATa
     width: tabWidth - BLOOM_INSET * 2,
   }));
 
-  // Carnet d'aquarelle — translucent cream paper (matches background tokens).
+  // Carnet d'aquarelle — near-opaque cream paper. Earlier we ran the bar
+  // at 0.62 alpha for an iOS glass feel, but content scrolling behind it
+  // bled through visibly — making the bar look like it moved with the
+  // scroll. Paper aesthetic + readable bar > glass aesthetic + bleed.
   const shellBg = theme.isDark
-    ? 'rgba(31, 24, 20, 0.55)'
-    : 'rgba(250, 243, 232, 0.62)';
-  const innerStroke = theme.isDark ? 'rgba(240, 230, 214, 0.10)' : 'rgba(168, 98, 77, 0.10)';
+    ? 'rgba(31, 24, 20, 0.96)'
+    : 'rgba(250, 243, 232, 0.96)';
+  const innerStroke = theme.isDark ? 'rgba(240, 230, 214, 0.18)' : 'rgba(168, 98, 77, 0.20)';
   const bloomBg = withAlpha(activeMeta.color, theme.isDark ? '33' : '26');
   const inactiveColor = withAlpha(theme.textSoft, theme.isDark ? 'AA' : '99');
 
