@@ -22,18 +22,18 @@
  */
 
 export const config = {
-  runtime: 'edge',
+  runtime: "edge",
 };
 
-const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
+const MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions";
 
 const SYSTEM_PROMPT = `Tu es un assistant pédiatrique bienveillant qui aide à interpréter des données de tracking bébé.
+L'objectif est d'aider les parents à comprendre les possibles raisons (s'il y en a) derrière les changements de comportement de leur bébé, en se basant sur les données fournies. Tes réponses sont basées sur des corrélations statistiques et des connaissances générales sur le développement infantile, mais tu ne peux pas poser de diagnostic médical. 
 Tes réponses respectent strictement ces règles :
-- 3 à 4 phrases maximum, en français
+- 4 à 5 phrases maximum, en français
 - Ton chaleureux, factuel, jamais alarmiste
-- Tu ne donnes jamais de diagnostic, juste une interprétation possible
-- Tu termines toujours par une suggestion concrète (ex: "consultez si la situation persiste")
-- Tu ne mentionnes jamais le prénom du bébé (les données fournies sont anonymisées)`;
+- Tu ne donnes jamais de diagnostic, juste une interprétation possible basée sur les données fournies.
+- Tu termines toujours par une suggestion concrète (ex: "consultez si la situation persiste")`;
 
 interface RequestPayload {
   ageInDays: number;
@@ -46,22 +46,22 @@ interface RequestPayload {
 }
 
 function isValidPayload(value: unknown): value is RequestPayload {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
-    typeof v.ageInDays === 'number' &&
-    typeof v.summary === 'string' &&
+    typeof v.ageInDays === "number" &&
+    typeof v.summary === "string" &&
     v.summary.length < 4000 && // hard cap so the prompt can't blow up
-    typeof v.confidence === 'number' &&
-    typeof v.ageWindowMatch === 'boolean' &&
+    typeof v.confidence === "number" &&
+    typeof v.ageWindowMatch === "boolean" &&
     // Allow null too — the client analysis types `ageWindowLabel` as
     // `string | null` and JSON.stringify forwards null literally.
     (v.ageWindowLabel === undefined ||
       v.ageWindowLabel === null ||
-      typeof v.ageWindowLabel === 'string') &&
+      typeof v.ageWindowLabel === "string") &&
     Array.isArray(v.signalLabels) &&
     v.signalLabels.length < 20 &&
-    v.signalLabels.every((s) => typeof s === 'string' && s.length < 200)
+    v.signalLabels.every((s) => typeof s === "string" && s.length < 200)
   );
 }
 
@@ -78,23 +78,20 @@ function buildUserPrompt(p: RequestPayload): string {
       ? `- Fenêtre typique : ${p.ageWindowLabel}`
       : `- Hors fenêtre typique`,
     p.signalLabels.length > 0
-      ? `- Signaux : ${p.signalLabels.join('; ')}`
+      ? `- Signaux : ${p.signalLabels.join("; ")}`
       : `- Aucun signal particulier`,
     ``,
-    `Donne une interprétation contextuelle en 3-4 phrases. Pas de diagnostic.`,
+    `Donne une interprétation contextuelle en 4-5 phrases. Pas de diagnostic.`,
   ];
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 function getAllowedOrigins(): string[] {
-  const fromEnv = (process.env.ALLOWED_ORIGINS ?? '')
-    .split(',')
+  const fromEnv = (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const defaults = [
-    'http://localhost:8081',
-    'http://localhost:3000',
-  ];
+  const defaults = ["http://localhost:8081", "http://localhost:3000"];
   // Vercel injects two relevant env vars at runtime:
   //   - VERCEL_URL                       → THIS deployment's URL
   //                                        (e.g. charlie-web-abc123-user.vercel.app)
@@ -119,19 +116,19 @@ function getAllowedOrigins(): string[] {
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { "Content-Type": "application/json" },
   });
 }
 
 export default async function handler(req: Request): Promise<Response> {
   // Only POST.
-  if (req.method !== 'POST') {
-    return jsonError('Method not allowed', 405);
+  if (req.method !== "POST") {
+    return jsonError("Method not allowed", 405);
   }
 
   // Origin check — first line of defense. Spoofable from curl, but blocks
   // casual XHR attacks from random sites embedding a script.
-  const origin = req.headers.get('origin') ?? '';
+  const origin = req.headers.get("origin") ?? "";
   const allowed = getAllowedOrigins();
   if (!allowed.includes(origin)) {
     // Include the rejected origin in the error so debugging an
@@ -147,27 +144,27 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     payload = await req.json();
   } catch {
-    return jsonError('Invalid JSON body', 400);
+    return jsonError("Invalid JSON body", 400);
   }
 
   if (!isValidPayload(payload)) {
-    return jsonError('Invalid payload shape', 400);
+    return jsonError("Invalid payload shape", 400);
   }
 
   const apiKey = process.env.MISTRAL_API_KEY;
   if (!apiKey) {
-    return jsonError('Server not configured (missing MISTRAL_API_KEY)', 500);
+    return jsonError("Server not configured (missing MISTRAL_API_KEY)", 500);
   }
-  const model = process.env.MISTRAL_MODEL ?? 'mistral-small-latest';
+  const model = process.env.MISTRAL_MODEL ?? "mistral-small-latest";
 
   const userPrompt = buildUserPrompt(payload);
 
   let mistralResp: Response;
   try {
     mistralResp = await fetch(MISTRAL_ENDPOINT, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
@@ -175,13 +172,13 @@ export default async function handler(req: Request): Promise<Response> {
         max_tokens: 350,
         temperature: 0.4,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
         ],
       }),
     });
   } catch {
-    return jsonError('Upstream network error', 502);
+    return jsonError("Upstream network error", 502);
   }
 
   if (!mistralResp.ok) {
@@ -194,22 +191,23 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     data = await mistralResp.json();
   } catch {
-    return jsonError('Upstream returned non-JSON', 502);
+    return jsonError("Upstream returned non-JSON", 502);
   }
 
   const text =
-    (data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]
-      ?.message?.content?.trim() ?? '';
+    (
+      data as { choices?: Array<{ message?: { content?: string } }> }
+    ).choices?.[0]?.message?.content?.trim() ?? "";
 
   if (!text) {
-    return jsonError('Upstream returned empty response', 502);
+    return jsonError("Upstream returned empty response", 502);
   }
 
   return new Response(JSON.stringify({ text }), {
     status: 200,
     headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
     },
   });
 }

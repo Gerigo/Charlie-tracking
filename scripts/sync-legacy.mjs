@@ -38,14 +38,7 @@ const LEGACY_TRACKER_ID = 'charlie-shared';
 const FAMILY_ID = 'osWgSUAkUsuNv4SNrQzI';
 const BABY_ID = 'yZBl10Ybdph9ooGbguoe';
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyDXOKB3GCmKq_Y4NR-1PaMPqYbSP0aWU_M',
-  authDomain: 'sleeptracker-71e30.firebaseapp.com',
-  projectId: 'sleeptracker-71e30',
-  storageBucket: 'sleeptracker-71e30.firebasestorage.app',
-  messagingSenderId: '621914073040',
-  appId: '1:621914073040:web:37a4fa561275e9137abbd5',
-};
+import { firebaseConfig } from './_firebase.mjs';
 
 const password = process.argv[2];
 if (!password) {

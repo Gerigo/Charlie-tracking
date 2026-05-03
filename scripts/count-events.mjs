@@ -1,12 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { firebaseConfig } from './_firebase.mjs';
 
-const app = initializeApp({
-  apiKey: 'AIzaSyDXOKB3GCmKq_Y4NR-1PaMPqYbSP0aWU_M',
-  authDomain: 'sleeptracker-71e30.firebaseapp.com',
-  projectId: 'sleeptracker-71e30',
-});
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
