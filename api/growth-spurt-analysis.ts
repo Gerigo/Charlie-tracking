@@ -40,7 +40,8 @@ interface RequestPayload {
   summary: string;
   confidence: number;
   ageWindowMatch: boolean;
-  ageWindowLabel?: string;
+  /** Match the client type — `string | null | undefined`. */
+  ageWindowLabel?: string | null;
   signalLabels: string[];
 }
 
@@ -53,7 +54,11 @@ function isValidPayload(value: unknown): value is RequestPayload {
     v.summary.length < 4000 && // hard cap so the prompt can't blow up
     typeof v.confidence === 'number' &&
     typeof v.ageWindowMatch === 'boolean' &&
-    (v.ageWindowLabel === undefined || typeof v.ageWindowLabel === 'string') &&
+    // Allow null too — the client analysis types `ageWindowLabel` as
+    // `string | null` and JSON.stringify forwards null literally.
+    (v.ageWindowLabel === undefined ||
+      v.ageWindowLabel === null ||
+      typeof v.ageWindowLabel === 'string') &&
     Array.isArray(v.signalLabels) &&
     v.signalLabels.length < 20 &&
     v.signalLabels.every((s) => typeof s === 'string' && s.length < 200)
