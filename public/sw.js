@@ -13,7 +13,7 @@
  * Without this, stale-while-revalidate keeps serving last-known JS until
  * the user reloads twice — frustrating after a deploy.
  */
-const CACHE_VERSION = 'charlie-v17-tracker-edit-delete';
+const CACHE_VERSION = 'charlie-v19-create-mode-fix';
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.ico'];
 
 self.addEventListener('install', (event) => {

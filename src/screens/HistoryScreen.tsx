@@ -7,7 +7,8 @@ import { format } from 'date-fns';
 import { fr as dateFnsFr } from 'date-fns/locale';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityIcon } from '@/src/components/editorial/ActivityIcon';
-import { AppButton, AppInput, AppModal, Card, Chip, EmptyState, Screen, SectionTitle } from '@/src/components/ui';
+import { AppButton, Card, EmptyState, Screen, SectionTitle } from '@/src/components/ui';
+import { EventEditorModal } from '@/src/components/event/EventEditorModal';
 import { radii, spacing } from '@/src/constants/theme';
 import { stoolColorLabelKey } from '@/src/constants/i18n';
 import { useI18n } from '@/src/hooks/useI18n';
@@ -112,119 +113,12 @@ const stoolColors: StoolColor[] = ['jaune_pale', 'beige', 'blanc_mastic', 'jaune
 export function HistoryScreen({ onClose }: { onClose?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { events, familyMembers, viewerRole, updateEvent, deleteEvent, saving, refreshData } = useAppContext();
+  const { events, familyMembers, viewerRole, deleteEvent, refreshData } = useAppContext();
   const canManageEvent = (_event: TrackedEvent) =>
     viewerRole === 'manager';
+
+  // Editor lives in <EventEditorModal/>, History just toggles null/event.
   const [editingEvent, setEditingEvent] = useState<TrackedEvent | null>(null);
-  const [editNotes, setEditNotes] = useState('');
-  const [editFeedSide, setEditFeedSide] = useState<FeedSide>('left');
-  const [editFeedAmount, setEditFeedAmount] = useState('');
-  const [editBottleSupplement, setEditBottleSupplement] = useState('');
-  const [editDiaperType, setEditDiaperType] = useState<DiaperType>('wet');
-  const [editStoolColor, setEditStoolColor] = useState<StoolColor | null>(null);
-  const [editMedicationName, setEditMedicationName] = useState('');
-  const [editMedicationCategory, setEditMedicationCategory] = useState<CareCategory>('care');
-  const [editTemperature, setEditTemperature] = useState('');
-  const [editWeight, setEditWeight] = useState('');
-  const [editHeight, setEditHeight] = useState('');
-  const [editHead, setEditHead] = useState('');
-  const [editStartTime, setEditStartTime] = useState(new Date());
-  const [editEndTime, setEditEndTime] = useState<Date | null>(null);
-
-  const openEditor = (event: TrackedEvent) => {
-    setEditingEvent(event);
-    setEditNotes(event.notes ?? '');
-    setEditFeedSide(event.details?.feedSide ?? 'left');
-    setEditFeedAmount(typeof event.details?.feedAmountMl === 'number' ? String(event.details.feedAmountMl) : '');
-    setEditBottleSupplement(typeof event.details?.bottleSupplement === 'number' ? String(event.details.bottleSupplement) : '');
-    setEditDiaperType(event.details?.diaperType ?? 'wet');
-    setEditStoolColor(event.details?.stoolColor ?? null);
-    setEditMedicationName(
-      translateMedicationName(event.details?.medicationName, t) ??
-        event.details?.medicationName ??
-        '',
-    );
-    setEditMedicationCategory(inferMedicationCategory(event.details?.medicationName, event.details?.careCategory));
-    setEditTemperature(typeof event.details?.temperature === 'number' ? String(event.details.temperature) : '');
-    setEditWeight(typeof event.details?.weight === 'number' ? String(event.details.weight) : '');
-    setEditHeight(typeof event.details?.height === 'number' ? String(event.details.height) : '');
-    setEditHead(typeof event.details?.head === 'number' ? String(event.details.head) : '');
-    const safeStart = typeof event.startTime === 'number' && event.startTime > 0
-      ? new Date(event.startTime)
-      : new Date();
-    setEditStartTime(safeStart);
-    setEditEndTime(typeof event.endTime === 'number' && event.endTime > 0 ? new Date(event.endTime) : null);
-  };
-
-  const closeEditor = () => {
-    setEditingEvent(null);
-  };
-
-  const saveEdit = async () => {
-    if (!editingEvent) return;
-
-    const timeUpdates = {
-      startTime: editStartTime.getTime(),
-      ...(editingEvent.type === 'sleep' && editEndTime ? { endTime: editEndTime.getTime() } : {}),
-    };
-
-    if (editingEvent.type === 'feed') {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          feedSide: editFeedSide,
-          feedAmountMl: editFeedSide === 'bottle' && editFeedAmount.trim() ? Number(editFeedAmount) : undefined,
-          bottleSupplement: (editFeedSide === 'left' || editFeedSide === 'right') && editBottleSupplement.trim() ? Number(editBottleSupplement) : undefined,
-        },
-      });
-    } else if (editingEvent.type === 'diaper') {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          diaperType: editDiaperType,
-          stoolColor: editDiaperType === 'dirty' || editDiaperType === 'both' ? editStoolColor ?? undefined : undefined,
-        },
-      });
-    } else if (editingEvent.type === 'medication') {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          medicationName: editMedicationName.trim() || undefined,
-          careCategory: editMedicationCategory,
-        },
-      });
-    } else if (editingEvent.type === 'temperature') {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          temperature: editTemperature.trim() ? Number(editTemperature.replace(',', '.')) : undefined,
-        },
-      });
-    } else if (editingEvent.type === 'growth') {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          weight: editWeight.trim() ? Number(editWeight.replace(',', '.')) : undefined,
-          height: editHeight.trim() ? Number(editHeight.replace(',', '.')) : undefined,
-          head: editHead.trim() ? Number(editHead.replace(',', '.')) : undefined,
-        },
-      });
-    } else {
-      await updateEvent(editingEvent.id, { ...timeUpdates, notes: editNotes.trim() || undefined });
-    }
-
-    closeEditor();
-  };
 
   const roleLabel = useMemo(() => ({
     manager: t('role.manager'),
@@ -311,7 +205,7 @@ export function HistoryScreen({ onClose }: { onClose?: () => void } = {}) {
                           </Text>
                           {canManageEvent(event) ? (
                             <View style={styles.actionRow}>
-                              <Pressable onPress={() => openEditor(event)} style={styles.iconAction}>
+                              <Pressable onPress={() => setEditingEvent(event)} style={styles.iconAction}>
                                 <Icon name="create-outline" size={18} color={theme.textSoft} />
                               </Pressable>
                               <Pressable
@@ -357,176 +251,8 @@ export function HistoryScreen({ onClose }: { onClose?: () => void } = {}) {
         </>
       )}
 
-      <AppModal visible={Boolean(editingEvent)} onClose={closeEditor}>
-          <Pressable style={[styles.modalCard, { backgroundColor: theme.surfaceLowest, shadowColor: theme.shadow }]} onPress={(event) => event.stopPropagation()}>
-            <Text style={[styles.modalTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-              {editingEvent ? eventMeta(editingEvent, t).title : t('history.edit_event')}
-            </Text>
-
-            {/* Date + time pickers */}
-            <View style={styles.editTimeRow}>
-              <View style={styles.editTimeField}>
-                <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
-                  Date
-                </Text>
-                <DateTimePicker
-                  key={`date-${editStartTime.getTime()}`}
-                  value={editStartTime}
-                  mode="date"
-                  display="compact"
-                  locale={language}
-                  themeVariant={theme.isDark ? 'dark' : 'light'}
-                  textColor={theme.text}
-                  accentColor={theme.primary}
-                  onChange={(_, date) => {
-                    if (date) {
-                      const updated = new Date(editStartTime);
-                      updated.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
-                      setEditStartTime(updated);
-                    }
-                  }}
-                  style={styles.editTimePicker}
-                />
-              </View>
-              <View style={styles.editTimeField}>
-                <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
-                  {editingEvent?.type === 'sleep' ? 'Début' : 'Heure'}
-                </Text>
-                <DateTimePicker
-                  key={`time-${editStartTime.getTime()}`}
-                  value={editStartTime}
-                  mode="time"
-                  display="compact"
-                  locale={language}
-                  themeVariant={theme.isDark ? 'dark' : 'light'}
-                  textColor={theme.text}
-                  accentColor={theme.primary}
-                  onChange={(_, date) => { if (date) setEditStartTime(date); }}
-                  style={styles.editTimePicker}
-                />
-              </View>
-              {editingEvent?.type === 'sleep' && editEndTime ? (
-                <View style={styles.editTimeField}>
-                  <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
-                    Réveil
-                  </Text>
-                  <DateTimePicker
-                    key={`end-${editEndTime?.getTime()}`}
-                    value={editEndTime}
-                    mode="time"
-                    display="compact"
-                    locale={language}
-                    themeVariant={theme.isDark ? 'dark' : 'light'}
-                    textColor={theme.text}
-                    accentColor={theme.primary}
-                    onChange={(_, date) => { if (date) setEditEndTime(date); }}
-                    style={styles.editTimePicker}
-                  />
-                </View>
-              ) : null}
-            </View>
-
-            {editingEvent?.type === 'feed' ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip label={t('event.feed.left')} selected={editFeedSide === 'left'} tone="feed" onPress={() => setEditFeedSide('left')} />
-                  <Chip label={t('event.feed.right')} selected={editFeedSide === 'right'} tone="feed" onPress={() => setEditFeedSide('right')} />
-                  <Chip label={t('event.feed.bottle')} selected={editFeedSide === 'bottle'} tone="feed" onPress={() => setEditFeedSide('bottle')} />
-                </View>
-                {editFeedSide === 'bottle' ? (
-                  <AppInput
-                    label={t('tracker.amount_ml')}
-                    value={editFeedAmount}
-                    onChangeText={setEditFeedAmount}
-                    keyboardType="number-pad"
-                    placeholder="120"
-                  />
-                ) : null}
-                {(editFeedSide === 'left' || editFeedSide === 'right') ? (
-                  <AppInput
-                    label={language === 'fr' ? 'Complément biberon (ml, optionnel)' : 'Bottle supplement (ml, optional)'}
-                    value={editBottleSupplement}
-                    onChangeText={setEditBottleSupplement}
-                    keyboardType="number-pad"
-                    placeholder="60"
-                  />
-                ) : null}
-              </>
-            ) : null}
-
-            {editingEvent?.type === 'diaper' ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip label={t('tracker.pee')} selected={editDiaperType === 'wet'} tone="success" onPress={() => setEditDiaperType('wet')} />
-                  <Chip label={t('tracker.poop')} selected={editDiaperType === 'dirty'} tone="warning" onPress={() => setEditDiaperType('dirty')} />
-                  <Chip label={t('tracker.both')} selected={editDiaperType === 'both'} tone="warning" onPress={() => setEditDiaperType('both')} />
-                </View>
-                {editDiaperType === 'dirty' || editDiaperType === 'both' ? (
-                  <View style={styles.chipsRow}>
-                    {stoolColors.map((color) => (
-                      <Chip
-                        key={color}
-                        label={t(stoolColorLabelKey(color))}
-                        selected={editStoolColor === color}
-                        tone="warning"
-                        onPress={() => setEditStoolColor(color)}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-
-            {editingEvent?.type === 'medication' ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip label={t('tracker.care')} selected={editMedicationCategory === 'care'} tone="success" onPress={() => setEditMedicationCategory('care')} />
-                  <Chip label={t('tracker.visits')} selected={editMedicationCategory === 'visit'} tone="neutral" onPress={() => setEditMedicationCategory('visit')} />
-                </View>
-                <AppInput
-                  label={editMedicationCategory === 'visit' ? t('tracker.visits') : t('tracker.care')}
-                  value={editMedicationName}
-                  onChangeText={setEditMedicationName}
-                  placeholder={editMedicationCategory === 'visit' ? t('tracker.pediatrician') : t('tracker.vitamin_d')}
-                />
-              </>
-            ) : null}
-
-            {editingEvent?.type === 'temperature' ? (
-              <AppInput
-                label={t('tracker.temperature')}
-                value={editTemperature}
-                onChangeText={setEditTemperature}
-                keyboardType="decimal-pad"
-                placeholder="36.8"
-              />
-            ) : null}
-
-            {editingEvent?.type === 'growth' ? (
-              <>
-                <AppInput label={t('growth.weight_label')} value={editWeight} onChangeText={setEditWeight} keyboardType="decimal-pad" placeholder="4.2" />
-                <AppInput label={t('growth.height_label')} value={editHeight} onChangeText={setEditHeight} keyboardType="decimal-pad" placeholder="55.4" />
-                <AppInput label={t('growth.head_label')} value={editHead} onChangeText={setEditHead} keyboardType="decimal-pad" placeholder="37.5" />
-              </>
-            ) : null}
-
-            <AppInput
-              label={t('common.optional_note')}
-              value={editNotes}
-              onChangeText={setEditNotes}
-              placeholder={t('tracker.note_placeholder')}
-            />
-
-            <View style={styles.modalActions}>
-              <AppButton style={styles.modalButton} variant="secondary" onPress={closeEditor}>
-                {t('common.cancel')}
-              </AppButton>
-              <AppButton style={styles.modalButton} disabled={saving} onPress={() => void saveEdit()}>
-                {t('common.save')}
-              </AppButton>
-            </View>
-          </Pressable>
-      </AppModal>
+      {/* Shared editor modal — same as Today + Tracker. */}
+      <EventEditorModal event={editingEvent} onClose={() => setEditingEvent(null)} />
     </Screen>
   );
 }

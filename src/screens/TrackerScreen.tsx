@@ -1113,6 +1113,8 @@ export function TrackerScreen() {
   // non-null `editingEvent` opens the shared modal, save/cancel resets
   // back to null. Only managers see the action buttons.
   const [editingEvent, setEditingEvent] = useState<TrackedEvent | null>(null);
+  // Separate flag for "Add manually" — opens the same modal in create mode.
+  const [addEventVisible, setAddEventVisible] = useState(false);
   const handleDelete = (event: TrackedEvent) => {
     confirmAction(
       language === 'fr' ? 'Supprimer' : 'Delete',
@@ -1643,12 +1645,19 @@ export function TrackerScreen() {
         events={events}
         onEdit={isViewer ? undefined : setEditingEvent}
         onDelete={isViewer ? undefined : handleDelete}
+        onAddEvent={isViewer ? undefined : () => setAddEventVisible(true)}
       />
 
-      {/* Shared editor modal — opens when editingEvent is non-null. */}
+      {/* Shared editor modal — opens for either editing OR creation
+          depending on which flag is set. createMode + null event =
+          create. Non-null event = edit. */}
       <EventEditorModal
         event={editingEvent}
-        onClose={() => setEditingEvent(null)}
+        createMode={addEventVisible}
+        onClose={() => {
+          setEditingEvent(null);
+          setAddEventVisible(false);
+        }}
       />
 
       <AppModal visible={feedModalVisible} onClose={resetFeedModal}>

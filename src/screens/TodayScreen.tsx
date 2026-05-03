@@ -1,5 +1,6 @@
 import { EditorialTopBar } from "@/src/components/editorial/TopBar";
 import { GrowthSpurtBanner } from "@/src/components/editorial/GrowthSpurtBanner";
+import { EventEditorModal } from "@/src/components/event/EventEditorModal";
 import {
   AppBadge,
   AppButton,
@@ -1180,18 +1181,10 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
   const canManageEvent = (_event: TrackedEvent) =>
     viewerRole === "manager";
   const [showAllTimeline, setShowAllTimeline] = useState(false);
+  // Editor is now driven entirely by the shared `<EventEditorModal>` —
+  // a non-null value opens the modal, save/cancel resets to null.
   const [editingEvent, setEditingEvent] = useState<TrackedEvent | null>(null);
-  const [editNotes, setEditNotes] = useState("");
-  const [editFeedSide, setEditFeedSide] = useState<FeedSide>("left");
-  const [editFeedAmount, setEditFeedAmount] = useState("");
-  const [editDiaperType, setEditDiaperType] = useState<DiaperType>("wet");
-  const [editStoolColor, setEditStoolColor] = useState<StoolColor | null>(null);
-  const [editMedicationName, setEditMedicationName] = useState("");
-  const [editMedicationCategory, setEditMedicationCategory] =
-    useState<CareCategory>("care");
-  const [editTemperature, setEditTemperature] = useState("");
-  const [editStartTime, setEditStartTime] = useState(new Date());
-  const [editEndTime, setEditEndTime] = useState<Date | null>(null);
+  const [addEventVisible, setAddEventVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [liveNow, setLiveNow] = useState(Date.now());
@@ -1364,107 +1357,9 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
     return () => animations.forEach((animation) => animation.stop());
   }, [activeSession, driftA, driftB, driftC, liveSleepActive]);
 
-  const openEditor = (event: TrackedEvent) => {
-    setEditingEvent(event);
-    setEditNotes(event.notes ?? "");
-    setEditFeedSide(event.details?.feedSide ?? "left");
-    setEditFeedAmount(
-      typeof event.details?.feedAmountMl === "number"
-        ? String(event.details.feedAmountMl)
-        : "",
-    );
-    setEditDiaperType(event.details?.diaperType ?? "wet");
-    setEditStoolColor(event.details?.stoolColor ?? null);
-    setEditMedicationName(
-      translateCareLabel(event.details?.medicationName, t) ??
-        event.details?.medicationName ??
-        "",
-    );
-    setEditMedicationCategory(
-      inferMedicationCategory(
-        event.details?.medicationName,
-        event.details?.careCategory,
-      ),
-    );
-    setEditTemperature(
-      typeof event.details?.temperature === "number"
-        ? String(event.details.temperature)
-        : "",
-    );
-    const safeStart = typeof event.startTime === 'number' && event.startTime > 0
-      ? new Date(event.startTime)
-      : new Date();
-    setEditStartTime(safeStart);
-    setEditEndTime(
-      typeof event.endTime === 'number' && event.endTime > 0 ? new Date(event.endTime) : null,
-    );
-  };
-
-  const closeEditor = () => setEditingEvent(null);
-
-  const saveEdit = async () => {
-    if (!editingEvent) return;
-    const timeUpdates = {
-      startTime: editStartTime.getTime(),
-      ...(editingEvent.type === "sleep" && editEndTime
-        ? { endTime: editEndTime.getTime() }
-        : {}),
-    };
-    if (editingEvent.type === "feed") {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          feedSide: editFeedSide,
-          feedAmountMl:
-            editFeedSide === "bottle" && editFeedAmount.trim()
-              ? Number(editFeedAmount)
-              : undefined,
-        },
-      });
-    } else if (editingEvent.type === "diaper") {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          diaperType: editDiaperType,
-          stoolColor:
-            editDiaperType === "dirty" || editDiaperType === "both"
-              ? (editStoolColor ?? undefined)
-              : undefined,
-        },
-      });
-    } else if (editingEvent.type === "medication") {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          medicationName: editMedicationName.trim() || undefined,
-          careCategory: editMedicationCategory,
-        },
-      });
-    } else if (editingEvent.type === "temperature") {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-        details: {
-          ...editingEvent.details,
-          temperature: editTemperature.trim()
-            ? Number(editTemperature.replace(",", "."))
-            : undefined,
-        },
-      });
-    } else {
-      await updateEvent(editingEvent.id, {
-        ...timeUpdates,
-        notes: editNotes.trim() || undefined,
-      });
-    }
-    closeEditor();
-  };
+  // Editor open/close/save logic now lives entirely inside
+  // <EventEditorModal /> — TodayScreen just toggles the editingEvent
+  // state via setEditingEvent. ~100 lines of duplicated code removed.
 
   const zStyle = (value: Animated.Value, size: number, opacity: number) => ({
     opacity: value.interpolate({
@@ -1848,31 +1743,42 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
                 : "Newest to oldest"}
             </Text>
           </View>
-          {todayEvents.length > 5 ? (
-            <Pressable
-              onPress={() => setShowAllTimeline((current) => !current)}
-              style={[
-                styles.viewMoreButton,
-                { backgroundColor: theme.surfaceLowest },
-              ]}
-            >
-              <Icon
-                name={showAllTimeline ? "remove" : "add"}
-                size={16}
-                color={theme.primary}
-              />
-              <Text
+          <View style={styles.timelineHeaderActions}>
+            {viewerRole === 'manager' ? (
+              <Pressable
+                onPress={() => setAddEventVisible(true)}
+                style={[styles.timelineAddBtn, { backgroundColor: theme.primary }]}
+                hitSlop={6}
+              >
+                <Icon name="add" size={16} color={theme.onPrimary} />
+              </Pressable>
+            ) : null}
+            {todayEvents.length > 5 ? (
+              <Pressable
+                onPress={() => setShowAllTimeline((current) => !current)}
                 style={[
-                  styles.viewMoreLabel,
-                  { color: theme.primary, fontFamily: theme.fontBold },
+                  styles.viewMoreButton,
+                  { backgroundColor: theme.surfaceLowest },
                 ]}
               >
-                {showAllTimeline
-                  ? t("common.view_less")
-                  : t("common.view_more")}
-              </Text>
-            </Pressable>
-          ) : null}
+                <Icon
+                  name={showAllTimeline ? "remove" : "add"}
+                  size={16}
+                  color={theme.primary}
+                />
+                <Text
+                  style={[
+                    styles.viewMoreLabel,
+                    { color: theme.primary, fontFamily: theme.fontBold },
+                  ]}
+                >
+                  {showAllTimeline
+                    ? t("common.view_less")
+                    : t("common.view_more")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
         <View style={styles.timelineList}>
           <View
@@ -2014,7 +1920,7 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
                     {canManageEvent(event) ? (
                       <View style={styles.timelineCardButtons}>
                         <Pressable
-                          onPress={() => openEditor(event)}
+                          onPress={() => setEditingEvent(event)}
                           style={styles.timelineActionBtn}
                           hitSlop={6}
                         >
@@ -2067,264 +1973,17 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
         <Icon name="chevron-forward" size={14} color={theme.textSoft} />
       </Pressable>
 
-      <AppModal visible={Boolean(editingEvent)} onClose={closeEditor}>
-          <Pressable
-            style={[
-              styles.modalCard,
-              {
-                backgroundColor: theme.surfaceLowest,
-                shadowColor: theme.shadow,
-              },
-            ]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <Text
-              style={[
-                styles.modalTitle,
-                { color: theme.text, fontFamily: theme.fontSemiBold },
-              ]}
-            >
-              {editingEvent ? describeEvent(editingEvent, t).title : ""}
-            </Text>
-
-            <View style={styles.editTimeRow}>
-              <View style={styles.editTimeField}>
-                <Text
-                  style={[
-                    styles.editTimeLabel,
-                    { color: theme.textMuted, fontFamily: theme.fontMedium },
-                  ]}
-                >
-                  {language === "fr" ? "Date" : "Date"}
-                </Text>
-                <DateTimePicker
-                  key={`date-${editStartTime.getTime()}`}
-                  value={editStartTime}
-                  mode="date"
-                  display="compact"
-                  locale={language === "fr" ? "fr-BE" : "en-US"}
-                  themeVariant={theme.isDark ? "dark" : "light"}
-                  textColor={theme.text}
-                  accentColor={theme.primary}
-                  onChange={(_, date) => {
-                    if (date) {
-                      const updated = new Date(editStartTime);
-                      updated.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
-                      setEditStartTime(updated);
-                    }
-                  }}
-                  style={styles.editTimePicker}
-                />
-              </View>
-              <View style={styles.editTimeField}>
-                <Text
-                  style={[
-                    styles.editTimeLabel,
-                    { color: theme.textMuted, fontFamily: theme.fontMedium },
-                  ]}
-                >
-                  {editingEvent?.type === "sleep"
-                    ? language === "fr"
-                      ? "Début"
-                      : "Start"
-                    : language === "fr"
-                      ? "Heure"
-                      : "Time"}
-                </Text>
-                <DateTimePicker
-                  key={`time-${editStartTime.getTime()}`}
-                  value={editStartTime}
-                  mode="time"
-                  display="compact"
-                  locale={language === "fr" ? "fr-BE" : "en-US"}
-                  themeVariant={theme.isDark ? "dark" : "light"}
-                  textColor={theme.text}
-                  accentColor={theme.primary}
-                  onChange={(_, date) => {
-                    if (date) setEditStartTime(date);
-                  }}
-                  style={styles.editTimePicker}
-                />
-              </View>
-              {editingEvent?.type === "sleep" && editEndTime ? (
-                <View style={styles.editTimeField}>
-                  <Text
-                    style={[
-                      styles.editTimeLabel,
-                      { color: theme.textMuted, fontFamily: theme.fontMedium },
-                    ]}
-                  >
-                    {language === "fr" ? "Réveil" : "Wake"}
-                  </Text>
-                  <DateTimePicker
-                    key={`end-${editEndTime?.getTime()}`}
-                    value={editEndTime!}
-                    mode="time"
-                    display="compact"
-                    locale={language === "fr" ? "fr-BE" : "en-US"}
-                    themeVariant={theme.isDark ? "dark" : "light"}
-                    textColor={theme.text}
-                    accentColor={theme.primary}
-                    onChange={(_, date) => {
-                      if (date) setEditEndTime(date);
-                    }}
-                    style={styles.editTimePicker}
-                  />
-                </View>
-              ) : null}
-            </View>
-
-            {editingEvent?.type === "feed" ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip
-                    label={t("event.feed.left")}
-                    selected={editFeedSide === "left"}
-                    tone="feed"
-                    onPress={() => setEditFeedSide("left")}
-                  />
-                  <Chip
-                    label={t("event.feed.right")}
-                    selected={editFeedSide === "right"}
-                    tone="feed"
-                    onPress={() => setEditFeedSide("right")}
-                  />
-                  <Chip
-                    label={t("event.feed.bottle")}
-                    selected={editFeedSide === "bottle"}
-                    tone="feed"
-                    onPress={() => setEditFeedSide("bottle")}
-                  />
-                </View>
-                {editFeedSide === "bottle" ? (
-                  <AppInput
-                    label={t("tracker.amount_ml")}
-                    value={editFeedAmount}
-                    onChangeText={setEditFeedAmount}
-                    keyboardType="number-pad"
-                    placeholder="120"
-                  />
-                ) : null}
-              </>
-            ) : null}
-
-            {editingEvent?.type === "diaper" ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip
-                    label={t("tracker.pee")}
-                    selected={editDiaperType === "wet"}
-                    tone="success"
-                    onPress={() => setEditDiaperType("wet")}
-                  />
-                  <Chip
-                    label={t("tracker.poop")}
-                    selected={editDiaperType === "dirty"}
-                    tone="warning"
-                    onPress={() => setEditDiaperType("dirty")}
-                  />
-                  <Chip
-                    label={t("tracker.both")}
-                    selected={editDiaperType === "both"}
-                    tone="warning"
-                    onPress={() => setEditDiaperType("both")}
-                  />
-                </View>
-                {editDiaperType === "dirty" || editDiaperType === "both" ? (
-                  <View style={styles.chipsRow}>
-                    {(
-                      [
-                        "jaune_pale",
-                        "beige",
-                        "blanc_mastic",
-                        "jaune_or",
-                        "ocre_bronze",
-                        "vert",
-                      ] as StoolColor[]
-                    ).map((color) => (
-                      <Chip
-                        key={color}
-                        label={t(stoolColorLabelKey(color))}
-                        selected={editStoolColor === color}
-                        tone="warning"
-                        onPress={() => setEditStoolColor(color)}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-
-            {editingEvent?.type === "medication" ? (
-              <>
-                <View style={styles.chipsRow}>
-                  <Chip
-                    label={t("tracker.care")}
-                    selected={editMedicationCategory === "care"}
-                    tone="success"
-                    onPress={() => {
-                      setEditMedicationCategory("care");
-                      setEditMedicationName("");
-                    }}
-                  />
-                  <Chip
-                    label={t("tracker.visits")}
-                    selected={editMedicationCategory === "visit"}
-                    tone="neutral"
-                    onPress={() => {
-                      setEditMedicationCategory("visit");
-                      setEditMedicationName("");
-                    }}
-                  />
-                </View>
-                <AppInput
-                  label={
-                    editMedicationCategory === "visit"
-                      ? t("tracker.visits")
-                      : t("tracker.care")
-                  }
-                  value={editMedicationName}
-                  onChangeText={setEditMedicationName}
-                  placeholder=""
-                />
-              </>
-            ) : null}
-
-            {editingEvent?.type === "temperature" ? (
-              <AppInput
-                label={t("tracker.temperature")}
-                value={editTemperature}
-                onChangeText={setEditTemperature}
-                keyboardType="decimal-pad"
-                placeholder="36.8"
-              />
-            ) : null}
-
-            <AppInput
-              label={t("common.optional_note")}
-              value={editNotes}
-              onChangeText={setEditNotes}
-              placeholder={t("tracker.note_placeholder")}
-            />
-
-            <View style={styles.modalActions}>
-              <AppButton
-                style={styles.modalButton}
-                variant="secondary"
-                onPress={closeEditor}
-              >
-                {t("common.cancel")}
-              </AppButton>
-              <AppButton
-                style={styles.modalButton}
-                disabled={saving}
-                onPress={() => void saveEdit()}
-              >
-                {t("common.save")}
-              </AppButton>
-            </View>
-          </Pressable>
-      </AppModal>
+      {/* Shared editor modal — handles BOTH edit (event != null) and
+          create (createMode + null event) flows. */}
+      <EventEditorModal
+        event={editingEvent}
+        createMode={addEventVisible}
+        defaultDate={selectedDate}
+        onClose={() => {
+          setEditingEvent(null);
+          setAddEventVisible(false);
+        }}
+      />
       <AppModal visible={datePickerVisible} onClose={() => setDatePickerVisible(false)}>
           <Pressable
             style={[
@@ -2710,6 +2369,18 @@ const styles = StyleSheet.create({
   timelineSection: {
     gap: spacing.md,
     paddingBottom: spacing.lg,
+  },
+  timelineHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineAddBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timelineHeader: {
     flexDirection: "row",

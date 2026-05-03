@@ -41,6 +41,7 @@ import {
   addLegacyMedicationEvent,
   addLegacyTemperatureEvent,
   addMedicationEvent,
+  addPastSleepEvent,
   addTemperatureEvent,
   createBabyProfile,
   createInitialSetup,
@@ -95,6 +96,19 @@ import { logger } from '@/src/utils/logger';
 import { canEditEvent, canRecordEvents, canRemoveMember } from '@/src/utils/permissions';
 
 export type SyncStatus = 'syncing' | 'live' | 'error' | 'offline';
+
+/**
+ * Discriminated union for manually creating a past event. Each variant
+ * carries exactly the fields its type needs — the editor modal builds
+ * one of these from its form state and hands it to `createManualEvent`.
+ */
+export type ManualEventInput =
+  | { type: 'feed'; startTime: number; details: { feedSide: 'left' | 'right' | 'bottle'; feedAmountMl?: number; bottleSupplement?: number }; notes?: string }
+  | { type: 'diaper'; startTime: number; details: { diaperType: 'wet' | 'dirty' | 'both'; stoolColor?: StoolColor }; notes?: string }
+  | { type: 'medication'; startTime: number; details: { medicationName?: string; careCategory: CareCategory }; notes?: string }
+  | { type: 'temperature'; startTime: number; details: { temperature: number; temperaturePeriod?: 'morning' | 'evening' }; notes?: string }
+  | { type: 'growth'; startTime: number; details: { weight?: number; height?: number; head?: number }; notes?: string }
+  | { type: 'sleep'; startTime: number; endTime: number; notes?: string };
 type ToastKind = 'success' | 'error';
 const LANGUAGE_STORAGE_KEY = 'charlie-mobile-language';
 const LEGACY_OVERRIDES_STORAGE_PREFIX = 'charlie-mobile-legacy-overrides';
@@ -196,6 +210,10 @@ interface AppContextValue {
   updateMemberRole: (memberUid: string, role: MembershipRole) => Promise<void>;
   updateEvent: (eventId: string, updates: Partial<Pick<TrackedEvent, 'startTime' | 'endTime' | 'notes' | 'details'>>) => Promise<void>;
   deleteEvent: (eventId: string) => Promise<void>;
+  /** Manually create a past event (e.g. parent forgot to log live).
+   * For sleep, both startTime and endTime are required (completed session).
+   * Other types use the chosen startTime as the moment of the action. */
+  createManualEvent: (input: ManualEventInput) => Promise<void>;
   updateFamilyDetails: (input: { name?: string; visitTypes?: string[]; careTypes?: string[] }) => Promise<void>;
   setLanguagePreference: (nextLanguage: AppLanguage) => Promise<void>;
   setFeedingModePreference: (nextMode: FeedingMode) => Promise<void>;
@@ -2006,6 +2024,52 @@ export function AppProvider({ children }: PropsWithChildren) {
                 },
               }
             : undefined,
+        );
+      });
+    },
+    createManualEvent: async (input) => {
+      if (currentMembership && !canRecordEvents(currentMembership)) {
+        showToast(
+          language === 'fr' ? 'Accès lecture seule' : 'Read-only access',
+          language === 'fr' ? 'Demandez au responsable de vous accorder l\'accès.' : 'Ask the family manager to grant you access.',
+          'error',
+        );
+        return;
+      }
+      const scope = liveScope();
+      if (!scope) {
+        showToast(
+          translate(language, 'toast.action_failed.title'),
+          language === 'fr' ? 'Famille non chargée.' : 'Family not loaded.',
+          'error',
+        );
+        return;
+      }
+      await runMutation(async () => {
+        switch (input.type) {
+          case 'feed':
+            await addFeedEvent(scope, input.details, input.notes, input.startTime);
+            break;
+          case 'diaper':
+            await addDiaperEvent(scope, input.details, input.notes, input.startTime);
+            break;
+          case 'medication':
+            await addMedicationEvent(scope, input.details, input.notes, input.startTime);
+            break;
+          case 'temperature':
+            await addTemperatureEvent(scope, input.details, input.startTime);
+            break;
+          case 'growth':
+            await addGrowthEvent(scope, input.details, input.startTime);
+            break;
+          case 'sleep':
+            await addPastSleepEvent(scope, input.startTime, input.endTime, input.notes);
+            break;
+        }
+        showToast(
+          language === 'fr' ? 'Événement ajouté' : 'Event added',
+          language === 'fr' ? 'Il apparaît dans le fil de la journée.' : 'It now appears in the timeline.',
+          'success',
         );
       });
     },

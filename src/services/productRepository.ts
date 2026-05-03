@@ -749,6 +749,34 @@ export async function addGrowthEvent(scope: ScopedActionParams, details: EventDe
   await createInstantEvent(scope, 'growth', details, undefined, timestamp);
 }
 
+/**
+ * Manual past sleep event — used when a parent retroactively logs a sleep
+ * they forgot to track live. Writes a completed sleep doc (both start +
+ * end set) without touching `activeSessions`.
+ */
+export async function addPastSleepEvent(
+  scope: ScopedActionParams,
+  startTime: number,
+  endTime: number,
+  notes?: string,
+) {
+  await addDoc(collection(requireFirestore(), 'events'), {
+    familyId: scope.familyId,
+    babyId: scope.babyId,
+    type: 'sleep',
+    startTime,
+    endTime,
+    details: {},
+    notes: notes?.trim() || null,
+    createdByUserId: scope.userId,
+    createdByRole: scope.role,
+    ...(scope.createdByLabel ? { createdByLabel: scope.createdByLabel } : {}),
+    createdAt: startTime,
+    updatedAt: startTime,
+    serverCreatedAt: serverTimestamp(),
+  });
+}
+
 export async function startSleepSession(scope: ScopedActionParams, notes?: string, timestamp = now()) {
   const db = requireFirestore();
   const activeSessionRef = doc(db, 'activeSessions', scope.babyId);

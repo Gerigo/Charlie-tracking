@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { AppButton, AppInput, AppModal, Chip } from '@/src/components/ui';
 import { radii, spacing } from '@/src/constants/theme';
 import { stoolColorLabelKey } from '@/src/constants/i18n';
 import { useI18n } from '@/src/hooks/useI18n';
-import { useAppContext } from '@/src/providers/AppProvider';
+import { useAppContext, type ManualEventInput } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 import type { CareCategory, DiaperType, FeedSide, StoolColor, TrackedEvent } from '@/src/types/domain';
 import { inferMedicationCategory } from '@/src/utils/careEvents';
@@ -46,15 +46,32 @@ function translateMedicationName(value: string | undefined, t: ReturnType<typeof
   }
 }
 
+type CreateType = 'feed' | 'diaper' | 'medication' | 'temperature' | 'growth' | 'sleep';
+
 interface Props {
+  /** Event being edited. Pass `null` + `createMode=true` to open in
+   *  creation mode; pass `null` + `createMode=false` (or omit) to close. */
   event: TrackedEvent | null;
   onClose: () => void;
+  /** When true and event is null, the modal opens in creation mode with
+   *  a type picker. */
+  createMode?: boolean;
+  /** Default day for the new event (creation mode). Defaults to today. */
+  defaultDate?: Date;
 }
 
-export function EventEditorModal({ event, onClose }: Props) {
+export function EventEditorModal({ event, onClose, createMode, defaultDate }: Props) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { updateEvent, saving } = useAppContext();
+  const { updateEvent, createManualEvent, saving } = useAppContext();
+
+  const isOpen = createMode || event !== null;
+  const isCreating = createMode && !event;
+  // The "active" type drives which fields render. In edit mode it comes
+  // from the event; in create mode it's a state controlled by the chip
+  // picker. Default to 'feed' as the most common manual entry.
+  const [createType, setCreateType] = useState<CreateType>('feed');
+  const activeType: CreateType | TrackedEvent['type'] = event?.type ?? createType;
 
   const [editNotes, setEditNotes] = useState('');
   const [editFeedSide, setEditFeedSide] = useState<FeedSide>('left');
@@ -71,31 +88,165 @@ export function EventEditorModal({ event, onClose }: Props) {
   const [editStartTime, setEditStartTime] = useState(new Date());
   const [editEndTime, setEditEndTime] = useState<Date | null>(null);
 
-  // Hydrate the form from `event` whenever a new one is opened.
+  // Hydrate the form ONLY when the modal transitions to a new
+  // event/mode — not on every parent render. Without this guard, the
+  // create-mode reset path was firing whenever `t` or `defaultDate`
+  // changed identity (each parent render), wiping the user's chip
+  // selection back to "feed" the moment they tapped "Couche".
+  const lastEventIdRef = useRef<string | null>(null);
+  const wasCreatingRef = useRef<boolean>(false);
+  // Refs to read the latest props inside the effect without depending
+  // on them (would otherwise cause spurious re-runs).
+  const defaultDateRef = useRef(defaultDate);
+  defaultDateRef.current = defaultDate;
+  const tRef = useRef(t);
+  tRef.current = t;
+
   useEffect(() => {
-    if (!event) return;
-    setEditNotes(event.notes ?? '');
-    setEditFeedSide(event.details?.feedSide ?? 'left');
-    setEditFeedAmount(typeof event.details?.feedAmountMl === 'number' ? String(event.details.feedAmountMl) : '');
-    setEditBottleSupplement(typeof event.details?.bottleSupplement === 'number' ? String(event.details.bottleSupplement) : '');
-    setEditDiaperType(event.details?.diaperType ?? 'wet');
-    setEditStoolColor(event.details?.stoolColor ?? null);
-    setEditMedicationName(
-      translateMedicationName(event.details?.medicationName, t) ??
-        event.details?.medicationName ??
-        '',
-    );
-    setEditMedicationCategory(inferMedicationCategory(event.details?.medicationName, event.details?.careCategory));
-    setEditTemperature(typeof event.details?.temperature === 'number' ? String(event.details.temperature) : '');
-    setEditWeight(typeof event.details?.weight === 'number' ? String(event.details.weight) : '');
-    setEditHeight(typeof event.details?.height === 'number' ? String(event.details.height) : '');
-    setEditHead(typeof event.details?.head === 'number' ? String(event.details.head) : '');
-    const safeStart = typeof event.startTime === 'number' && event.startTime > 0
-      ? new Date(event.startTime)
-      : new Date();
-    setEditStartTime(safeStart);
-    setEditEndTime(typeof event.endTime === 'number' && event.endTime > 0 ? new Date(event.endTime) : null);
-  }, [event, t]);
+    const transitionedToEvent = event && event.id !== lastEventIdRef.current;
+    const transitionedToCreate = isCreating && !wasCreatingRef.current;
+
+    if (transitionedToEvent) {
+      lastEventIdRef.current = event.id;
+      wasCreatingRef.current = false;
+      setEditNotes(event.notes ?? '');
+      setEditFeedSide(event.details?.feedSide ?? 'left');
+      setEditFeedAmount(typeof event.details?.feedAmountMl === 'number' ? String(event.details.feedAmountMl) : '');
+      setEditBottleSupplement(typeof event.details?.bottleSupplement === 'number' ? String(event.details.bottleSupplement) : '');
+      setEditDiaperType(event.details?.diaperType ?? 'wet');
+      setEditStoolColor(event.details?.stoolColor ?? null);
+      setEditMedicationName(
+        translateMedicationName(event.details?.medicationName, tRef.current) ??
+          event.details?.medicationName ??
+          '',
+      );
+      setEditMedicationCategory(inferMedicationCategory(event.details?.medicationName, event.details?.careCategory));
+      setEditTemperature(typeof event.details?.temperature === 'number' ? String(event.details.temperature) : '');
+      setEditWeight(typeof event.details?.weight === 'number' ? String(event.details.weight) : '');
+      setEditHeight(typeof event.details?.height === 'number' ? String(event.details.height) : '');
+      setEditHead(typeof event.details?.head === 'number' ? String(event.details.head) : '');
+      const safeStart = typeof event.startTime === 'number' && event.startTime > 0
+        ? new Date(event.startTime)
+        : new Date();
+      setEditStartTime(safeStart);
+      setEditEndTime(typeof event.endTime === 'number' && event.endTime > 0 ? new Date(event.endTime) : null);
+      return;
+    }
+
+    if (transitionedToCreate) {
+      lastEventIdRef.current = null;
+      wasCreatingRef.current = true;
+      const now = new Date();
+      const start = defaultDateRef.current ? new Date(defaultDateRef.current) : now;
+      start.setHours(now.getHours(), now.getMinutes(), 0, 0);
+      setEditNotes('');
+      setEditFeedSide('left');
+      setEditFeedAmount('');
+      setEditBottleSupplement('');
+      setEditDiaperType('wet');
+      setEditStoolColor(null);
+      setEditMedicationName('');
+      setEditMedicationCategory('care');
+      setEditTemperature('');
+      setEditWeight('');
+      setEditHeight('');
+      setEditHead('');
+      setEditStartTime(start);
+      setEditEndTime(new Date(start.getTime() + 60 * 60 * 1000));
+      setCreateType('feed');
+      return;
+    }
+
+    // Modal was just closed (no event, not creating) — reset the refs
+    // so the next open re-triggers a hydrate.
+    if (!event && !isCreating) {
+      lastEventIdRef.current = null;
+      wasCreatingRef.current = false;
+    }
+  }, [event, isCreating]);
+
+  const saveCreate = async () => {
+    const startTime = editStartTime.getTime();
+    let payload: ManualEventInput;
+    switch (createType) {
+      case 'feed':
+        payload = {
+          type: 'feed',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: {
+            feedSide: editFeedSide,
+            ...(editFeedSide === 'bottle' && editFeedAmount.trim()
+              ? { feedAmountMl: Number(editFeedAmount) }
+              : {}),
+            ...((editFeedSide === 'left' || editFeedSide === 'right') && editBottleSupplement.trim()
+              ? { bottleSupplement: Number(editBottleSupplement) }
+              : {}),
+          },
+        };
+        break;
+      case 'diaper':
+        payload = {
+          type: 'diaper',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: {
+            diaperType: editDiaperType,
+            ...((editDiaperType === 'dirty' || editDiaperType === 'both') && editStoolColor
+              ? { stoolColor: editStoolColor }
+              : {}),
+          },
+        };
+        break;
+      case 'medication':
+        payload = {
+          type: 'medication',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: {
+            medicationName: editMedicationName.trim() || undefined,
+            careCategory: editMedicationCategory,
+          },
+        };
+        break;
+      case 'temperature':
+        payload = {
+          type: 'temperature',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: { temperature: Number((editTemperature || '0').replace(',', '.')) },
+        };
+        break;
+      case 'growth':
+        payload = {
+          type: 'growth',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: {
+            ...(editWeight.trim() ? { weight: Number(editWeight.replace(',', '.')) } : {}),
+            ...(editHeight.trim() ? { height: Number(editHeight.replace(',', '.')) } : {}),
+            ...(editHead.trim() ? { head: Number(editHead.replace(',', '.')) } : {}),
+          },
+        };
+        break;
+      case 'sleep': {
+        const end = (editEndTime ?? new Date(startTime + 60 * 60 * 1000)).getTime();
+        if (end <= startTime) {
+          // Refuse instead of writing nonsense — the user keeps editing.
+          return;
+        }
+        payload = {
+          type: 'sleep',
+          startTime,
+          endTime: end,
+          notes: editNotes.trim() || undefined,
+        };
+        break;
+      }
+    }
+    await createManualEvent(payload);
+    onClose();
+  };
 
   const saveEdit = async () => {
     if (!event) return;
@@ -168,14 +319,28 @@ export function EventEditorModal({ event, onClose }: Props) {
   };
 
   return (
-    <AppModal visible={Boolean(event)} onClose={onClose}>
+    <AppModal visible={isOpen} onClose={onClose}>
       <Pressable
         style={[styles.modalCard, { backgroundColor: theme.surfaceLowest, shadowColor: theme.shadow }]}
         onPress={(e) => e.stopPropagation()}
       >
         <Text style={[styles.modalTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-          {language === 'fr' ? 'Modifier l\'événement' : 'Edit event'}
+          {isCreating
+            ? language === 'fr' ? 'Ajouter un événement' : 'Add event'
+            : language === 'fr' ? 'Modifier l\'événement' : 'Edit event'}
         </Text>
+
+        {/* Type picker — only shown in creation mode */}
+        {isCreating ? (
+          <View style={styles.chipsRow}>
+            <Chip label={t('tracker.feed')} selected={createType === 'feed'} tone="feed" onPress={() => setCreateType('feed')} />
+            <Chip label={t('today.diaper')} selected={createType === 'diaper'} tone="success" onPress={() => setCreateType('diaper')} />
+            <Chip label={t('tracker.sleep')} selected={createType === 'sleep'} tone="sleep" onPress={() => setCreateType('sleep')} />
+            <Chip label={t('tracker.care')} selected={createType === 'medication'} tone="neutral" onPress={() => setCreateType('medication')} />
+            <Chip label={t('tracker.temperature')} selected={createType === 'temperature'} tone="warning" onPress={() => setCreateType('temperature')} />
+            <Chip label={t('event.growth.weighing')} selected={createType === 'growth'} tone="neutral" onPress={() => setCreateType('growth')} />
+          </View>
+        ) : null}
 
         {/* Date + time pickers */}
         <View style={styles.editTimeRow}>
@@ -204,7 +369,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           </View>
           <View style={styles.editTimeField}>
             <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
-              {event?.type === 'sleep' ? 'Début' : 'Heure'}
+              {activeType === 'sleep' ? 'Début' : 'Heure'}
             </Text>
             <DateTimePicker
               key={`time-${editStartTime.getTime()}`}
@@ -221,7 +386,7 @@ export function EventEditorModal({ event, onClose }: Props) {
               style={styles.editTimePicker}
             />
           </View>
-          {event?.type === 'sleep' && editEndTime ? (
+          {activeType === 'sleep' && editEndTime ? (
             <View style={styles.editTimeField}>
               <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
                 Réveil
@@ -244,7 +409,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           ) : null}
         </View>
 
-        {event?.type === 'feed' ? (
+        {activeType === 'feed' ? (
           <>
             <View style={styles.chipsRow}>
               <Chip label={t('event.feed.left')} selected={editFeedSide === 'left'} tone="feed" onPress={() => setEditFeedSide('left')} />
@@ -272,7 +437,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           </>
         ) : null}
 
-        {event?.type === 'diaper' ? (
+        {activeType === 'diaper' ? (
           <>
             <View style={styles.chipsRow}>
               <Chip label={t('tracker.pee')} selected={editDiaperType === 'wet'} tone="success" onPress={() => setEditDiaperType('wet')} />
@@ -295,7 +460,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           </>
         ) : null}
 
-        {event?.type === 'medication' ? (
+        {activeType === 'medication' ? (
           <>
             <View style={styles.chipsRow}>
               <Chip label={t('tracker.care')} selected={editMedicationCategory === 'care'} tone="success" onPress={() => setEditMedicationCategory('care')} />
@@ -310,7 +475,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           </>
         ) : null}
 
-        {event?.type === 'temperature' ? (
+        {activeType === 'temperature' ? (
           <AppInput
             label={t('tracker.temperature')}
             value={editTemperature}
@@ -320,7 +485,7 @@ export function EventEditorModal({ event, onClose }: Props) {
           />
         ) : null}
 
-        {event?.type === 'growth' ? (
+        {activeType === 'growth' ? (
           <>
             <AppInput label={t('growth.weight_label')} value={editWeight} onChangeText={setEditWeight} keyboardType="decimal-pad" placeholder="4.2" />
             <AppInput label={t('growth.height_label')} value={editHeight} onChangeText={setEditHeight} keyboardType="decimal-pad" placeholder="55.4" />
@@ -339,7 +504,11 @@ export function EventEditorModal({ event, onClose }: Props) {
           <AppButton style={styles.modalButton} variant="secondary" onPress={onClose}>
             {t('common.cancel')}
           </AppButton>
-          <AppButton style={styles.modalButton} disabled={saving} onPress={() => void saveEdit()}>
+          <AppButton
+            style={styles.modalButton}
+            disabled={saving}
+            onPress={() => void (isCreating ? saveCreate() : saveEdit())}
+          >
             {t('common.save')}
           </AppButton>
         </View>

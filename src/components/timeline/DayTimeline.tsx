@@ -34,6 +34,10 @@ interface DayTimelineProps {
   onEdit?: (event: TrackedEvent) => void;
   /** When provided, renders a trash icon on each event card. */
   onDelete?: (event: TrackedEvent) => void;
+  /** When provided, renders a "+" pill in the section header — fires
+   *  with no args; the parent screen opens the EventEditorModal in
+   *  create mode. */
+  onAddEvent?: () => void;
 }
 
 export function DayTimeline({
@@ -43,6 +47,7 @@ export function DayTimeline({
   showHeader = true,
   onEdit,
   onDelete,
+  onAddEvent,
 }: DayTimelineProps) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
@@ -69,6 +74,17 @@ export function DayTimeline({
             ? 'Les actions enregistrées s\'afficheront ici.'
             : 'Logged actions will appear here.'}
         </Text>
+        {onAddEvent ? (
+          <Pressable
+            onPress={onAddEvent}
+            style={[styles.emptyAddBtn, { borderColor: theme.primary }]}
+          >
+            <Icon name="add" size={14} color={theme.primary} />
+            <Text style={[styles.emptyAddLabel, { color: theme.primary, fontFamily: theme.fontSemiBold }]}>
+              {language === 'fr' ? 'Ajouter manuellement' : 'Add manually'}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -87,21 +103,32 @@ export function DayTimeline({
               {language === 'fr' ? 'Du plus récent au plus ancien' : 'Newest to oldest'}
             </Text>
           </View>
-          {dayEvents.length > previewLimit ? (
-            <Pressable
-              onPress={() => setShowAll((c) => !c)}
-              style={[styles.viewMoreBtn, { backgroundColor: theme.surfaceLowest, borderColor: theme.cardBorder }]}
-            >
-              <Icon
-                name={showAll ? 'remove' : 'add'}
-                size={16}
-                color={theme.primary}
-              />
-              <Text style={[styles.viewMoreLabel, { color: theme.primary, fontFamily: theme.fontBold }]}>
-                {showAll ? t('common.view_less') : t('common.view_more')}
-              </Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.headerActions}>
+            {onAddEvent ? (
+              <Pressable
+                onPress={onAddEvent}
+                style={[styles.headerActionBtn, { backgroundColor: theme.primary }]}
+                hitSlop={6}
+              >
+                <Icon name="add" size={16} color={theme.onPrimary} />
+              </Pressable>
+            ) : null}
+            {dayEvents.length > previewLimit ? (
+              <Pressable
+                onPress={() => setShowAll((c) => !c)}
+                style={[styles.viewMoreBtn, { backgroundColor: theme.surfaceLowest, borderColor: theme.cardBorder }]}
+              >
+                <Icon
+                  name={showAll ? 'remove' : 'add'}
+                  size={16}
+                  color={theme.primary}
+                />
+                <Text style={[styles.viewMoreLabel, { color: theme.primary, fontFamily: theme.fontBold }]}>
+                  {showAll ? t('common.view_less') : t('common.view_more')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -516,5 +543,32 @@ const styles = StyleSheet.create({
   emptyBody: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    marginTop: 8,
+  },
+  emptyAddLabel: {
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerActionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
