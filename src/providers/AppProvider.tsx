@@ -854,6 +854,12 @@ export function AppProvider({ children }: PropsWithChildren) {
     setHistoricalEventsState([]);
     setFullHistoryLoadedFor(null);
 
+    // Listener takes the full history for now — capping it at 14 days
+    // depends on a Firestore composite index that may not be deployed
+    // (and on every event having a sane `startTime`). Until that's
+    // verified, we keep the original behaviour to avoid hiding data.
+    // The on-demand `loadFullHistory()` becomes redundant in this mode
+    // but stays in place so we can flip back without UI changes.
     const recentCutoff = Date.now() - RECENT_EVENTS_WINDOW_MS;
     recentCutoffRef.current = recentCutoff;
 
@@ -906,7 +912,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         setSyncStatus('error');
         logger.error('firestore', `Erreur snapshot events (${err.code})`, err, { babyId: currentBabyState.id });
       },
-      recentCutoff,
     );
 
     const unsubscribeSession = listenActiveSession(currentBabyState.id, (session) => {
