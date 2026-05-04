@@ -472,8 +472,13 @@ function toTemperatureChartData(events: TrackedEvent[], language: 'fr' | 'en') {
 export function GrowthScreen({ onShowHistory }: { onShowHistory?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { currentBaby, events, saving, recordGrowth, isViewer } = useAppContext();
+  const { currentBaby, events, saving, recordGrowth, isViewer, loadFullHistory } = useAppContext();
   const [window, setWindow] = useState<ChartWindow>('all');
+
+  // Growth curves use lifetime measurements → pull older events on mount.
+  useEffect(() => {
+    void loadFullHistory();
+  }, [loadFullHistory]);
   const [measureModalVisible, setMeasureModalVisible] = useState(false);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');

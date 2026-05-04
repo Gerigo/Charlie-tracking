@@ -56,6 +56,7 @@ import {
   listenActiveSession,
   listenBabies,
   listenEvents,
+  fetchEventsBeforeTimestamp,
   listenFamily,
   listenLegacyActiveSession,
   listenLegacyEvents,
@@ -110,6 +111,9 @@ export type ManualEventInput =
   | { type: 'growth'; startTime: number; details: { weight?: number; height?: number; head?: number }; notes?: string }
   | { type: 'sleep'; startTime: number; endTime: number; notes?: string };
 type ToastKind = 'success' | 'error';
+// Realtime listener window: today / tracker / growth-spurt detection only
+// need ~14 days. Older events are loaded on demand via `loadFullHistory`.
+const RECENT_EVENTS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const LANGUAGE_STORAGE_KEY = 'charlie-mobile-language';
 const LEGACY_OVERRIDES_STORAGE_PREFIX = 'charlie-mobile-legacy-overrides';
 
@@ -214,6 +218,17 @@ interface AppContextValue {
    * For sleep, both startTime and endTime are required (completed session).
    * Other types use the chosen startTime as the moment of the action. */
   createManualEvent: (input: ManualEventInput) => Promise<void>;
+  /** Load events older than the realtime listener window (~14 d) for the
+   * current baby. Idempotent — only fetches once per baby per session.
+   * Subsequent reads are served from Firestore's IndexedDB cache. Call from
+   * any screen that needs the lifetime history (Évolution, Croissance,
+   * Historique, Export). */
+  loadFullHistory: () => Promise<void>;
+  /** True once the full history has been merged into `events` for the
+   * current baby. Screens that gate UI on completeness can read this. */
+  fullHistoryLoaded: boolean;
+  /** True while the on-demand full-history fetch is in flight. */
+  fullHistoryLoading: boolean;
   updateFamilyDetails: (input: { name?: string; visitTypes?: string[]; careTypes?: string[] }) => Promise<void>;
   setLanguagePreference: (nextLanguage: AppLanguage) => Promise<void>;
   setFeedingModePreference: (nextMode: FeedingMode) => Promise<void>;
@@ -494,6 +509,13 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [babiesState, setBabiesState] = useState<BabyProfile[]>([]);
   const [currentBabyState, setCurrentBabyState] = useState<BabyProfile | null>(null);
   const [eventsState, setEventsState] = useState<TrackedEvent[]>([]);
+  // Older events fetched on demand (Évolution, Croissance, Historique, Export).
+  // The realtime listener only follows the last 14 days for performance —
+  // this slice fills in the lifetime history when a screen requests it.
+  const [historicalEventsState, setHistoricalEventsState] = useState<TrackedEvent[]>([]);
+  const [fullHistoryLoadedFor, setFullHistoryLoadedFor] = useState<string | null>(null);
+  const [fullHistoryLoading, setFullHistoryLoading] = useState(false);
+  const recentCutoffRef = useRef<number>(0);
   const [activeSessionState, setActiveSessionState] = useState<ActiveSession | null>(null);
   const [legacyEventsState, setLegacyEventsState] = useState<TrackedEvent[]>([]);
   const [legacyActiveSessionState, setLegacyActiveSessionState] = useState<ActiveSession | null>(null);
@@ -818,12 +840,22 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     if (!currentBabyState) {
       setEventsState([]);
+      setHistoricalEventsState([]);
+      setFullHistoryLoadedFor(null);
       setActiveSessionState(null);
       setLastSyncedAt(null);
+      recentCutoffRef.current = 0;
       return;
     }
 
     setSyncStatus('syncing');
+    // Reset historical slice when switching baby — the previous baby's
+    // older events are not relevant.
+    setHistoricalEventsState([]);
+    setFullHistoryLoadedFor(null);
+
+    const recentCutoff = Date.now() - RECENT_EVENTS_WINDOW_MS;
+    recentCutoffRef.current = recentCutoff;
 
     const unsubscribeEvents = listenEvents(
       currentBabyState.id,
@@ -874,6 +906,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         setSyncStatus('error');
         logger.error('firestore', `Erreur snapshot events (${err.code})`, err, { babyId: currentBabyState.id });
       },
+      recentCutoff,
     );
 
     const unsubscribeSession = listenActiveSession(currentBabyState.id, (session) => {
@@ -990,13 +1023,22 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const babies = sandbox ? sandbox.babies : (usingLegacyWorkspace && legacyBaby) ? [legacyBaby] : babiesState;
   const currentBaby = sandboxCurrentBaby ?? (usingLegacyWorkspace ? legacyBaby : null) ?? currentBabyState;
+  const liveEvents = useMemo(() => {
+    if (historicalEventsState.length === 0) return eventsState;
+    // Dedupe by id (eventsState wins on conflict — it's the live listener)
+    const map = new Map<string, TrackedEvent>();
+    for (const e of historicalEventsState) map.set(e.id, e);
+    for (const e of eventsState) map.set(e.id, e);
+    return Array.from(map.values()).sort((a, b) => b.startTime - a.startTime);
+  }, [eventsState, historicalEventsState]);
+
   const baseEvents = sandbox && sandboxCurrentBaby
     ? sandbox.events.filter((event) => event.babyId === sandboxCurrentBaby.id).sort((left, right) => right.startTime - left.startTime)
     : usingLegacyWorkspace
       ? legacyEventsState
       : legacyEventsState.length > 0
-        ? [...eventsState, ...legacyEventsState].sort((a, b) => b.startTime - a.startTime)
-        : eventsState;
+        ? [...liveEvents, ...legacyEventsState].sort((a, b) => b.startTime - a.startTime)
+        : liveEvents;
   // Optimistic merge — events created locally appear instantly, hidden once
   // the Firestore listener delivers a matching real event (same type + babyId
   // within an 8s window).
@@ -1177,6 +1219,31 @@ export function AppProvider({ children }: PropsWithChildren) {
     },
     [isSandbox, usingLegacyWorkspace, currentBaby, currentFamily, authUser, currentMembership],
   );
+
+  const loadFullHistory = useCallback(async () => {
+    // Sandbox / legacy already hold the full slice locally — nothing to do.
+    if (isSandbox || usingLegacyWorkspace) return;
+    if (!currentBabyState) return;
+    if (fullHistoryLoadedFor === currentBabyState.id) return;
+    if (fullHistoryLoading) return;
+    if (recentCutoffRef.current === 0) return; // listener not yet started
+    setFullHistoryLoading(true);
+    try {
+      const older = await fetchEventsBeforeTimestamp(
+        currentBabyState.id,
+        currentBabyState.familyId,
+        recentCutoffRef.current,
+      );
+      setHistoricalEventsState(older);
+      setFullHistoryLoadedFor(currentBabyState.id);
+    } catch (error) {
+      logger.error('firestore', 'fetchEventsBeforeTimestamp failed', error, {
+        babyId: currentBabyState.id,
+      });
+    } finally {
+      setFullHistoryLoading(false);
+    }
+  }, [isSandbox, usingLegacyWorkspace, currentBabyState, fullHistoryLoadedFor, fullHistoryLoading]);
 
   const liveScope = () => {
     if (!currentFamily || !currentBaby || !authUser || !currentMembership) return null;
@@ -2084,6 +2151,12 @@ export function AppProvider({ children }: PropsWithChildren) {
         );
       });
     },
+    loadFullHistory,
+    fullHistoryLoaded:
+      isSandbox || usingLegacyWorkspace
+        ? true
+        : currentBabyState !== null && fullHistoryLoadedFor === currentBabyState.id,
+    fullHistoryLoading,
     updateFamilyDetails: async ({ name, visitTypes, careTypes }) => {
       if (isSandbox) {
         setSandbox((current) => current ? {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 // HistoryScreen is rendered as a full-screen Modal in the SPA shell.
 // Closing is driven by an `onClose` callback prop, not router.back.
 import { Icon } from '@/src/components/ui/Icon';
@@ -113,7 +113,12 @@ const stoolColors: StoolColor[] = ['jaune_pale', 'beige', 'blanc_mastic', 'jaune
 export function HistoryScreen({ onClose }: { onClose?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { events, familyMembers, viewerRole, deleteEvent, refreshData } = useAppContext();
+  const { events, familyMembers, viewerRole, deleteEvent, refreshData, loadFullHistory } = useAppContext();
+
+  // History journal lets the user scroll to lifetime start → pull older events.
+  useEffect(() => {
+    void loadFullHistory();
+  }, [loadFullHistory]);
   const canManageEvent = (_event: TrackedEvent) =>
     viewerRole === 'manager';
 
