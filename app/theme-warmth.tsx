@@ -13,7 +13,7 @@ import { Redirect, Stack } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 interface DemoPalette {
-  key: 'current' | 'A' | 'B' | 'C';
+  key: 'current' | 'greige' | 'kraft' | 'twilight' | 'sunken';
   name: string;
   tagline: string;
   background: string;
@@ -45,49 +45,64 @@ const PALETTES: DemoPalette[] = [
     border: 'rgba(168, 98, 77, 0.22)',
   },
   {
-    key: 'A',
-    name: 'A — Léger',
-    tagline: 'Cartes en crème (plus de blanc pur)',
-    background: '#FAF3E8',
-    surface: '#FBF5EC',
-    surfaceRaised: '#F5EBDD',
-    surfaceContainer: '#EDE2D2',
-    text: '#3A2F2C',
-    textMuted: '#5A4945',
-    textSoft: '#8C766F',
+    key: 'greige',
+    name: '1 — Greige moderne',
+    tagline: 'Neutre chaud sans jaune, façon Notion / Linear',
+    background: '#EBE7DF',
+    surface: '#F2EFE8',
+    surfaceRaised: '#E3DED4',
+    surfaceContainer: '#D8D2C5',
+    text: '#2C2825',
+    textMuted: '#534D47',
+    textSoft: '#857E76',
     primary: '#A8624D',
     onPrimary: '#FFFFFF',
-    border: 'rgba(168, 98, 77, 0.22)',
+    border: 'rgba(80, 70, 60, 0.16)',
   },
   {
-    key: 'B',
-    name: 'B — Moyen',
-    tagline: 'Sable clair, plus enveloppant',
-    background: '#F4ECDC',
-    surface: '#F8F1E1',
-    surfaceRaised: '#EFE4CD',
-    surfaceContainer: '#E5D7C3',
-    text: '#33282A',
-    textMuted: '#564541',
-    textSoft: '#856E68',
+    key: 'kraft',
+    name: '2 — Carnet kraft',
+    tagline: 'Papier brun cosy, journal de bord vintage',
+    background: '#E5D5B7',
+    surface: '#EFDFC0',
+    surfaceRaised: '#D9C7A4',
+    surfaceContainer: '#CFBA94',
+    text: '#3A2A1F',
+    textMuted: '#5A4634',
+    textSoft: '#8B7558',
     primary: '#A8624D',
-    onPrimary: '#FFFFFF',
-    border: 'rgba(168, 98, 77, 0.24)',
+    onPrimary: '#FBF5EC',
+    border: 'rgba(120, 80, 40, 0.22)',
   },
   {
-    key: 'C',
-    name: 'C — Mid-tone',
-    tagline: 'Sépia / lecture, à mi-chemin du nuit',
-    background: '#ECE2CE',
-    surface: '#F2E9D6',
-    surfaceRaised: '#E5D9BF',
-    surfaceContainer: '#D8C9AE',
+    key: 'twilight',
+    name: '3 — Twilight',
+    tagline: 'À 30 % vers le mode nuit, sépia sombre',
+    background: '#B5A78F',
+    surface: '#C5B59B',
+    surfaceRaised: '#A99B82',
+    surfaceContainer: '#9E9079',
     text: '#2E2520',
     textMuted: '#4F413B',
     textSoft: '#7A6760',
     primary: '#9D5743',
     onPrimary: '#FBF5EC',
-    border: 'rgba(124, 70, 49, 0.28)',
+    border: 'rgba(60, 45, 35, 0.24)',
+  },
+  {
+    key: 'sunken',
+    name: '4 — Sunken cards',
+    tagline: 'Cartes plus foncées que le fond — effet creusé',
+    background: '#FBF5EC',
+    surface: '#EDE2D2',
+    surfaceRaised: '#E5D7C3',
+    surfaceContainer: '#DBC9B0',
+    text: '#3A2F2C',
+    textMuted: '#5A4945',
+    textSoft: '#8C766F',
+    primary: '#A8624D',
+    onPrimary: '#FFFFFF',
+    border: 'rgba(168, 98, 77, 0.18)',
   },
 ];
 
@@ -102,9 +117,9 @@ export default function ThemeWarmthPreview() {
       <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
         <Text style={styles.heading}>Mode jour — chaleur des surfaces</Text>
         <Text style={styles.intro}>
-          Comparaison des trois pistes pour adoucir le mode jour. Chaque colonne rend
-          un aperçu d'écran « Aujourd'hui » avec sa propre palette ; le reste de l'app
-          n'est pas affecté.
+          Quatre directions plus marquées que les premières propositions. Chaque colonne
+          rend un aperçu d'écran « Aujourd'hui » avec sa propre palette ; le reste de
+          l'app n'est pas affecté.
         </Text>
         <View style={styles.row}>
           {PALETTES.map((palette) => (

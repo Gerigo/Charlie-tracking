@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Icon } from '@/src/components/ui/Icon';
 import { format } from 'date-fns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EditorialTopBar } from '@/src/components/editorial/TopBar';
 import { ActivityIcon } from '@/src/components/editorial/ActivityIcon';
@@ -87,7 +87,12 @@ function describeType(type: TrackedEventType, t: ReturnType<typeof useI18n>['t']
 export function DataScreen({ onClose }: { onClose?: () => void } = {}) {
   const { theme } = useAppTheme();
   const { t, language } = useI18n();
-  const { events, viewerRole } = useAppContext();
+  const { events, viewerRole, loadFullHistory } = useAppContext();
+
+  // Export defaults to "all" → pull older events on mount.
+  useEffect(() => {
+    void loadFullHistory();
+  }, [loadFullHistory]);
   const canExportData = viewerRole === 'manager';
   const bounds = useMemo(() => getExportDateBounds(events), [events]);
   const [rangePreset, setRangePreset] = useState<PresetRange>('all');

@@ -707,9 +707,14 @@ function TrendHeatmap({
 export function EvolutionScreen() {
   const { theme } = useAppTheme();
   const { t } = useI18n();
-  const { events } = useAppContext();
+  const { events, loadFullHistory } = useAppContext();
   const [dailyWindow, setDailyWindow] = useState<DailyWindow>('7');
   const [trendRange, setTrendRange] = useState<TrendRange>('all');
+
+  // Évolution computes lifetime aggregates → pull older events on mount.
+  useEffect(() => {
+    void loadFullHistory();
+  }, [loadFullHistory]);
 
   const dailyWindowOptions: Array<{ label: string; value: DailyWindow }> = [
     { label: '7j', value: '7' },
