@@ -741,12 +741,12 @@ export async function addMedicationEvent(scope: ScopedActionParams, details: Eve
   await createInstantEvent(scope, 'medication', details, notes, timestamp);
 }
 
-export async function addTemperatureEvent(scope: ScopedActionParams, details: EventDetails, timestamp = now()) {
-  await createInstantEvent(scope, 'temperature', details, undefined, timestamp);
+export async function addTemperatureEvent(scope: ScopedActionParams, details: EventDetails, notes?: string, timestamp = now()) {
+  await createInstantEvent(scope, 'temperature', details, notes, timestamp);
 }
 
-export async function addGrowthEvent(scope: ScopedActionParams, details: EventDetails, timestamp = now()) {
-  await createInstantEvent(scope, 'growth', details, undefined, timestamp);
+export async function addGrowthEvent(scope: ScopedActionParams, details: EventDetails, notes?: string, timestamp = now()) {
+  await createInstantEvent(scope, 'growth', details, notes, timestamp);
 }
 
 /**
