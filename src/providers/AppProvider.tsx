@@ -1149,21 +1149,23 @@ export function AppProvider({ children }: PropsWithChildren) {
       details: EventDetails,
       notes?: string,
       endTime?: number | null,
+      startTime?: number,
     ) => {
       if (isSandbox || usingLegacyWorkspace) return;
       if (!currentBaby || !currentFamily || !authUser || !currentMembership) return;
       const id = `__opt_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const ts = typeof startTime === 'number' ? startTime : Date.now();
       const event: TrackedEvent = {
         id,
         type,
         babyId: currentBaby.id,
         familyId: currentFamily.id,
-        startTime: Date.now(),
+        startTime: ts,
         endTime: endTime ?? null,
         details,
         notes,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: ts,
+        updatedAt: ts,
         createdByUserId: authUser.uid,
         createdByRole: currentMembership.role,
         createdByLabel: undefined,
@@ -2045,6 +2047,15 @@ export function AppProvider({ children }: PropsWithChildren) {
         );
         return;
       }
+      // Show the event right away so the user gets immediate feedback,
+      // even when the Firestore listener is slow to fire.
+      pushOptimistic(
+        input.type,
+        'details' in input ? input.details : {},
+        input.notes,
+        input.type === 'sleep' ? input.endTime : null,
+        input.startTime,
+      );
       await runMutation(async () => {
         switch (input.type) {
           case 'feed':
@@ -2057,10 +2068,10 @@ export function AppProvider({ children }: PropsWithChildren) {
             await addMedicationEvent(scope, input.details, input.notes, input.startTime);
             break;
           case 'temperature':
-            await addTemperatureEvent(scope, input.details, input.startTime);
+            await addTemperatureEvent(scope, input.details, input.notes, input.startTime);
             break;
           case 'growth':
-            await addGrowthEvent(scope, input.details, input.startTime);
+            await addGrowthEvent(scope, input.details, input.notes, input.startTime);
             break;
           case 'sleep':
             await addPastSleepEvent(scope, input.startTime, input.endTime, input.notes);

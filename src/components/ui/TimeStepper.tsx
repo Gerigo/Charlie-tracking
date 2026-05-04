@@ -7,6 +7,7 @@ interface Props {
   value: Date;
   onChange: (next: Date) => void;
   style?: StyleProp<ViewStyle>;
+  minuteStep?: number;
 }
 
 function pad(n: number): string {
@@ -19,11 +20,9 @@ function bumpHour(date: Date, delta: number): Date {
   return next;
 }
 
-function bumpMinute(date: Date, delta: number): Date {
+function bumpMinute(date: Date, delta: number, step: number): Date {
   const next = new Date(date);
-  // Round to the nearest 5-minute step for ergonomics, then bump
-  const baseMinutes = Math.round(next.getMinutes() / 5) * 5;
-  const totalMinutes = baseMinutes + delta * 5;
+  const totalMinutes = next.getMinutes() + delta * step;
   next.setHours(next.getHours() + Math.floor(totalMinutes / 60));
   next.setMinutes(((totalMinutes % 60) + 60) % 60, 0, 0);
   return next;
@@ -32,9 +31,8 @@ function bumpMinute(date: Date, delta: number): Date {
 /**
  * Editorial time stepper — replaces the native HTML `<input type="time">` which
  * looks alien on the web. Two columns (HH and MM) each with up/down chevrons.
- * Minutes step in 5-minute increments by default for fast input.
  */
-export function TimeStepper({ value, onChange, style }: Props) {
+export function TimeStepper({ value, onChange, style, minuteStep = 1 }: Props) {
   const { theme } = useAppTheme();
 
   const stepperBtn = (
@@ -74,11 +72,11 @@ export function TimeStepper({ value, onChange, style }: Props) {
         :
       </Text>
       <View style={styles.column}>
-        {stepperBtn('up', () => onChange(bumpMinute(value, 1)))}
+        {stepperBtn('up', () => onChange(bumpMinute(value, 1, minuteStep)))}
         <Text style={[styles.value, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
           {pad(value.getMinutes())}
         </Text>
-        {stepperBtn('down', () => onChange(bumpMinute(value, -1)))}
+        {stepperBtn('down', () => onChange(bumpMinute(value, -1, minuteStep)))}
       </View>
     </View>
   );

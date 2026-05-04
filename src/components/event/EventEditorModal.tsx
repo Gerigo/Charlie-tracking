@@ -230,11 +230,11 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
         };
         break;
       case 'sleep': {
-        const end = (editEndTime ?? new Date(startTime + 60 * 60 * 1000)).getTime();
-        if (end <= startTime) {
-          // Refuse instead of writing nonsense — the user keeps editing.
-          return;
-        }
+        // If the user bumped the start time past the (auto-set) end time,
+        // pad the end forward by 1 minute so the save still succeeds rather
+        // than silently aborting.
+        const rawEnd = (editEndTime ?? new Date(startTime + 60 * 60 * 1000)).getTime();
+        const end = rawEnd <= startTime ? startTime + 60 * 1000 : rawEnd;
         payload = {
           type: 'sleep',
           startTime,
@@ -250,9 +250,17 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
 
   const saveEdit = async () => {
     if (!event) return;
+    const startMs = editStartTime.getTime();
+    // Sleep: if the user bumped the start past the saved end, push the end
+    // forward so we never persist start > end (otherwise the event becomes
+    // invisible in the day timeline).
+    const sleepEndMs =
+      event.type === 'sleep' && editEndTime
+        ? Math.max(editEndTime.getTime(), startMs + 60 * 1000)
+        : null;
     const timeUpdates = {
-      startTime: editStartTime.getTime(),
-      ...(event.type === 'sleep' && editEndTime ? { endTime: editEndTime.getTime() } : {}),
+      startTime: startMs,
+      ...(sleepEndMs !== null ? { endTime: sleepEndMs } : {}),
     };
     if (event.type === 'feed') {
       await updateEvent(event.id, {
