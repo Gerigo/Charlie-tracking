@@ -26,9 +26,7 @@ import {
 } from "@/src/utils/eventSummaries";
 import { Icon } from "@/src/components/ui/Icon";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -1214,21 +1212,6 @@ export function TrackerScreen() {
     setSelectedVisitAction(null);
     setVisitNote("");
   };
-
-  useFocusEffect(
-    useCallback(() => {
-      setFeedModalVisible(false);
-      setDiaperModalVisible(false);
-      setCareModalVisible(false);
-      setVisitModalVisible(false);
-      setTemperatureModalVisible(false);
-      setTemperatureValue("");
-      setBottleAmount("");
-      resetDiaper();
-      resetCare();
-      resetVisit();
-    }, []),
-  );
 
   const handleSleepPress = async () => {
     if (saving) return;

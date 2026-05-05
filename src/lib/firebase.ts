@@ -5,7 +5,13 @@ import {
   indexedDBLocalPersistence,
   initializeAuth,
 } from 'firebase/auth';
-import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel,
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { canUseDevTools, env, isFirebaseConfigured } from './env';
 
@@ -55,6 +61,12 @@ export const firestore = firebaseApp
         }
         return initializeFirestore(firebaseApp, {
           experimentalAutoDetectLongPolling: true,
+          // IndexedDB-backed cache so events fetched once stay available
+          // offline and across reloads — critical for the on-demand
+          // full-history fetches on Evolution/Croissance/Historique/Data.
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager(),
+          }),
         });
       } catch {
         if (canUseDevTools) {

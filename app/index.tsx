@@ -63,6 +63,7 @@ export default function IndexRoute() {
     isSandbox,
   } = useAppContext();
 
+  const { theme } = useAppTheme();
   const [activeTab, setActiveTab] = useState<SPATabName>('tracker');
   const [historyVisible, setHistoryVisible] = useState(false);
 
@@ -105,8 +106,8 @@ export default function IndexRoute() {
   return (
     <SPANavProvider value={{ goToTab: setActiveTab, showHistory }}>
       <PhoneFrame>
-        <View style={styles.shell}>
-          <View style={styles.body}>
+        <View style={[styles.shell, { backgroundColor: theme.background }]}>
+          <View style={[styles.body, { backgroundColor: theme.background }]}>
             {activeTab === 'tracker' ? <TrackerScreen /> : null}
             {activeTab === 'today' ? <TodayScreen onShowHistory={showHistory} /> : null}
             {activeTab === 'evolution' ? <EvolutionScreen /> : null}

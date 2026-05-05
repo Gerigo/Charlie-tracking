@@ -482,17 +482,52 @@ export function listenEvents(
   familyId: string,
   callback: (events: TrackedEvent[]) => void,
   onError?: (err: FirestoreError) => void,
+  sinceTimestamp?: number,
 ): Unsubscribe {
-  const eventsQuery = query(
-    collection(requireFirestore(), 'events'),
-    where('babyId', '==', babyId),
-    where('familyId', '==', familyId),
-  );
+  // When `sinceTimestamp` is provided, the realtime listener only follows
+  // recent events (Today / Tracker / GrowthSpurt detection only need ~14 d).
+  // Older events are loaded on demand via `fetchEventsBeforeTimestamp` when
+  // the user opens Évolution / Croissance / Historique / Export.
+  const eventsQuery = typeof sinceTimestamp === 'number'
+    ? query(
+        collection(requireFirestore(), 'events'),
+        where('babyId', '==', babyId),
+        where('familyId', '==', familyId),
+        where('startTime', '>=', sinceTimestamp),
+      )
+    : query(
+        collection(requireFirestore(), 'events'),
+        where('babyId', '==', babyId),
+        where('familyId', '==', familyId),
+      );
   return onSnapshot(
     eventsQuery,
     (snapshot) => { callback(snapshot.docs.map((item) => toTrackedEvent(item.id, item.data())).sort((a, b) => b.startTime - a.startTime)); },
     (err) => { console.warn('[listenEvents]', err.code); onError?.(err); },
   );
+}
+
+/**
+ * One-shot fetch for events strictly older than `beforeTimestamp`. Used to
+ * back-fill the full history when a screen explicitly needs it (lifetime
+ * stats, growth curves, full-history journal). Subsequent reads are served
+ * from Firestore's IndexedDB cache thanks to `persistentLocalCache`.
+ */
+export async function fetchEventsBeforeTimestamp(
+  babyId: string,
+  familyId: string,
+  beforeTimestamp: number,
+): Promise<TrackedEvent[]> {
+  const olderQuery = query(
+    collection(requireFirestore(), 'events'),
+    where('babyId', '==', babyId),
+    where('familyId', '==', familyId),
+    where('startTime', '<', beforeTimestamp),
+  );
+  const snapshot = await getDocs(olderQuery);
+  return snapshot.docs
+    .map((item) => toTrackedEvent(item.id, item.data()))
+    .sort((a, b) => b.startTime - a.startTime);
 }
 
 export function listenActiveSession(babyId: string, callback: (session: ActiveSession | null) => void): Unsubscribe {
@@ -741,12 +776,12 @@ export async function addMedicationEvent(scope: ScopedActionParams, details: Eve
   await createInstantEvent(scope, 'medication', details, notes, timestamp);
 }
 
-export async function addTemperatureEvent(scope: ScopedActionParams, details: EventDetails, timestamp = now()) {
-  await createInstantEvent(scope, 'temperature', details, undefined, timestamp);
+export async function addTemperatureEvent(scope: ScopedActionParams, details: EventDetails, notes?: string, timestamp = now()) {
+  await createInstantEvent(scope, 'temperature', details, notes, timestamp);
 }
 
-export async function addGrowthEvent(scope: ScopedActionParams, details: EventDetails, timestamp = now()) {
-  await createInstantEvent(scope, 'growth', details, undefined, timestamp);
+export async function addGrowthEvent(scope: ScopedActionParams, details: EventDetails, notes?: string, timestamp = now()) {
+  await createInstantEvent(scope, 'growth', details, notes, timestamp);
 }
 
 /**
