@@ -98,6 +98,7 @@ export function Screen({
 
   const body = scroll ? (
     <ScrollView
+      style={styles.scrollFlex}
       contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
@@ -652,6 +653,9 @@ const styles = StyleSheet.create({
     // No absolute positioning — flow item above the ScrollView. The
     // EditorialTopBar provides its own background blur + padding.
     zIndex: 10,
+  },
+  scrollFlex: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: spacing.md,
