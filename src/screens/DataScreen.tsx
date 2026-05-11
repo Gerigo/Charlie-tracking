@@ -79,6 +79,8 @@ function describeType(type: TrackedEventType, t: ReturnType<typeof useI18n>['t']
       return { label: t('growth.title'), iconKind: 'growth' as const, tone: 'warning' as const };
     case 'temperature':
       return { label: t('tracker.temperature'), iconKind: 'temperature' as const, tone: 'temperature' as const };
+    case 'pumping':
+      return { label: t('tracker.pumping'), iconKind: 'pumping' as const, tone: 'feed' as const };
     default:
       return { label: type, iconKind: 'data' as const, tone: 'neutral' as const };
   }
