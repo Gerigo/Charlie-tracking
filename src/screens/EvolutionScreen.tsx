@@ -109,18 +109,13 @@ function LineChartCard({
   const selected = data[selectedIndex] ?? data[data.length - 1];
   const selectedPoint = points[selectedIndex] ?? points[points.length - 1];
 
-  // Per-point hit zones rendered as real React Native Pressables
-  // overlaid on the SVG via absolute positioning. SVG-level onPress
-  // (via react-native-svg <Rect>) proved unreliable on react-native-web
-  // — even with a non-zero fill opacity, taps sometimes never reached
-  // the Rect because a sibling visual element above it captured the
-  // pointer. A real Pressable on a real View can't lose the click.
-  const hitZones = points.map((point, index) => {
-    const prevMid = index === 0 ? PADDING.left : (points[index - 1].x + point.x) / 2;
-    const nextMid =
-      index === points.length - 1 ? width - PADDING.right : (point.x + points[index + 1].x) / 2;
-    return { x: prevMid, width: Math.max(1, nextMid - prevMid) };
-  });
+  // Hit zones are SVG <Circle> elements rendered as the LAST children
+  // of the <Svg>, mirroring the working pattern in GrowthScreen. The
+  // previous absolute-positioned Pressable overlay would get its onPress
+  // swallowed on iOS Safari (the parent ScrollView's gesture system
+  // cancelled it before fire), making it impossible to select anything
+  // other than the lazy-init last point. Circles inside the SVG render
+  // on top in paint order and bypass the ScrollView responder.
 
   // value bubble position — clamp so it stays inside chart
   const bubbleW = Math.max(46, `${selected?.value.toFixed(1)}${suffix}`.length * 8 + 16);
@@ -208,22 +203,19 @@ function LineChartCard({
           );
         })}
 
+        {/* Hit circles — rendered last so they paint on top of every
+            other SVG element and receive the tap. See comment above. */}
+        {points.map((point, index) => (
+          <Circle
+            key={`hit-${data[index]?.date ?? index}`}
+            cx={point.x}
+            cy={point.y}
+            r={20}
+            fill="transparent"
+            onPress={() => setSelectedIndex(index)}
+          />
+        ))}
       </Svg>
-      {/* Per-point Pressable overlays — see comment near `hitZones`
-          above. */}
-      {hitZones.map((zone, index) => (
-        <Pressable
-          key={`hit-${index}`}
-          onPress={() => setSelectedIndex(index)}
-          style={{
-            position: 'absolute',
-            left: zone.x,
-            top: PADDING.top,
-            width: zone.width,
-            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
-          }}
-        />
-      ))}
       </View>
     </Card>
   );
@@ -314,21 +306,21 @@ function BarChartCard({
           );
         })}
 
+        {/* Hit rects — rendered last so they paint on top of every other
+            SVG element and receive the tap. Spans the full bar column so
+            users can tap anywhere above or below the bar itself. */}
+        {data.map((_, index) => (
+          <Rect
+            key={`hit-${index}`}
+            x={PADDING.left + index * gap}
+            y={PADDING.top}
+            width={Math.max(1, gap)}
+            height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
+            fill="transparent"
+            onPress={() => setSelectedIndex(index)}
+          />
+        ))}
       </Svg>
-      {/* Per-bar Pressable overlays — see LineChartCard for the rationale. */}
-      {data.map((_, index) => (
-        <Pressable
-          key={`hit-${index}`}
-          onPress={() => setSelectedIndex(index)}
-          style={{
-            position: 'absolute',
-            left: PADDING.left + index * gap,
-            top: PADDING.top,
-            width: Math.max(1, gap),
-            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
-          }}
-        />
-      ))}
       </View>
     </Card>
   );
@@ -488,21 +480,20 @@ function TemperatureChartCard({
             ) : null
           )}
 
+        {/* Hit rects — rendered last so they receive the tap.
+            See LineChartCard. */}
+        {hitZones.map((zone, index) => (
+          <Rect
+            key={`hit-${index}`}
+            x={zone.x}
+            y={PADDING.top}
+            width={zone.width}
+            height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
+            fill="transparent"
+            onPress={() => setSelectedIndex(index)}
+          />
+        ))}
       </Svg>
-      {/* Per-day Pressable overlays (see LineChartCard). */}
-      {hitZones.map((zone, index) => (
-        <Pressable
-          key={`hit-${index}`}
-          onPress={() => setSelectedIndex(index)}
-          style={{
-            position: 'absolute',
-            left: zone.x,
-            top: PADDING.top,
-            width: zone.width,
-            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
-          }}
-        />
-      ))}
       </View>
       {selected ? (
         <View style={styles.temperatureLegendRow}>
