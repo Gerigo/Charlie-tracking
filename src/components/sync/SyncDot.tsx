@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text } from 'react-native';
 import { radii, spacing } from '@/src/constants/theme';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
 import { useSPANav } from '@/src/lib/spaNav';
@@ -11,9 +11,17 @@ export function SyncDot() {
   const { theme } = useAppTheme();
   const { goToTab } = useSPANav();
 
-  const pillOpacity = useRef(new Animated.Value(1)).current;
   const haloScale = useRef(new Animated.Value(1)).current;
   const livePulseScale = useRef(new Animated.Value(1)).current;
+  // Continuous rotation driver for the syncing spinner ring — keeps the
+  // pill visually alive instead of just dimming opacity, which read as
+  // "frozen" because the change is so subtle.
+  const spinValue = useRef(new Animated.Value(0)).current;
+  // Three staggered "breathing" dots when syncing — gives a sense of
+  // progression while the spinner ring sweeps.
+  const dotA = useRef(new Animated.Value(0)).current;
+  const dotB = useRef(new Animated.Value(0)).current;
+  const dotC = useRef(new Animated.Value(0)).current;
 
   // Brief mint pulse when a fresh event arrives from another device
   useEffect(() => {
@@ -26,16 +34,39 @@ export function SyncDot() {
 
   useEffect(() => {
     if (syncStatus === 'syncing') {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pillOpacity, { toValue: 0.45, duration: 500, useNativeDriver: true }),
-          Animated.timing(pillOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-        ]),
+      const spin = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
       );
-      loop.start();
+      const wave = (value: Animated.Value, delay: number) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(value, { toValue: 1, duration: 380, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.timing(value, { toValue: 0, duration: 380, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+            Animated.delay(420 - delay),
+          ]),
+        );
+      const waveA = wave(dotA, 0);
+      const waveB = wave(dotB, 140);
+      const waveC = wave(dotC, 280);
+      spin.start();
+      waveA.start();
+      waveB.start();
+      waveC.start();
       return () => {
-        loop.stop();
-        pillOpacity.setValue(1);
+        spin.stop();
+        waveA.stop();
+        waveB.stop();
+        waveC.stop();
+        spinValue.setValue(0);
+        dotA.setValue(0);
+        dotB.setValue(0);
+        dotC.setValue(0);
       };
     }
 
@@ -54,10 +85,9 @@ export function SyncDot() {
     }
 
     // live — reset
-    pillOpacity.setValue(1);
     haloScale.setValue(1);
     return undefined;
-  }, [syncStatus, pillOpacity, haloScale]);
+  }, [syncStatus, haloScale, spinValue, dotA, dotB, dotC]);
 
   const fr = language === 'fr';
 
@@ -86,6 +116,13 @@ export function SyncDot() {
           ? (fr ? 'Synchronisation en cours' : 'Syncing')
           : (fr ? 'Synchronisation en temps réel' : 'Live sync');
 
+  const spinDeg = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const isSyncing = syncStatus === 'syncing';
+
   return (
     <Pressable
       hitSlop={{ top: 10, right: 10, bottom: 10, left: 4 }}
@@ -102,17 +139,64 @@ export function SyncDot() {
           {
             backgroundColor: `${color}18`,
             borderColor: `${color}40`,
-            opacity: pillOpacity,
             transform: [{ scale: Animated.multiply(haloScale, livePulseScale) }],
           },
         ]}
       >
-        {/* dot */}
-        <Animated.View style={[styles.dot, { backgroundColor: color }]} />
+        {/* leading indicator: spinning ring when syncing, plain dot otherwise */}
+        {isSyncing ? (
+          <Animated.View
+            style={[
+              styles.spinner,
+              {
+                borderColor: `${color}40`,
+                borderTopColor: color,
+                transform: [{ rotate: spinDeg }],
+              },
+            ]}
+          />
+        ) : (
+          <Animated.View style={[styles.dot, { backgroundColor: color }]} />
+        )}
         {/* label */}
         <Text style={[styles.label, { color, fontFamily: theme.fontSemiBold }]}>
           {label}
         </Text>
+        {/* trailing animated dots — only while syncing, to telegraph "work in progress" */}
+        {isSyncing ? (
+          <Animated.View style={styles.dotsRow}>
+            <Animated.View
+              style={[
+                styles.miniDot,
+                {
+                  backgroundColor: color,
+                  opacity: dotA.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+                  transform: [{ translateY: dotA.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) }],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.miniDot,
+                {
+                  backgroundColor: color,
+                  opacity: dotB.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+                  transform: [{ translateY: dotB.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) }],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.miniDot,
+                {
+                  backgroundColor: color,
+                  opacity: dotC.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+                  transform: [{ translateY: dotC.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) }],
+                },
+              ]}
+            />
+          </Animated.View>
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -133,8 +217,25 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
+  spinner: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    borderWidth: 1.5,
+  },
   label: {
     fontSize: 11,
     letterSpacing: 0.1,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
+    marginLeft: 1,
+  },
+  miniDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
   },
 });

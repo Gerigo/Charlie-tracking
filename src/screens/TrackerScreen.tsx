@@ -722,6 +722,7 @@ function QuickTile({
   isLive,
   confirmation,
   onLongPress,
+  wide,
   children,
 }: {
   kind: ActionKind;
@@ -740,6 +741,10 @@ function QuickTile({
   /** When set, replaces lastLabel for ~2.5s with a mint check confirmation */
   confirmation?: string | null;
   onLongPress?: () => void;
+  /** Stretch the tile to the full grid width — used to balance the
+   *  layout when the grid has an odd number of tiles (otherwise the
+   *  trailing tile sits alone on its row with a hole on the right). */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const { theme } = useAppTheme();
@@ -795,7 +800,7 @@ function QuickTile({
     <Pressable
       onLongPress={onLongPress}
       delayLongPress={350}
-      style={styles.quickTileWrap}
+      style={[styles.quickTileWrap, wide ? styles.quickTileWrapWide : null]}
     >
       <Animated.View
         pointerEvents="none"
@@ -1694,7 +1699,11 @@ export function TrackerScreen() {
           </QuickChip>
         </QuickTile>
 
-        {/* ── Visit ── */}
+        {/* ── Visit ──
+            With Pumping in the grid the tile count is odd (7), so the
+            last tile would sit alone on its row with an empty slot to
+            the right. Stretch it to full width in that case to keep the
+            layout symmetric. */}
         <QuickTile
           kind="visit"
           label={t("tracker.visits")}
@@ -1702,6 +1711,7 @@ export function TrackerScreen() {
           accent={theme.visit}
           pulsing={pulseKind === "visit"}
           confirmation={confirmation?.kind === "visit" ? confirmation.message : null}
+          wide={showPumpingTile}
           onLongPress={() => {
             triggerSelectionFeedback();
             setVisitModalVisible(true);
@@ -2453,6 +2463,9 @@ const styles = StyleSheet.create({
     WebkitUserSelect: "none",
     WebkitTouchCallout: "none",
   } as never,
+  quickTileWrapWide: {
+    width: "100%",
+  },
   quickTileGlow: {
     position: "absolute",
     top: -8,
