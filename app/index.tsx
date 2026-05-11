@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
-import { FullScreenLoader, useAppContext } from '@/src/providers/AppProvider';
+import { BodyLoader, FullScreenLoader, useAppContext } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
+import { Screen } from '@/src/components/ui';
+import { EditorialTopBar } from '@/src/components/editorial/TopBar';
 import { SPATabBar, type SPATabName } from '@/src/components/navigation/SPATabBar';
 import { SPANavProvider } from '@/src/lib/spaNav';
 import { LoginScreen } from '@/src/screens/LoginScreen';
@@ -96,16 +98,16 @@ export default function IndexRoute() {
     );
   }
 
-  // Family attached but Firestore hasn't pushed the first events
-  // snapshot yet. Keep the FullScreenLoader up rather than letting the
-  // user tap an empty timeline — the previous behaviour was confusing
-  // because the SPA shell looked ready while it was still syncing.
-  if (!isSandbox && !initialSyncDone) {
-    return <FullScreenLoader label="Synchronisation…" />;
-  }
-
   const showHistory = () => setHistoryVisible(true);
   const hideHistory = () => setHistoryVisible(false);
+
+  // Family attached but Firestore hasn't pushed the first events
+  // snapshot yet. We keep the SPA shell mounted (hero banner, tab bar,
+  // phone frame) and only swap the active screen's body for a loader.
+  // The parent still sees who they are (baby name, profile pill) while
+  // the timeline + tiles hydrate underneath — they just can't tap a
+  // tile that would land on empty data.
+  const renderingSync = !isSandbox && !initialSyncDone;
 
   // Authenticated + onboarded → the actual app. Each tab screen is
   // mounted only when active to keep memory low; switching tabs resets
@@ -116,11 +118,25 @@ export default function IndexRoute() {
       <PhoneFrame>
         <View style={[styles.shell, { backgroundColor: theme.background }]}>
           <View style={[styles.body, { backgroundColor: theme.background }]}>
-            {activeTab === 'tracker' ? <TrackerScreen /> : null}
-            {activeTab === 'today' ? <TodayScreen onShowHistory={showHistory} /> : null}
-            {activeTab === 'evolution' ? <EvolutionScreen /> : null}
-            {activeTab === 'growth' ? <GrowthScreen onShowHistory={showHistory} /> : null}
-            {activeTab === 'settings' ? <SettingsScreen /> : null}
+            {renderingSync ? (
+              // During initial sync we render a Screen with the same
+              // EditorialTopBar the tab screens use, so the parent
+              // continues to see the hero pill (baby avatar + name +
+              // profile button). The body is the animated loader.
+              <Screen topBar={<EditorialTopBar />} scroll={false}>
+                <View style={styles.syncBody}>
+                  <BodyLoader label="Synchronisation…" />
+                </View>
+              </Screen>
+            ) : (
+              <>
+                {activeTab === 'tracker' ? <TrackerScreen /> : null}
+                {activeTab === 'today' ? <TodayScreen onShowHistory={showHistory} /> : null}
+                {activeTab === 'evolution' ? <EvolutionScreen /> : null}
+                {activeTab === 'growth' ? <GrowthScreen onShowHistory={showHistory} /> : null}
+                {activeTab === 'settings' ? <SettingsScreen /> : null}
+              </>
+            )}
           </View>
 
           <SPATabBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -166,5 +182,10 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  syncBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

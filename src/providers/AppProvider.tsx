@@ -1200,10 +1200,25 @@ export function AppProvider({ children }: PropsWithChildren) {
   };
 
   const updateSandboxEvent = (eventId: string, updater: (event: TrackedEvent) => TrackedEvent) => {
-    setSandbox((current) => current ? {
-      ...current,
-      events: current.events.map((event) => event.id === eventId ? updater(event) : event),
-    } : current);
+    setSandbox((current) => {
+      if (!current) return current;
+      const events = current.events.map((event) => event.id === eventId ? updater(event) : event);
+      // If the edited event is the in-progress sleep session, mirror
+      // its startTime onto the active session so the live counter on
+      // Today picks the corrected value up immediately.
+      const nextActiveSessions = { ...current.activeSessions };
+      Object.entries(nextActiveSessions).forEach(([babyId, session]) => {
+        if (session.eventId !== eventId) return;
+        const updatedEvent = events.find((e) => e.id === eventId);
+        if (!updatedEvent) return;
+        nextActiveSessions[babyId] = {
+          ...session,
+          startTime: updatedEvent.startTime,
+          updatedAt: Date.now(),
+        };
+      });
+      return { ...current, events, activeSessions: nextActiveSessions };
+    });
   };
 
   const deleteSandboxEventById = (eventId: string) => {
@@ -2123,7 +2138,11 @@ export function AppProvider({ children }: PropsWithChildren) {
       }
 
       await runMutation(async () => {
-        await updateTrackedEvent(eventId, updates);
+        // Forward the baby id so updateTrackedEvent can also keep the
+        // activeSessions doc in sync when this event is the live sleep
+        // session — without that, editing the start time from history
+        // didn't update the "Charlie dort depuis…" counter on Today.
+        await updateTrackedEvent(eventId, updates, currentBaby?.id);
         showToast(translate(language, 'toast.event_updated.title'), translate(language, 'toast.event_updated.body'), 'success');
       });
     },
@@ -2556,7 +2575,13 @@ function LoaderDot({ delay, color }: { delay: number; color: string }) {
   );
 }
 
-export function FullScreenLoader({ label }: { label: string }) {
+/**
+ * The animated "Charlie." wordmark + label + bouncing dots. Used both
+ * by the full-screen boot loader (FullScreenLoader) and by the in-shell
+ * sync loader (BodyLoader) — extracted so the visual identity stays in
+ * one place.
+ */
+function LoaderContent({ label }: { label: string }) {
   const { theme } = useAppTheme();
   const breath = useRef(new Animated.Value(0.5)).current;
 
@@ -2569,56 +2594,56 @@ export function FullScreenLoader({ label }: { label: string }) {
     ).start();
   }, [breath]);
 
-  // The wrapper is an absolutely-positioned overlay over the entire
-  // viewport with a high zIndex so it sits ON TOP of anything the
-  // route might already have painted (the editorial top bar of a
-  // previous render, the cached SPA shell, etc.). Without this, on
-  // mobile Safari you could see the hero pill above the loader while
-  // the events were still syncing.
-  // We also wrap content in SafeAreaView so the cream background runs
-  // edge-to-edge into the device's status bar / notch area.
   return (
-    <View
-      style={[
-        StyleSheet.absoluteFillObject,
-        styles.loaderOverlay,
-        { backgroundColor: theme.background },
-      ]}
-      pointerEvents="auto"
-    >
-      <SafeAreaView style={styles.loaderSafe} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.loaderScreen}>
-          <Animated.Text
-            style={[
-              styles.loaderBrand,
-              {
-                color: theme.primary,
-                fontFamily: theme.fontDisplayItalic,
-                opacity: breath,
-              },
-            ]}
-          >
-            Charlie.
-          </Animated.Text>
-          <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
-          <View style={styles.loaderDotsRow}>
-            <LoaderDot delay={0} color={theme.primary} />
-            <LoaderDot delay={180} color={theme.primary} />
-            <LoaderDot delay={360} color={theme.primary} />
-          </View>
-        </View>
-      </SafeAreaView>
+    <View style={styles.loaderScreen}>
+      <Animated.Text
+        style={[
+          styles.loaderBrand,
+          {
+            color: theme.primary,
+            fontFamily: theme.fontDisplayItalic,
+            opacity: breath,
+          },
+        ]}
+      >
+        Charlie.
+      </Animated.Text>
+      <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
+      <View style={styles.loaderDotsRow}>
+        <LoaderDot delay={0} color={theme.primary} />
+        <LoaderDot delay={180} color={theme.primary} />
+        <LoaderDot delay={360} color={theme.primary} />
+      </View>
     </View>
   );
 }
 
+/**
+ * Full-viewport loader used during the early boot phase — before auth
+ * is ready and before we know which baby's hero banner to render.
+ * Covers the cream background edge-to-edge so the iOS status-bar /
+ * notch area doesn't show a different shade.
+ */
+export function FullScreenLoader({ label }: { label: string }) {
+  const { theme } = useAppTheme();
+  return (
+    <SafeAreaView style={[styles.loaderSafe, { backgroundColor: theme.background }]} edges={['top', 'bottom', 'left', 'right']}>
+      <LoaderContent label={label} />
+    </SafeAreaView>
+  );
+}
+
+/**
+ * Body-only loader used during the initial Firestore sync, AFTER the
+ * SPA shell + hero banner are ready to render. Caller wraps this in
+ * the usual Screen / EditorialTopBar so the parent still sees who they
+ * are while data hydrates underneath.
+ */
+export function BodyLoader({ label }: { label: string }) {
+  return <LoaderContent label={label} />;
+}
+
 const styles = StyleSheet.create({
-  loaderOverlay: {
-    // High zIndex so we beat anything the route might have rendered
-    // already (in particular the editorial top bar of a cached SPA shell).
-    zIndex: 9999,
-    elevation: 9999,
-  },
   loaderSafe: {
     flex: 1,
   },

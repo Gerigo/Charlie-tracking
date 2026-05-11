@@ -1134,14 +1134,40 @@ function sanitizeDetails(details: EventDetails): Record<string, unknown> {
 
 export async function updateTrackedEvent(
   eventId: string,
-  updates: Partial<Pick<TrackedEvent, 'startTime' | 'endTime' | 'notes' | 'details'>>
+  updates: Partial<Pick<TrackedEvent, 'startTime' | 'endTime' | 'notes' | 'details'>>,
+  /**
+   * Passing the baby id lets us also sync the activeSessions doc when
+   * the edited event is the in-progress sleep session. Without it, the
+   * live "Charlie dort depuis…" counter keeps using the original
+   * startTime even after the parent corrects it from the history.
+   */
+  babyId?: string,
 ) {
-  await setDoc(doc(requireFirestore(), 'events', eventId), {
+  const db = requireFirestore();
+  const timestamp = now();
+  await setDoc(doc(db, 'events', eventId), {
     ...(typeof updates.startTime === 'number' ? { startTime: updates.startTime } : {}),
     ...(updates.endTime === null || typeof updates.endTime === 'number' ? { endTime: updates.endTime } : {}),
     ...(Object.prototype.hasOwnProperty.call(updates, 'notes') ? { notes: updates.notes?.trim() || null } : {}),
     ...(updates.details ? { details: sanitizeDetails(updates.details) } : {}),
-    updatedAt: now(),
+    updatedAt: timestamp,
+  }, { merge: true });
+
+  // Mirror startTime / endTime onto the activeSessions doc when this
+  // event IS the in-progress session. Editing endTime to a real number
+  // would stop the session, so we only mirror when endTime stays null
+  // or is omitted.
+  if (!babyId) return;
+  const hasStartChange = typeof updates.startTime === 'number';
+  if (!hasStartChange) return;
+  const activeSessionRef = doc(db, 'activeSessions', babyId);
+  const activeSnapshot = await getDoc(activeSessionRef);
+  if (!activeSnapshot.exists()) return;
+  const session = activeSnapshot.data() as { eventId?: string } | undefined;
+  if (session?.eventId !== eventId) return;
+  await setDoc(activeSessionRef, {
+    startTime: updates.startTime,
+    updatedAt: timestamp,
   }, { merge: true });
 }
 
