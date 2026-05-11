@@ -1522,11 +1522,15 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
-      // Optimistic flip: bake a synthetic active session into local
-      // state right away so the tile switches to "Arrêter" / "Stop"
-      // without waiting on the Firestore round-trip. The listener will
-      // overwrite this with the canonical doc (real eventId) once the
-      // server replies — `onError` reverts if the write fails.
+      // Firestore's `runTransaction` (inside startSleepSession) requires a
+      // server round-trip — it can't be satisfied from the local cache, so
+      // awaiting it locks the UI for 5-15 s on a slow link. Instead we:
+      //   1. Apply the optimistic active session immediately so the tile
+      //      flips to "Arrêter".
+      //   2. Fire the Firestore transaction without awaiting (no
+      //      runMutation wrapping, so neither `saving` nor `mutationLock`
+      //      are held). The chip stays tappable.
+      //   3. Roll back the optimistic state if the transaction fails.
       const previousSession = activeSessionState;
       const optimisticStart = now();
       setActiveSessionState({
@@ -1540,14 +1544,15 @@ export function AppProvider({ children }: PropsWithChildren) {
         createdByRole: scope.role,
         updatedAt: optimisticStart,
       });
-      await runMutation(
-        async () => {
-          await startSleepSession(scope);
+      startSleepSession(scope, undefined, optimisticStart).then(
+        () => {
           showToast(translate(language, 'toast.sleep_started.title'), translate(language, 'toast.sleep_started.body'));
         },
-        {
-          suppressLoader: true,
-          onError: () => setActiveSessionState(previousSession),
+        (error) => {
+          setActiveSessionState(previousSession);
+          setSyncStatus('error');
+          logger.error('tracker', 'Action échouée', error, { mapped: mapError(error, language) });
+          showToast(translate(language, 'toast.action_failed.title'), mapError(error, language), 'error');
         },
       );
     },
@@ -1587,19 +1592,20 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
-      // Optimistic flip BEFORE the await so the tile reverts to
-      // "Démarrer" / "Start" instantly. Rollback restores the previous
-      // session if the Firestore write fails.
+      // Same pattern as triggerSleep — optimistic clear + fire-and-forget
+      // transaction so the chip stops "loading" for the full 5-15 s
+      // network round-trip required by Firestore's runTransaction.
       const previousSession = activeSessionState;
       setActiveSessionState(null);
-      await runMutation(
-        async () => {
-          await stopSleepSession(scope);
+      stopSleepSession(scope).then(
+        () => {
           showToast(translate(language, 'toast.sleep_stopped.title'), translate(language, 'toast.sleep_stopped.body'));
         },
-        {
-          suppressLoader: true,
-          onError: () => setActiveSessionState(previousSession),
+        (error) => {
+          setActiveSessionState(previousSession);
+          setSyncStatus('error');
+          logger.error('tracker', 'Action échouée', error, { mapped: mapError(error, language) });
+          showToast(translate(language, 'toast.action_failed.title'), mapError(error, language), 'error');
         },
       );
     },
