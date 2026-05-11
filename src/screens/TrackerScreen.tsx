@@ -164,14 +164,14 @@ function getActionPalette(theme: AppTheme, kind: ActionKind, active?: boolean) {
     };
   }
 
-  // Pumping shares the feed palette (lait tiré = nourriture) with a
-  // slightly cooler tinted background so it doesn't read as "the same
-  // tile twice" next to breastfeeding.
+  // Pumping shares the breast/bottle palette so every "milk" tile —
+  // direct feed, bottle, pump — uses the same wash density and reads
+  // as the same visual weight in the grid.
   if (kind === "pumping") {
     return {
-      background: `${theme.feed}10`,
-      border: `${theme.feed}28`,
-      iconBackground: `${theme.feed}18`,
+      background: `${theme.feed}14`,
+      border: `${theme.feed}33`,
+      iconBackground: `${theme.feed}1F`,
       emoji: theme.feed,
       label: theme.text,
       subtitle: theme.textMuted,
@@ -1550,56 +1550,12 @@ export function TrackerScreen() {
           </QuickChip>
         </QuickTile>
 
-        {/* ── Temperature ── */}
-        <QuickTile
-          kind="temperature"
-          label={t("tracker.temperature")}
-          lastLabel={lastLabelFor(lastTemperature)}
-          accent={theme.temperature}
-          pulsing={pulseKind === "temperature"}
-          confirmation={confirmation?.kind === "temperature" ? confirmation.message : null}
-          onLongPress={() => {
-            triggerSelectionFeedback();
-            setTemperatureModalVisible(true);
-          }}
-        >
-          <QuickIconChip
-            icon="remove-circle-outline"
-            accent={theme.temperature}
-            disabled={saving || isViewer}
-            onPress={() => setInlineTemp((v) => Math.max(34, Math.round((v - 0.1) * 10) / 10))}
-          />
-          <View style={styles.tempValueWrap}>
-            <Text style={[styles.tempValue, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
-              {inlineTemp.toFixed(1)}°
-            </Text>
-          </View>
-          <QuickIconChip
-            icon="add-circle-outline"
-            accent={theme.temperature}
-            disabled={saving || isViewer}
-            onPress={() => setInlineTemp((v) => Math.min(42, Math.round((v + 0.1) * 10) / 10))}
-          />
-          <QuickIconChip
-            icon="checkmark-circle"
-            accent={theme.temperature}
-            disabled={saving || isViewer}
-            onPress={() => {
-              triggerImpactFeedback();
-              void recordTemperature(inlineTemp);
-              triggerPulse(
-                "temperature",
-                language === "fr" ? `${inlineTemp.toFixed(1)}° enregistré` : `${inlineTemp.toFixed(1)}° saved`,
-              );
-            }}
-          />
-        </QuickTile>
-
         {/* ── Pumping (tirage du lait) ──
-            Only surfaced for breastfeeding / mixed-feeding parents.
-            Tap chips encode a quick session with a default volume of 0
-            (timeline records the side); long-press opens the detailed
-            modal to set ml and L/R split. */}
+            Sits right after Diaper so the "milk" tiles (feed + pump)
+            stay visually close. Only surfaced for breastfeeding /
+            mixed-feeding parents — bottle-only families never pump.
+            Tap a side chip → opens the detailed modal pre-seeded with
+            that side; long-press goes straight to the modal too. */}
         {showPumpingTile ? (
           <QuickTile
             kind="pumping"
@@ -1649,6 +1605,51 @@ export function TrackerScreen() {
             </QuickChip>
           </QuickTile>
         ) : null}
+
+        {/* ── Temperature ── */}
+        <QuickTile
+          kind="temperature"
+          label={t("tracker.temperature")}
+          lastLabel={lastLabelFor(lastTemperature)}
+          accent={theme.temperature}
+          pulsing={pulseKind === "temperature"}
+          confirmation={confirmation?.kind === "temperature" ? confirmation.message : null}
+          onLongPress={() => {
+            triggerSelectionFeedback();
+            setTemperatureModalVisible(true);
+          }}
+        >
+          <QuickIconChip
+            icon="remove-circle-outline"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => setInlineTemp((v) => Math.max(34, Math.round((v - 0.1) * 10) / 10))}
+          />
+          <View style={styles.tempValueWrap}>
+            <Text style={[styles.tempValue, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
+              {inlineTemp.toFixed(1)}°
+            </Text>
+          </View>
+          <QuickIconChip
+            icon="add-circle-outline"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => setInlineTemp((v) => Math.min(42, Math.round((v + 0.1) * 10) / 10))}
+          />
+          <QuickIconChip
+            icon="checkmark-circle"
+            accent={theme.temperature}
+            disabled={saving || isViewer}
+            onPress={() => {
+              triggerImpactFeedback();
+              void recordTemperature(inlineTemp);
+              triggerPulse(
+                "temperature",
+                language === "fr" ? `${inlineTemp.toFixed(1)}° enregistré` : `${inlineTemp.toFixed(1)}° saved`,
+              );
+            }}
+          />
+        </QuickTile>
 
         {/* ── Care ── */}
         <QuickTile

@@ -83,17 +83,15 @@ function Wheel({ items, value, onChange, ariaLabel }: WheelProps) {
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const idx = indexFromOffset(e.nativeEvent.contentOffset.y);
-    if (idx !== highlightIndex) {
-      setHighlightIndex(idx);
-      triggerSelectionFeedback();
-    }
-  };
-
-  // Commit handler — called by both onMomentumScrollEnd (touch) and
-  // onScrollEndDrag (mouse / trackpad on web, where momentum may not
-  // fire reliably for short flicks).
-  const commit = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = indexFromOffset(e.nativeEvent.contentOffset.y);
+    if (idx === highlightIndex) return;
+    setHighlightIndex(idx);
+    triggerSelectionFeedback();
+    // Commit immediately as soon as a new row crosses the centre line.
+    // react-native-web's `onMomentumScrollEnd` is unreliable for short
+    // flicks and never fires when the user reaches the target value
+    // mid-scroll. Commit-on-scroll matches the iOS-native behaviour
+    // ("the value under the centre is the value") and removes the need
+    // for any confirm tap.
     const next = items[idx];
     if (next !== value) {
       lastIndexRef.current = idx;
@@ -122,10 +120,10 @@ function Wheel({ items, value, onChange, ariaLabel }: WheelProps) {
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
+        // 16ms ≈ 60 fps; commit runs cheaply (one Date allocation +
+        // setState) so this throttle is comfortable on any device.
         scrollEventThrottle={16}
         onScroll={onScroll}
-        onMomentumScrollEnd={commit}
-        onScrollEndDrag={commit}
         contentContainerStyle={styles.wheelContent}
         style={WEB_TOUCH_STYLE}
       >
