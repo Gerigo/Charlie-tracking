@@ -20,57 +20,6 @@ export function getEventsForDay(events: TrackedEvent[], date: Date) {
   });
 }
 
-/**
- * Compute the sleep minutes that "belong" to a given day under the
- * end-day attribution rule used by Today and the daily summary.
- *
- *   - Completed sessions count their FULL duration on the day they
- *     ENDED. A night that started yesterday at 22:00 and ended today
- *     at 08:00 contributes 10h to today's total (and 0h to yesterday).
- *     This matches how parents think about "last night's sleep" when
- *     they open the app in the morning.
- *   - The active (in-progress) session counts from start to now, but
- *     only when "now" is in the day being viewed. The live counter
- *     belongs to the day it's running on, regardless of when the
- *     session started.
- *   - An optional `cutoff` timestamp limits both kinds of contribution
- *     so callers can compare today-so-far with yesterday-at-the-same-
- *     time.
- */
-function sleepMinutesForDay(
-  events: TrackedEvent[],
-  dayStart: number,
-  nextDayStart: number,
-  activeSession: ActiveSession | null,
-  cutoff: number,
-): number {
-  let total = 0;
-  for (const event of events) {
-    if (event.type !== 'sleep') continue;
-    const isActive = activeSession?.eventId === event.id && event.endTime == null;
-
-    if (event.endTime != null && !isActive) {
-      // Completed → attribute to end-day, full duration.
-      if (event.endTime >= dayStart && event.endTime <= cutoff) {
-        total += Math.max(0, Math.round((event.endTime - event.startTime) / 60000));
-      }
-      continue;
-    }
-
-    if (isActive) {
-      // Active session — attribute its running total to the day "now"
-      // is in. Don't double-attribute it to the start day if "now"
-      // has already crossed midnight.
-      const now = Date.now();
-      if (now < dayStart || now >= nextDayStart) continue;
-      const end = Math.min(now, cutoff);
-      if (end <= event.startTime) continue;
-      total += Math.max(0, Math.round((end - event.startTime) / 60000));
-    }
-  }
-  return total;
-}
-
 export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSession | null, date = new Date()): DailySummary {
   const scopedEvents = getEventsForDay(events, date);
   const dayStart = startOfDay(date).getTime();
@@ -85,18 +34,19 @@ export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSes
     temperatures: [],
   };
 
-  // Sleep total uses the end-day attribution rule (see
-  // sleepMinutesForDay) so a 22h→08h night reads as 10h on the
-  // morning view, not 8h.
-  summary.totalSleepMinutes = sleepMinutesForDay(
-    events,
-    dayStart,
-    nextDayStart,
-    activeSession,
-    nextDayStart,
-  );
-
   for (const event of scopedEvents) {
+    if (event.type === 'sleep') {
+      // Proportional split — a session is counted on every calendar
+      // day it intersects, in proportion. The contiguous "night" view
+      // (which crosses midnight) lives in getLastNightSleep below, so
+      // this total can stay strictly per-calendar-day and never bias
+      // long-term aggregates that consume the same numbers.
+      const effectiveEnd = event.endTime ?? (activeSession?.eventId === event.id ? Date.now() : event.startTime);
+      const overlapStart = Math.max(event.startTime, dayStart);
+      const overlapEnd = Math.min(effectiveEnd, nextDayStart);
+      summary.totalSleepMinutes += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+    }
+
     if (event.type === 'feed') summary.feedCount += 1;
     if (event.type === 'diaper') summary.diaperCount += 1;
     if (event.type === 'medication') {
@@ -122,10 +72,9 @@ export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSes
  * cutoff. Mirrors `countFeedsUntil` on the consumer side: lets the
  * "Today" screen compare *sleep so far* to the same offset yesterday.
  *
- * Uses the same end-day attribution as `getDailySummary` so the delta
- * stays consistent with the displayed total: a 22h→08h night counts
- * fully on the morning of the day it ENDED, not split across the two
- * calendar days it intersects.
+ * Uses the same proportional split as `getDailySummary` so the delta
+ * stays consistent with the displayed total. The contiguous-night
+ * view is a separate concern handled by `getLastNightSleep`.
  */
 export function sumSleepMinutesUntil(
   events: TrackedEvent[],
@@ -136,7 +85,122 @@ export function sumSleepMinutesUntil(
   const dayStart = startOfDay(date).getTime();
   const nextDayStart = dayStart + 24 * 60 * 60 * 1000;
   const cutoff = Math.min(cutoffTimestamp, nextDayStart);
-  return sleepMinutesForDay(events, dayStart, nextDayStart, activeSession ?? null, cutoff);
+
+  let total = 0;
+  for (const event of events) {
+    if (event.type !== 'sleep') continue;
+    if (event.startTime >= cutoff) continue;
+
+    const isActive = activeSession?.eventId === event.id && event.endTime == null;
+    const effectiveEnd = isActive
+      ? Math.min(Date.now(), cutoff)
+      : event.endTime ?? event.startTime;
+
+    const overlapStart = Math.max(event.startTime, dayStart);
+    const overlapEnd = Math.min(effectiveEnd, cutoff);
+    if (overlapEnd <= overlapStart) continue;
+    total += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+  }
+  return total;
+}
+
+/**
+ * Result of `getLastNightSleep` — the contiguous cluster of sleep
+ * sessions that make up the night ending on the given morning.
+ */
+export interface LastNightSleep {
+  /** When the first session of the cluster started. Typically the
+   *  previous evening. */
+  startTime: number;
+  /** When the last session of the cluster ended (or `Date.now()` if
+   *  it's still ongoing). */
+  endTime: number;
+  /** Total sleep minutes across every sub-session in the cluster. A
+   *  baby that slept 22→02:30 + 03:00→07:00 reads as 570 min. */
+  totalMinutes: number;
+  /** How many gaps (wake-ups) the cluster contains. 0 = uninterrupted
+   *  night, 1+ = the parent had to feed / soothe at least once. */
+  wakeUps: number;
+  /** True if the latest session of the cluster is still running. */
+  ongoing: boolean;
+}
+
+/**
+ * Reconstruct "last night's sleep" for the morning of `date` — the
+ * contiguous cluster of sleep sessions that ended (or is still
+ * ending) in the early-morning window. Sessions separated by less
+ * than `NIGHT_GAP_MS` (default 2h, the typical night-feed break) are
+ * grouped into the same night. This is purely a display helper: the
+ * per-day totals above keep using the simple proportional split so
+ * historical averages stay honest.
+ *
+ * Returns null when there's no recent sleep that fits the morning
+ * window — e.g. on a day where the baby skipped the night entirely,
+ * or when looking at a future day.
+ */
+const NIGHT_GAP_MS = 2 * 60 * 60 * 1000;
+const NIGHT_MORNING_END_HOUR = 11;
+const NIGHT_LOOKBACK_HOURS = 18;
+
+export function getLastNightSleep(
+  events: TrackedEvent[],
+  date: Date,
+  activeSession: ActiveSession | null,
+): LastNightSleep | null {
+  const dayStart = startOfDay(date).getTime();
+  const morningEnd = dayStart + NIGHT_MORNING_END_HOUR * 60 * 60 * 1000;
+  const earliest = dayStart - NIGHT_LOOKBACK_HOURS * 60 * 60 * 1000;
+  const now = Date.now();
+
+  // Each sleep session normalised with its effective end. We only
+  // consider sessions whose effective end falls in the morning
+  // window — anything later is a daytime nap, not "the night".
+  type Item = { startTime: number; endTime: number; ongoing: boolean };
+  const items: Item[] = [];
+  for (const event of events) {
+    if (event.type !== 'sleep') continue;
+    const isActive = activeSession?.eventId === event.id && event.endTime == null;
+    const end = isActive ? now : event.endTime;
+    if (end == null) continue;
+    if (end <= earliest || end > morningEnd) continue;
+    items.push({ startTime: event.startTime, endTime: end, ongoing: isActive });
+  }
+  if (items.length === 0) return null;
+  // Order chronologically so the cluster-building walks forward in
+  // time and the last cluster is the most recent one (= the night).
+  items.sort((a, b) => a.startTime - b.startTime);
+
+  let cluster: Item[] = [];
+  for (const item of items) {
+    if (cluster.length === 0) {
+      cluster.push(item);
+      continue;
+    }
+    const prev = cluster[cluster.length - 1];
+    const gap = item.startTime - prev.endTime;
+    if (gap <= NIGHT_GAP_MS && gap >= 0) {
+      cluster.push(item);
+    } else {
+      // Long break — the new session starts a fresh cluster, the
+      // previous one is discarded (we only ever surface the most
+      // recent night).
+      cluster = [item];
+    }
+  }
+
+  const startTime = cluster[0].startTime;
+  const last = cluster[cluster.length - 1];
+  const totalMinutes = cluster.reduce(
+    (acc, item) => acc + Math.max(0, Math.round((item.endTime - item.startTime) / 60000)),
+    0,
+  );
+  return {
+    startTime,
+    endTime: last.endTime,
+    totalMinutes,
+    wakeUps: cluster.length - 1,
+    ongoing: last.ongoing,
+  };
 }
 
 export function getLastFeedSide(events: TrackedEvent[]): FeedSide | null {
