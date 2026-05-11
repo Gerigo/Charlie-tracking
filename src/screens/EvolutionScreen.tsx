@@ -109,13 +109,12 @@ function LineChartCard({
   const selected = data[selectedIndex] ?? data[data.length - 1];
   const selectedPoint = points[selectedIndex] ?? points[points.length - 1];
 
-  // Per-point hit zones rendered on top of the SVG capture taps directly
-  // — no locationX math, no Pressable involvement, so the tap can never
-  // round to the wrong column. The previous Pressable + locationX
-  // approach computed an index from the gesture's release coordinate,
-  // which on react-native-web sometimes drifted by one slot when the
-  // finger moved between touch-down and lift, snapping the selection
-  // back to a neighbouring point.
+  // Per-point hit zones rendered as real React Native Pressables
+  // overlaid on the SVG via absolute positioning. SVG-level onPress
+  // (via react-native-svg <Rect>) proved unreliable on react-native-web
+  // — even with a non-zero fill opacity, taps sometimes never reached
+  // the Rect because a sibling visual element above it captured the
+  // pointer. A real Pressable on a real View can't lose the click.
   const hitZones = points.map((point, index) => {
     const prevMid = index === 0 ? PADDING.left : (points[index - 1].x + point.x) / 2;
     const nextMid =
@@ -133,6 +132,7 @@ function LineChartCard({
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <View style={{ width, height: CHART_HEIGHT, position: 'relative' }}>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines + labels */}
         {[0, 1, 2, 3].map((step) => {
@@ -208,24 +208,23 @@ function LineChartCard({
           );
         })}
 
-        {/* Per-point hit zones — rendered last so they sit on top in
-            SVG z-order and capture taps before any visual element. Fill
-            is set to a near-zero alpha (rather than transparent) because
-            react-native-web ignores pointer events on shapes with
-            fully-transparent paint. */}
-        {hitZones.map((zone, index) => (
-          <Rect
-            key={`hit-${index}`}
-            x={zone.x}
-            y={PADDING.top}
-            width={zone.width}
-            height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
-            fill="#ffffff"
-            fillOpacity={0.001}
-            onPress={() => setSelectedIndex(index)}
-          />
-        ))}
       </Svg>
+      {/* Per-point Pressable overlays — see comment near `hitZones`
+          above. */}
+      {hitZones.map((zone, index) => (
+        <Pressable
+          key={`hit-${index}`}
+          onPress={() => setSelectedIndex(index)}
+          style={{
+            position: 'absolute',
+            left: zone.x,
+            top: PADDING.top,
+            width: zone.width,
+            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
+          }}
+        />
+      ))}
+      </View>
     </Card>
   );
 }
@@ -256,6 +255,7 @@ function BarChartCard({
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <View style={{ width, height: CHART_HEIGHT, position: 'relative' }}>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines (3 levels) */}
         {[0, 1, 2, 3].map((step) => {
@@ -314,20 +314,22 @@ function BarChartCard({
           );
         })}
 
-        {/* Per-bar hit zones — see LineChartCard for the rationale. */}
-        {data.map((_, index) => (
-          <Rect
-            key={`hit-${index}`}
-            x={PADDING.left + index * gap}
-            y={PADDING.top}
-            width={Math.max(1, gap)}
-            height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
-            fill="#ffffff"
-            fillOpacity={0.001}
-            onPress={() => setSelectedIndex(index)}
-          />
-        ))}
       </Svg>
+      {/* Per-bar Pressable overlays — see LineChartCard for the rationale. */}
+      {data.map((_, index) => (
+        <Pressable
+          key={`hit-${index}`}
+          onPress={() => setSelectedIndex(index)}
+          style={{
+            position: 'absolute',
+            left: PADDING.left + index * gap,
+            top: PADDING.top,
+            width: Math.max(1, gap),
+            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
+          }}
+        />
+      ))}
+      </View>
     </Card>
   );
 }
@@ -380,6 +382,7 @@ function TemperatureChartCard({
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <View style={{ width, height: CHART_HEIGHT, position: 'relative' }}>
       <Svg width={width} height={CHART_HEIGHT}>
           {[0, 1, 2, 3].map((step) => {
             const value = Number((minValue + ((maxValue - minValue) * step) / 3).toFixed(1));
@@ -485,20 +488,22 @@ function TemperatureChartCard({
             ) : null
           )}
 
-          {/* Per-day hit zones (see LineChartCard). */}
-          {hitZones.map((zone, index) => (
-            <Rect
-              key={`hit-${index}`}
-              x={zone.x}
-              y={PADDING.top}
-              width={zone.width}
-              height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
-              fill="#ffffff"
-              fillOpacity={0.001}
-              onPress={() => setSelectedIndex(index)}
-            />
-          ))}
-        </Svg>
+      </Svg>
+      {/* Per-day Pressable overlays (see LineChartCard). */}
+      {hitZones.map((zone, index) => (
+        <Pressable
+          key={`hit-${index}`}
+          onPress={() => setSelectedIndex(index)}
+          style={{
+            position: 'absolute',
+            left: zone.x,
+            top: PADDING.top,
+            width: zone.width,
+            height: CHART_HEIGHT - PADDING.top - PADDING.bottom,
+          }}
+        />
+      ))}
+      </View>
       {selected ? (
         <View style={styles.temperatureLegendRow}>
           <Text style={[styles.temperatureLegendText, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
