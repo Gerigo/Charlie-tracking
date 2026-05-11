@@ -33,6 +33,7 @@ export interface DashboardData {
   overview: TrendOverview | null;
   sleepByDay: Array<{ date: string; sleepHours: number }>;
   mealsByDay: Array<{ date: string; mealCount: number }>;
+  pumpingByDay: Array<{ date: string; volumeMl: number }>;
   temperatureByDay: Array<{ date: string; morning: number | null; evening: number | null }>;
 }
 
@@ -154,6 +155,7 @@ export function buildDashboardData(events: TrackedEvent[]): DashboardData {
   let overview: TrendOverview | null = null;
   let sleepByDay: Array<{ date: string; sleepHours: number }> = [];
   let mealsByDay: Array<{ date: string; mealCount: number }> = [];
+  let pumpingByDay: Array<{ date: string; volumeMl: number }> = [];
   let temperatureByDay: Array<{ date: string; morning: number | null; evening: number | null }> = [];
 
   if (trackerEvents.length > 0) {
@@ -165,6 +167,7 @@ export function buildDashboardData(events: TrackedEvent[]): DashboardData {
     const mealPresenceByDay = new Map<string, Set<number>>();
     const sleepMinutesPerDay = new Map<string, number>();
     const mealCountPerDay = new Map<string, number>();
+    const pumpingMlPerDay = new Map<string, number>();
 
     let firstTimestamp = Number.POSITIVE_INFINITY;
     let latestObservedTimestamp = Number.NEGATIVE_INFINITY;
@@ -193,6 +196,18 @@ export function buildDashboardData(events: TrackedEvent[]): DashboardData {
         mealHours.add(eventHour);
         mealPresenceByDay.set(eventDayKey, mealHours);
         mealCountPerDay.set(eventDayKey, (mealCountPerDay.get(eventDayKey) ?? 0) + 1);
+      }
+
+      if (event.type === 'pumping') {
+        // Quick-entry path sets `pumpingVolumeMl`; the detailed path sets
+        // `pumpingLeftMl` / `pumpingRightMl` per breast. Sum whichever the
+        // user provided.
+        const volume = event.details?.pumpingVolumeMl
+          ?? ((event.details?.pumpingLeftMl ?? 0) + (event.details?.pumpingRightMl ?? 0));
+        if (volume > 0) {
+          const eventDayKey = dayKeyFromTimestamp(event.startTime);
+          pumpingMlPerDay.set(eventDayKey, (pumpingMlPerDay.get(eventDayKey) ?? 0) + volume);
+        }
       }
     });
 
@@ -270,6 +285,10 @@ export function buildDashboardData(events: TrackedEvent[]): DashboardData {
         date: bucket.date,
         mealCount: mealCountPerDay.get(bucket.key) ?? 0,
       }));
+      pumpingByDay = dailyBuckets.map((bucket) => ({
+        date: bucket.date,
+        volumeMl: Math.round(pumpingMlPerDay.get(bucket.key) ?? 0),
+      }));
 
       overview = {
         usageDays,
@@ -323,5 +342,5 @@ export function buildDashboardData(events: TrackedEvent[]): DashboardData {
     }));
   }
 
-  return { overview, sleepByDay, mealsByDay, temperatureByDay };
+  return { overview, sleepByDay, mealsByDay, pumpingByDay, temperatureByDay };
 }

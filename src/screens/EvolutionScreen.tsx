@@ -760,6 +760,7 @@ export function EvolutionScreen() {
 
   const visibleSleepByDay = sliceRecentDays(dashboardData.sleepByDay, dailyWindow);
   const visibleMealsByDay = sliceRecentDays(dashboardData.mealsByDay, dailyWindow);
+  const visiblePumpingByDay = sliceRecentDays(dashboardData.pumpingByDay, dailyWindow);
   const visibleTemperatureByDay = sliceRecentDays(dashboardData.temperatureByDay, dailyWindow);
   const visibleTrendPoints = trendData.overview ? selectTrendHours(trendData.overview.points, trendRange) : [];
 
@@ -836,6 +837,14 @@ export function EvolutionScreen() {
           title={t('evolution.meals_day')}
           color={theme.feed}
           data={visibleMealsByDay.map((entry) => ({ date: entry.date, value: entry.mealCount }))}
+        />
+      ) : null}
+
+      {visiblePumpingByDay.some((entry) => entry.volumeMl > 0) ? (
+        <BarChartCard
+          title={t('evolution.pumping_day')}
+          color={theme.primary}
+          data={visiblePumpingByDay.map((entry) => ({ date: entry.date, value: entry.volumeMl }))}
         />
       ) : null}
 
