@@ -169,6 +169,13 @@ interface AppContextValue {
   authReady: boolean;
   workspaceLoading: boolean;
   needsOnboarding: boolean;
+  /** True once the live data listeners have produced at least one
+   * snapshot since this auth session started (or immediately in sandbox
+   * mode, or when the user has no family yet). Used by the SPA shell to
+   * keep the FullScreenLoader visible while Firestore is still hydrating
+   * — without this, the UI becomes interactive before the events list
+   * has loaded and taps hit empty timelines. */
+  initialSyncDone: boolean;
   syncStatus: SyncStatus;
   /** Increments each time a fresh event arrives via Firestore listener.
    * Lets UI fragments (e.g. SyncDot) trigger a brief animation. */
@@ -525,6 +532,14 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [legacyOverrides, setLegacyOverrides] = useState<LegacyWorkspaceOverrides>({});
   const [authReady, setAuthReady] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  // True once the live data listeners have produced at least one snapshot
+  // since this auth session started. Used to keep the FullScreenLoader up
+  // during the initial sync phase — otherwise the SPA shell becomes
+  // interactive a fraction of a second before any events are visible, and
+  // taps land on a screen that's still hydrating from Firestore.
+  // We never reset this back to false on subsequent baby switches or
+  // mutation syncs: only sign-out / sign-in resets it.
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [optimisticEvents, setOptimisticEvents] = useState<TrackedEvent[]>([]);
   const optimisticEventsRef = useRef<TrackedEvent[]>([]);
   useEffect(() => {
@@ -665,6 +680,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setWorkspaceLoading(false);
       setSyncStatus('live');
       setLastSyncedAt(now());
+      setInitialSyncDone(true);
       return;
     }
 
@@ -677,6 +693,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveSessionState(null);
       setLastSyncedAt(null);
       setWorkspaceLoading(false);
+      setInitialSyncDone(false);
       return;
     }
 
@@ -694,6 +711,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       // si pas de famille encore, on attend le listener famille
       if (!nextProfile?.familyId) {
         setWorkspaceLoading(false);
+        // No family attached → onboarding path, no live data to wait for.
+        setInitialSyncDone(true);
       }
     });
 
@@ -730,11 +749,13 @@ export function AppProvider({ children }: PropsWithChildren) {
         setLegacyEventsReady(true);
         setLastSyncedAt(now());
         setSyncStatus('live');
+        setInitialSyncDone(true);
       },
       (payload) => {
         setLegacyErrorState(payload);
         setLegacyEventsReady(true);
         setSyncStatus('error');
+        setInitialSyncDone(true);
         logger.error('firestore', `Erreur snapshot legacy-events (${payload.error.code})`, payload.error, {
           source: payload.source,
           userId: authUser.uid,
@@ -748,6 +769,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         setLegacySessionReady(true);
         setLastSyncedAt(now());
         setSyncStatus('live');
+        setInitialSyncDone(true);
       },
       (payload) => {
         setLegacyErrorState(payload);
@@ -907,9 +929,13 @@ export function AppProvider({ children }: PropsWithChildren) {
         setEventsState(nextEvents);
         setSyncStatus('live');
         setLastSyncedAt(now());
+        setInitialSyncDone(true);
       },
       (err) => {
         setSyncStatus('error');
+        // Surface the error to the UI even if no snapshot ever arrives, so
+        // the user is not stuck behind the sync loader forever.
+        setInitialSyncDone(true);
         logger.error('firestore', `Erreur snapshot events (${err.code})`, err, { babyId: currentBabyState.id });
       },
     );
@@ -918,6 +944,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveSessionState(session);
       setSyncStatus('live');
       setLastSyncedAt(now());
+      setInitialSyncDone(true);
     });
 
     return () => {
@@ -1312,6 +1339,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     authReady,
     workspaceLoading: effectiveWorkspaceLoading,
     needsOnboarding,
+    initialSyncDone,
     syncStatus: debugSyncOverride ?? (isNetworkOffline ? 'offline' : isSandbox ? 'live' : syncStatus),
     livePulseToken,
     growthSpurtMock,
@@ -2341,6 +2369,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     familyMembersResolved,
     familyState,
     feedingMode,
+    initialSyncDone,
     isSandbox,
     language,
     languageState,
@@ -2436,6 +2465,30 @@ export function useAppContext() {
   return context;
 }
 
+function LoaderDot({ delay, color }: { delay: number; color: string }) {
+  const value = useRef(new Animated.Value(0.25)).current;
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(value, { toValue: 1, duration: 450, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+        Animated.timing(value, { toValue: 0.25, duration: 450, useNativeDriver: true, easing: Easing.in(Easing.quad) }),
+        Animated.delay(450),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [delay, value]);
+  return (
+    <Animated.View
+      style={[
+        styles.loaderDot,
+        { backgroundColor: color, opacity: value, transform: [{ scale: value }] },
+      ]}
+    />
+  );
+}
+
 export function FullScreenLoader({ label }: { label: string }) {
   const { theme } = useAppTheme();
   const breath = useRef(new Animated.Value(0.5)).current;
@@ -2464,6 +2517,11 @@ export function FullScreenLoader({ label }: { label: string }) {
         Charlie.
       </Animated.Text>
       <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
+      <View style={styles.loaderDotsRow}>
+        <LoaderDot delay={0} color={theme.primary} />
+        <LoaderDot delay={180} color={theme.primary} />
+        <LoaderDot delay={360} color={theme.primary} />
+      </View>
     </View>
   );
 }
@@ -2485,6 +2543,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     opacity: 0.85,
+  },
+  loaderDotsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  loaderDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   savingOverlay: {
     position: 'absolute',

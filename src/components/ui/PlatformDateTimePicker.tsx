@@ -6,7 +6,7 @@ import { fr as dateFnsFr } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 import { radii, spacing } from '@/src/constants/theme';
-import { TimeStepper } from '@/src/components/ui/TimeStepper';
+import { WheelTimePicker } from '@/src/components/ui/WheelTimePicker';
 import 'react-day-picker/style.css';
 
 type Mode = 'date' | 'time' | 'datetime';
@@ -20,6 +20,8 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   textColor?: string;
   accentColor?: string;
+  /** Granularity of the minute wheel. Defaults to 1. */
+  minuteStep?: number;
   // Accepted but ignored on web (kept for API compatibility with @react-native-community/datetimepicker)
   display?: string;
   themeVariant?: 'dark' | 'light';
@@ -39,6 +41,8 @@ export default function PlatformDateTimePicker({
   style,
   textColor,
   accentColor,
+  minuteStep,
+  locale,
 }: Props) {
   const { theme } = useAppTheme();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -46,13 +50,20 @@ export default function PlatformDateTimePicker({
   const resolvedColor = textColor ?? theme.text;
   const resolvedAccent = accentColor ?? theme.primary;
 
-  // ── Time mode → editorial stepper ──
+  // ── Time mode → iOS-style scrolling wheel picker ──
+  // Replaces the previous +/- stepper, which forced parents to tap the
+  // minute button dozens of times to nudge a feed time across the hour.
   if (mode === 'time') {
+    const isEn = locale === 'en';
     return (
       <View style={style}>
-        <TimeStepper
+        <WheelTimePicker
           value={value}
           onChange={(next) => onChange({ type: 'set' }, next)}
+          minuteStep={minuteStep}
+          title={isEn ? 'Pick a time' : 'Choisir une heure'}
+          confirmLabel={isEn ? 'Confirm' : 'Confirmer'}
+          cancelLabel={isEn ? 'Cancel' : 'Annuler'}
         />
       </View>
     );

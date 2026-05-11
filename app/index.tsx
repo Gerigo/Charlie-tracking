@@ -61,6 +61,7 @@ export default function IndexRoute() {
     workspaceLoading,
     needsOnboarding,
     isSandbox,
+    initialSyncDone,
   } = useAppContext();
 
   const { theme } = useAppTheme();
@@ -92,6 +93,18 @@ export default function IndexRoute() {
     return (
       <PhoneFrame>
         <OnboardingScreen />
+      </PhoneFrame>
+    );
+  }
+
+  // Family attached but Firestore hasn't pushed the first events
+  // snapshot yet. Keep the FullScreenLoader up rather than letting the
+  // user tap an empty timeline — the previous behaviour was confusing
+  // because the SPA shell looked ready while it was still syncing.
+  if (!isSandbox && !initialSyncDone) {
+    return (
+      <PhoneFrame>
+        <FullScreenLoader label="Synchronisation…" />
       </PhoneFrame>
     );
   }
