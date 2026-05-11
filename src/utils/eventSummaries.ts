@@ -20,6 +20,57 @@ export function getEventsForDay(events: TrackedEvent[], date: Date) {
   });
 }
 
+/**
+ * Compute the sleep minutes that "belong" to a given day under the
+ * end-day attribution rule used by Today and the daily summary.
+ *
+ *   - Completed sessions count their FULL duration on the day they
+ *     ENDED. A night that started yesterday at 22:00 and ended today
+ *     at 08:00 contributes 10h to today's total (and 0h to yesterday).
+ *     This matches how parents think about "last night's sleep" when
+ *     they open the app in the morning.
+ *   - The active (in-progress) session counts from start to now, but
+ *     only when "now" is in the day being viewed. The live counter
+ *     belongs to the day it's running on, regardless of when the
+ *     session started.
+ *   - An optional `cutoff` timestamp limits both kinds of contribution
+ *     so callers can compare today-so-far with yesterday-at-the-same-
+ *     time.
+ */
+function sleepMinutesForDay(
+  events: TrackedEvent[],
+  dayStart: number,
+  nextDayStart: number,
+  activeSession: ActiveSession | null,
+  cutoff: number,
+): number {
+  let total = 0;
+  for (const event of events) {
+    if (event.type !== 'sleep') continue;
+    const isActive = activeSession?.eventId === event.id && event.endTime == null;
+
+    if (event.endTime != null && !isActive) {
+      // Completed → attribute to end-day, full duration.
+      if (event.endTime >= dayStart && event.endTime <= cutoff) {
+        total += Math.max(0, Math.round((event.endTime - event.startTime) / 60000));
+      }
+      continue;
+    }
+
+    if (isActive) {
+      // Active session — attribute its running total to the day "now"
+      // is in. Don't double-attribute it to the start day if "now"
+      // has already crossed midnight.
+      const now = Date.now();
+      if (now < dayStart || now >= nextDayStart) continue;
+      const end = Math.min(now, cutoff);
+      if (end <= event.startTime) continue;
+      total += Math.max(0, Math.round((end - event.startTime) / 60000));
+    }
+  }
+  return total;
+}
+
 export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSession | null, date = new Date()): DailySummary {
   const scopedEvents = getEventsForDay(events, date);
   const dayStart = startOfDay(date).getTime();
@@ -34,14 +85,18 @@ export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSes
     temperatures: [],
   };
 
-  for (const event of scopedEvents) {
-    if (event.type === 'sleep') {
-      const effectiveEnd = event.endTime ?? (activeSession?.eventId === event.id ? Date.now() : event.startTime);
-      const overlapStart = Math.max(event.startTime, dayStart);
-      const overlapEnd = Math.min(effectiveEnd, nextDayStart);
-      summary.totalSleepMinutes += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
-    }
+  // Sleep total uses the end-day attribution rule (see
+  // sleepMinutesForDay) so a 22h→08h night reads as 10h on the
+  // morning view, not 8h.
+  summary.totalSleepMinutes = sleepMinutesForDay(
+    events,
+    dayStart,
+    nextDayStart,
+    activeSession,
+    nextDayStart,
+  );
 
+  for (const event of scopedEvents) {
     if (event.type === 'feed') summary.feedCount += 1;
     if (event.type === 'diaper') summary.diaperCount += 1;
     if (event.type === 'medication') {
@@ -64,13 +119,13 @@ export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSes
 
 /**
  * Sum sleep minutes inside a given day, optionally up to a wall-clock
- * cutoff. Mirrors `feedCountUntil` on the consumer side: lets the
+ * cutoff. Mirrors `countFeedsUntil` on the consumer side: lets the
  * "Today" screen compare *sleep so far* to the same offset yesterday.
  *
- * When `activeSession` matches an event whose endTime is still null,
- * that session is extended to the cutoff (or `Date.now()` if the
- * cutoff is in the future), so a baby who is still sleeping at 14:30
- * counts toward today's running total instead of disappearing.
+ * Uses the same end-day attribution as `getDailySummary` so the delta
+ * stays consistent with the displayed total: a 22h→08h night counts
+ * fully on the morning of the day it ENDED, not split across the two
+ * calendar days it intersects.
  */
 export function sumSleepMinutesUntil(
   events: TrackedEvent[],
@@ -81,23 +136,7 @@ export function sumSleepMinutesUntil(
   const dayStart = startOfDay(date).getTime();
   const nextDayStart = dayStart + 24 * 60 * 60 * 1000;
   const cutoff = Math.min(cutoffTimestamp, nextDayStart);
-
-  let total = 0;
-  for (const event of events) {
-    if (event.type !== 'sleep') continue;
-    if (event.startTime >= cutoff) continue;
-
-    const isActive = activeSession?.eventId === event.id && event.endTime == null;
-    const effectiveEnd = isActive
-      ? Math.min(Date.now(), cutoff)
-      : event.endTime ?? event.startTime;
-
-    const overlapStart = Math.max(event.startTime, dayStart);
-    const overlapEnd = Math.min(effectiveEnd, cutoff);
-    if (overlapEnd <= overlapStart) continue;
-    total += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
-  }
-  return total;
+  return sleepMinutesForDay(events, dayStart, nextDayStart, activeSession ?? null, cutoff);
 }
 
 export function getLastFeedSide(events: TrackedEvent[]): FeedSide | null {
