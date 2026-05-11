@@ -2335,6 +2335,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+    // Equalise heights inside each row so siblings with shorter copy
+    // don't sit visibly lower than their neighbour. Tiles keep their
+    // own minHeight, the row simply stretches the shorter one.
+    alignItems: "stretch",
   },
   summaryTile: {
     width: "47.5%",

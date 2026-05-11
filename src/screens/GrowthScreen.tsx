@@ -907,6 +907,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+    alignItems: 'stretch',
   },
   summaryCard: {
     width: '47.5%',
