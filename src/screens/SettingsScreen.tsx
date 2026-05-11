@@ -2742,10 +2742,11 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     padding: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 26,
+    lineHeight: 32,
   },
   inlineActionRow: {
     flexDirection: "row",

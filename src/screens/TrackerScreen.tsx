@@ -2780,11 +2780,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
   },
   detailTitle: {
-    fontSize: 20,
+    fontSize: 26,
+    lineHeight: 32,
   },
   detailBody: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 24,
   },
   detailMeta: {
     fontSize: 12,
@@ -2905,7 +2906,7 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     padding: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   modalActions: {
     flexDirection: "row",

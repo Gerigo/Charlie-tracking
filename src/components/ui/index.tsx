@@ -690,7 +690,7 @@ const appModalStyles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl * 2,
     gap: spacing.md,
   },
