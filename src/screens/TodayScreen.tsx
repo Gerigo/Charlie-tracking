@@ -34,7 +34,7 @@ import {
   formatDuration,
   formatRelativeShort,
 } from "@/src/utils/date";
-import { getDailySummary, getEventsForDay, getLastNightSleep, sumSleepMinutesUntil } from "@/src/utils/eventSummaries";
+import { getDailySummary, getEventsForDay, sumSleepMinutesUntil } from "@/src/utils/eventSummaries";
 import { Icon } from "@/src/components/ui/Icon";
 import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1333,15 +1333,6 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
     () => sumSleepMinutesUntil(events, selectedDate, comparisonCutoff, viewingToday ? activeSession : null),
     [comparisonCutoff, events, selectedDate, activeSession, viewingToday],
   );
-  // Last night's sleep — contiguous cluster of sessions (with short
-  // wake-up gaps) that ended in the morning of the selected day.
-  // Lives next to the daily total on the Sleep tile so the parent can
-  // see "Sa nuit · 9h30" without us biasing the per-day historical
-  // averages (those keep using the proportional split).
-  const lastNight = useMemo(
-    () => getLastNightSleep(events, selectedDate, viewingToday ? activeSession : null),
-    [events, selectedDate, viewingToday, activeSession],
-  );
   const yesterdaySleepMinutesAtSameTime = useMemo(() => {
     const previousDate = new Date(selectedDate.getTime() - 24 * 60 * 60 * 1000);
     const cutoffOffset = comparisonCutoff - startOfDay(selectedDate).getTime();
@@ -1756,18 +1747,6 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
             summary.totalSleepMinutes > 0
               ? formatDuration(0, summary.totalSleepMinutes * 60 * 1000)
               : "—"
-          }
-          // Surface the contiguous "night" duration alongside the
-          // calendar-day total. The two values can legitimately differ
-          // (a 22→07 night reads as "Sommeil total · 7h" + "Nuit ·
-          // 9h") because the daily total still splits per midnight to
-          // keep historical averages honest.
-          secondaryValue={
-            lastNight
-              ? language === "fr"
-                ? `Nuit · ${formatDuration(0, lastNight.totalMinutes * 60 * 1000)}${lastNight.wakeUps > 0 ? ` · ${lastNight.wakeUps} réveil${lastNight.wakeUps > 1 ? "s" : ""}` : ""}`
-                : `Night · ${formatDuration(0, lastNight.totalMinutes * 60 * 1000)}${lastNight.wakeUps > 0 ? ` · ${lastNight.wakeUps} wake-up${lastNight.wakeUps > 1 ? "s" : ""}` : ""}`
-              : undefined
           }
           detail={
             // Prefer the yesterday-at-this-time comparison whenever we

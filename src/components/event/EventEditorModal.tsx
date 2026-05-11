@@ -98,7 +98,15 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
   // create-mode reset path was firing whenever `t` or `defaultDate`
   // changed identity (each parent render), wiping the user's chip
   // selection back to "feed" the moment they tapped "Couche".
+  //
+  // We also re-hydrate when the event's `updatedAt` advances — a
+  // remote write can land while the modal is open (or the parent can
+  // re-open the same event id seconds later after a stale snapshot is
+  // replaced by a fresher one). Without that, a sleep edited from
+  // another device could show start = 00:00 the first time the modal
+  // was opened and then jump to the real time on a second open.
   const lastEventIdRef = useRef<string | null>(null);
+  const lastEventUpdatedAtRef = useRef<number>(0);
   const wasCreatingRef = useRef<boolean>(false);
   // Refs to read the latest props inside the effect without depending
   // on them (would otherwise cause spurious re-runs).
@@ -108,11 +116,15 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
   tRef.current = t;
 
   useEffect(() => {
-    const transitionedToEvent = event && event.id !== lastEventIdRef.current;
+    const transitionedToEvent =
+      !!event &&
+      (event.id !== lastEventIdRef.current ||
+        event.updatedAt !== lastEventUpdatedAtRef.current);
     const transitionedToCreate = isCreating && !wasCreatingRef.current;
 
-    if (transitionedToEvent) {
+    if (transitionedToEvent && event) {
       lastEventIdRef.current = event.id;
+      lastEventUpdatedAtRef.current = event.updatedAt;
       wasCreatingRef.current = false;
       setEditNotes(event.notes ?? '');
       setEditFeedSide(event.details?.feedSide ?? 'left');
@@ -145,6 +157,7 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
 
     if (transitionedToCreate) {
       lastEventIdRef.current = null;
+      lastEventUpdatedAtRef.current = 0;
       wasCreatingRef.current = true;
       const now = new Date();
       const start = defaultDateRef.current ? new Date(defaultDateRef.current) : now;
@@ -176,6 +189,7 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
     // so the next open re-triggers a hydrate.
     if (!event && !isCreating) {
       lastEventIdRef.current = null;
+      lastEventUpdatedAtRef.current = 0;
       wasCreatingRef.current = false;
     }
   }, [event, isCreating]);

@@ -917,23 +917,28 @@ export function AppProvider({ children }: PropsWithChildren) {
         // Detect events that are new since last snapshot AND likely from
         // another device (not matched by a recent optimistic). Used to
         // trigger a subtle live-pulse + cross-device toast.
+        //
+        // We previously gated this on `ageMs < 60_000`, but that caused
+        // late-arriving events (e.g. encoded 10 min ago on another device
+        // but only reaching this client after reconnection or after the
+        // initial snapshot returned partial data) to slip in silently,
+        // leaving the parent wondering where the event came from. We now
+        // surface ANY event that's new to this session after the initial
+        // fetch — the `seenEventIdsInitialisedRef` guard already filters
+        // out the initial-fetch noise.
         const seen = seenEventIdsRef.current;
-        const recentNew: TrackedEvent[] = [];
+        const remoteNew: TrackedEvent[] = [];
         nextEvents.forEach((event) => {
           if (!seen.has(event.id)) {
             seen.add(event.id);
-            // Only flag as "new" if seenEventIds was already initialised
-            // (otherwise the entire initial fetch counts as new = noise)
             if (seenEventIdsInitialisedRef.current) {
-              const ageMs = Date.now() - event.startTime;
-              if (ageMs < 60_000) recentNew.push(event);
+              remoteNew.push(event);
             }
           }
         });
-        if (recentNew.length > 0) {
+        if (remoteNew.length > 0) {
           setLivePulseToken((n) => n + 1);
-          // Surface a soft toast for events that we likely didn't trigger ourselves
-          recentNew.forEach((event) => {
+          remoteNew.forEach((event) => {
             const matchesOptimistic = optimisticEventsRef.current.some(
               (opt) =>
                 opt.type === event.type &&
@@ -942,9 +947,21 @@ export function AppProvider({ children }: PropsWithChildren) {
             );
             if (matchesOptimistic) return;
             const label = remoteEventLabel(event.type, language);
+            // Distinguish "live" arrivals (just encoded) from "delayed"
+            // arrivals (encoded a while ago, only just reaching us) so
+            // the parent isn't confused when an old timestamp appears in
+            // the timeline out of nowhere.
+            const ageMs = Date.now() - event.startTime;
+            const isDelayed = ageMs >= 60_000;
             showToast(
               language === 'fr' ? 'Nouvelle activité' : 'New activity',
-              language === 'fr' ? `${label} enregistré sur un autre appareil` : `${label} recorded from another device`,
+              isDelayed
+                ? language === 'fr'
+                  ? `${label} synchronisé depuis un autre appareil`
+                  : `${label} synced from another device`
+                : language === 'fr'
+                  ? `${label} enregistré sur un autre appareil`
+                  : `${label} recorded from another device`,
               'success',
               { duration: 3500 },
             );
