@@ -158,11 +158,12 @@ function MeasurementChart({
   emptyMessage: string;
 }) {
   const { theme } = useAppTheme();
-  const [selectedIndex, setSelectedIndex] = useState<number>(Math.max(data.length - 1, 0));
-
-  useEffect(() => {
-    setSelectedIndex(Math.max(data.length - 1, 0));
-  }, [data]);
+  // Lazy init only — once the user has tapped a point we never want to
+  // reset their choice when the parent re-renders (e.g. when a Firestore
+  // snapshot arrives). The clamp below keeps the index in range if the
+  // data set shrinks.
+  const [rawSelectedIndex, setSelectedIndex] = useState<number>(() => Math.max(data.length - 1, 0));
+  const selectedIndex = Math.min(Math.max(rawSelectedIndex, 0), Math.max(data.length - 1, 0));
 
   if (data.length === 0) {
     return (
