@@ -97,9 +97,17 @@ function LineChartCard({
   const { width: screenWidth } = useWindowDimensions();
   const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
 
+  // Reset to the latest point ONLY when the data set's shape changes
+  // (length or last date). Previously we depended on `[data]` directly,
+  // but the parent computes the array with `.map(...)` on every render
+  // so the reference flipped each tick — that wiped out the user's
+  // selection any time a sibling state changed, making it impossible
+  // to inspect older points.
+  const dataLength = data.length;
+  const lastDate = data[data.length - 1]?.date;
   useEffect(() => {
-    setSelectedIndex(Math.max(data.length - 1, 0));
-  }, [data]);
+    setSelectedIndex(Math.max(dataLength - 1, 0));
+  }, [dataLength, lastDate]);
 
   const width = Math.max(280, screenWidth - 84);
   const innerWidth = width - PADDING.left - PADDING.right;
@@ -222,9 +230,14 @@ function BarChartCard({
   const { width: screenWidth } = useWindowDimensions();
   const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
 
+  // See LineChartCard — depend on the shape, not the array identity,
+  // otherwise every parent render snaps the selection back to the
+  // latest bar.
+  const dataLength = data.length;
+  const lastDate = data[data.length - 1]?.date;
   useEffect(() => {
-    setSelectedIndex(Math.max(data.length - 1, 0));
-  }, [data]);
+    setSelectedIndex(Math.max(dataLength - 1, 0));
+  }, [dataLength, lastDate]);
 
   const width = Math.max(280, screenWidth - 84);
   const innerWidth = width - PADDING.left - PADDING.right;
@@ -327,9 +340,12 @@ function TemperatureChartCard({
   const { width: screenWidth } = useWindowDimensions();
   const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
 
+  // Match the shape-based dep used by the sister chart cards.
+  const dataLength = data.length;
+  const lastDate = data[data.length - 1]?.date;
   useEffect(() => {
-    setSelectedIndex(Math.max(data.length - 1, 0));
-  }, [data]);
+    setSelectedIndex(Math.max(dataLength - 1, 0));
+  }, [dataLength, lastDate]);
 
   const width = Math.max(280, screenWidth - 84);
   const allValues = data.flatMap((entry) => [entry.morning, entry.evening]).filter((value): value is number => typeof value === 'number');

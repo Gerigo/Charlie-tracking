@@ -832,10 +832,13 @@ function QuickTile({
           ) : null}
         </View>
 
-        {/* Hero typography — label is THE design element */}
+        {/* Hero typography — label is THE design element.
+            selectable={false} on every Text prevents the OS from
+            interpreting the long-press as a text-highlight gesture. */}
         <View style={styles.quickTileType}>
           <Text
             numberOfLines={1}
+            selectable={false}
             style={[styles.quickTileLabel, { color: labelColor, fontFamily: theme.fontDisplayItalic }]}
           >
             {label}
@@ -860,6 +863,7 @@ function QuickTile({
               />
               <Text
                 numberOfLines={1}
+                selectable={false}
                 style={[
                   styles.quickTileLiveLabel,
                   {
@@ -874,6 +878,7 @@ function QuickTile({
           ) : (
             <Text
               numberOfLines={1}
+              selectable={false}
               style={[
                 styles.quickTileLast,
                 {
@@ -2228,7 +2233,15 @@ const styles = StyleSheet.create({
   quickTileWrap: {
     width: "47.5%",
     position: "relative",
-  },
+    // Web/PWA: long-pressing the tile to open the detailed editor used to
+    // race the OS' text-selection gesture, popping the copy/paste menu
+    // mid-press. Disabling user-select + touch-callout on the wrapper
+    // (and on every Text inside via selectable={false}) makes the tile
+    // behave like a real button on Safari iOS and Chrome Android.
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none",
+  } as never,
   quickTileGlow: {
     position: "absolute",
     top: -8,

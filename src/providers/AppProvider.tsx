@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { Icon } from '@/src/components/ui/Icon';
 import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { User } from 'firebase/auth';
 import { translate } from '@/src/constants/i18n';
 import { MOCK_STORAGE_KEY, type GrowthSpurtMockKey } from '@/src/lib/devMocks';
@@ -2502,31 +2503,59 @@ export function FullScreenLoader({ label }: { label: string }) {
     ).start();
   }, [breath]);
 
+  // The wrapper is an absolutely-positioned overlay over the entire
+  // viewport with a high zIndex so it sits ON TOP of anything the
+  // route might already have painted (the editorial top bar of a
+  // previous render, the cached SPA shell, etc.). Without this, on
+  // mobile Safari you could see the hero pill above the loader while
+  // the events were still syncing.
+  // We also wrap content in SafeAreaView so the cream background runs
+  // edge-to-edge into the device's status bar / notch area.
   return (
-    <View style={[styles.loaderScreen, { backgroundColor: theme.background }]}>
-      <Animated.Text
-        style={[
-          styles.loaderBrand,
-          {
-            color: theme.primary,
-            fontFamily: theme.fontDisplayItalic,
-            opacity: breath,
-          },
-        ]}
-      >
-        Charlie.
-      </Animated.Text>
-      <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
-      <View style={styles.loaderDotsRow}>
-        <LoaderDot delay={0} color={theme.primary} />
-        <LoaderDot delay={180} color={theme.primary} />
-        <LoaderDot delay={360} color={theme.primary} />
-      </View>
+    <View
+      style={[
+        StyleSheet.absoluteFillObject,
+        styles.loaderOverlay,
+        { backgroundColor: theme.background },
+      ]}
+      pointerEvents="auto"
+    >
+      <SafeAreaView style={styles.loaderSafe} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.loaderScreen}>
+          <Animated.Text
+            style={[
+              styles.loaderBrand,
+              {
+                color: theme.primary,
+                fontFamily: theme.fontDisplayItalic,
+                opacity: breath,
+              },
+            ]}
+          >
+            Charlie.
+          </Animated.Text>
+          <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
+          <View style={styles.loaderDotsRow}>
+            <LoaderDot delay={0} color={theme.primary} />
+            <LoaderDot delay={180} color={theme.primary} />
+            <LoaderDot delay={360} color={theme.primary} />
+          </View>
+        </View>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  loaderOverlay: {
+    // High zIndex so we beat anything the route might have rendered
+    // already (in particular the editorial top bar of a cached SPA shell).
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  loaderSafe: {
+    flex: 1,
+  },
   loaderScreen: {
     flex: 1,
     alignItems: 'center',

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,15 +11,21 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { radii, spacing } from '@/src/constants/theme';
+import { radii } from '@/src/constants/theme';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 import { triggerSelectionFeedback } from '@/src/lib/feedback';
 
-const ITEM_HEIGHT = 40;
+const ITEM_HEIGHT = 36;
 const VISIBLE_ITEMS = 5;
 const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
 const PAD = ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2);
+// Web-only hint: prevent the document from scrolling when the user spins
+// the wheel inside a modal/form. RN's `overscrollBehavior: 'contain'`
+// translates to the CSS property on react-native-web.
+const WEB_TOUCH_STYLE: StyleProp<ViewStyle> = Platform.OS === 'web'
+  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ({ overscrollBehavior: 'contain', touchAction: 'pan-y' } as any)
+  : null;
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -29,25 +35,29 @@ interface WheelProps {
   items: number[];
   value: number;
   onChange: (next: number) => void;
-  format?: (n: number) => string;
   ariaLabel?: string;
 }
 
 /**
- * Single vertical wheel. Uses a snapping ScrollView so the work happens
- * on the platform's scroll engine (smooth on iOS Safari + react-native).
- * The middle slot is the selected value; the centre row is highlighted by
- * the parent so a row of wheels reads as one unit.
+ * Single vertical wheel. Mirrors iOS' UIDatePicker spinner column:
+ *   - The middle row is always the selected value.
+ *   - Scrolling snaps to row boundaries; releasing commits to the
+ *     nearest row.
+ *   - Above/below rows fade out so the wheel reads as a 3-D drum.
+ *
+ * The wheel is fully inline — no modal, no confirm step. The value is
+ * pushed to the parent as soon as a row settles under the centre line,
+ * which is the iOS-native feel the spinner is mimicking.
  */
-function Wheel({ items, value, onChange, format, ariaLabel }: WheelProps) {
+function Wheel({ items, value, onChange, ariaLabel }: WheelProps) {
   const { theme } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
   const lastIndexRef = useRef(items.indexOf(value));
   const [highlightIndex, setHighlightIndex] = useState<number>(items.indexOf(value));
 
-  // When the parent's value changes (e.g. modal opens with a new
-  // pre-selected time, or hours wraps midnight), snap to the new row
-  // without animating — animation here would race the user's scroll.
+  // When the parent's `value` changes externally (e.g. hour wraps past
+  // midnight, or the form is re-seeded from a Date prop), snap to that
+  // row without animating so we don't fight the user mid-scroll.
   useEffect(() => {
     const idx = items.indexOf(value);
     if (idx < 0) return;
@@ -58,28 +68,32 @@ function Wheel({ items, value, onChange, format, ariaLabel }: WheelProps) {
     }
   }, [value, items]);
 
-  // Initial position. Effect-only so the ScrollView has been laid out
-  // (otherwise scrollTo is a no-op on first paint in react-native-web).
+  // Initial position. Must be in an effect — on first render the
+  // ScrollView hasn't been laid out yet, so scrollTo is a no-op.
   useEffect(() => {
     const idx = Math.max(0, items.indexOf(value));
     scrollRef.current?.scrollTo({ y: idx * ITEM_HEIGHT, animated: false });
-    // We intentionally only run this once on mount — subsequent value
-    // syncs are handled by the effect above.
+    // Run once on mount — subsequent syncs handled by the effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const indexFromOffset = (y: number) => {
+    return Math.max(0, Math.min(items.length - 1, Math.round(y / ITEM_HEIGHT)));
+  };
+
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const idx = Math.max(0, Math.min(items.length - 1, Math.round(y / ITEM_HEIGHT)));
+    const idx = indexFromOffset(e.nativeEvent.contentOffset.y);
     if (idx !== highlightIndex) {
       setHighlightIndex(idx);
       triggerSelectionFeedback();
     }
   };
 
+  // Commit handler — called by both onMomentumScrollEnd (touch) and
+  // onScrollEndDrag (mouse / trackpad on web, where momentum may not
+  // fire reliably for short flicks).
   const commit = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const idx = Math.max(0, Math.min(items.length - 1, Math.round(y / ITEM_HEIGHT)));
+    const idx = indexFromOffset(e.nativeEvent.contentOffset.y);
     const next = items[idx];
     if (next !== value) {
       lastIndexRef.current = idx;
@@ -87,9 +101,9 @@ function Wheel({ items, value, onChange, format, ariaLabel }: WheelProps) {
     }
   };
 
-  // Tapping a row scrolls to it — gives users a tap-to-pick alternative
-  // to scrolling, which matters on desktop browsers where touch-scrolling
-  // a 40px row is fiddly with a trackpad.
+  // Tap-to-pick — affordance for desktop users who can't easily scroll
+  // a 36 px row with a trackpad. Animated so the wheel "rolls" into
+  // place.
   const tap = (idx: number) => {
     triggerSelectionFeedback();
     scrollRef.current?.scrollTo({ y: idx * ITEM_HEIGHT, animated: true });
@@ -108,27 +122,21 @@ function Wheel({ items, value, onChange, format, ariaLabel }: WheelProps) {
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        // 16ms ~ 60fps; cheap because we only set state when the index
-        // crosses a row boundary.
         scrollEventThrottle={16}
         onScroll={onScroll}
         onMomentumScrollEnd={commit}
-        // On the web, onMomentumScrollEnd may not fire reliably for short
-        // drags — fall back on onScrollEndDrag so the final value still
-        // commits.
         onScrollEndDrag={commit}
         contentContainerStyle={styles.wheelContent}
+        style={WEB_TOUCH_STYLE}
       >
         {items.map((item, idx) => {
           const distance = Math.abs(idx - highlightIndex);
-          const opacity = distance === 0 ? 1 : distance === 1 ? 0.5 : 0.25;
-          const fontSize = distance === 0 ? 24 : distance === 1 ? 20 : 18;
+          // 3-D drum effect: rows further from centre fade and shrink
+          // slightly. Keeps the focal row visually dominant.
+          const opacity = distance === 0 ? 1 : distance === 1 ? 0.55 : 0.3;
+          const fontSize = distance === 0 ? 22 : distance === 1 ? 18 : 16;
           return (
-            <Pressable
-              key={item}
-              style={styles.wheelRow}
-              onPress={() => tap(idx)}
-            >
+            <Pressable key={item} style={styles.wheelRow} onPress={() => tap(idx)}>
               <Text
                 style={[
                   styles.wheelText,
@@ -140,7 +148,7 @@ function Wheel({ items, value, onChange, format, ariaLabel }: WheelProps) {
                   },
                 ]}
               >
-                {format ? format(item) : item}
+                {pad2(item)}
               </Text>
             </Pressable>
           );
@@ -155,45 +163,21 @@ interface Props {
   onChange: (next: Date) => void;
   minuteStep?: number;
   style?: StyleProp<ViewStyle>;
-  /** Localised label for the modal title — defaults to French. */
-  title?: string;
-  /** Localised label for the confirm button — defaults to French. */
-  confirmLabel?: string;
-  /** Localised label for the cancel button. */
-  cancelLabel?: string;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 /**
- * iOS-style scrolling time picker.
+ * Inline iOS-style scrolling time picker.
  *
- * Renders a compact trigger pill showing the current `HH:MM`. Tapping it
- * opens a modal sheet with two vertical wheels (hours + minutes) you can
- * spin to set the time. The previous +/- stepper was painful for nudging
- * minutes far from the current value (50 taps to go from :05 to :55) —
- * this replaces it.
- *
- * The committed value is only pushed up on confirm, so casually opening
- * the modal and dismissing it won't change anything.
+ * Replaces the previous +/- stepper, which was painful for nudging
+ * minutes far from the current value (50 taps to go from :05 to :55).
+ * Two wheels (hours + minutes) sit directly in the form — no modal, no
+ * confirm step. Spinning a wheel commits the new value the moment it
+ * settles under the centre line, mirroring iOS' UIDatePicker spinner.
  */
-export function WheelTimePicker({
-  value,
-  onChange,
-  minuteStep = 1,
-  style,
-  title,
-  confirmLabel,
-  cancelLabel,
-}: Props) {
+export function WheelTimePicker({ value, onChange, minuteStep = 1, style }: Props) {
   const { theme } = useAppTheme();
-  const [open, setOpen] = useState(false);
-
-  // The wheels operate on a draft copy of the current value so the user
-  // can cancel without mutating the parent. We seed it from `value` each
-  // time the modal opens.
-  const [draftHour, setDraftHour] = useState<number>(value.getHours());
-  const [draftMinute, setDraftMinute] = useState<number>(value.getMinutes());
 
   const minutes = useMemo(() => {
     const step = Math.max(1, Math.min(30, minuteStep));
@@ -202,10 +186,10 @@ export function WheelTimePicker({
     return list;
   }, [minuteStep]);
 
-  const snapMinuteToStep = (m: number): number => {
-    // If minuteStep is e.g. 5 and the saved value is 03, the wheel can't
-    // show 03 — snap to the nearest valid increment instead of falling
-    // off the wheel.
+  // Snap an arbitrary minute value to the nearest legal step. Without
+  // this, a wheel with minuteStep=5 receiving a value of :03 would not
+  // find :03 in its list and would default to :00.
+  const snapMinute = (m: number): number => {
     if (minutes.includes(m)) return m;
     let best = minutes[0];
     let bestDiff = Math.abs(best - m);
@@ -219,190 +203,72 @@ export function WheelTimePicker({
     return best;
   };
 
-  const openSheet = () => {
-    setDraftHour(value.getHours());
-    setDraftMinute(snapMinuteToStep(value.getMinutes()));
-    setOpen(true);
+  const currentHour = value.getHours();
+  const currentMinute = snapMinute(value.getMinutes());
+
+  const handleHourChange = (next: number) => {
+    const updated = new Date(value);
+    updated.setHours(next, currentMinute, 0, 0);
+    onChange(updated);
   };
 
-  const confirm = () => {
-    const next = new Date(value);
-    next.setHours(draftHour, draftMinute, 0, 0);
-    onChange(next);
-    setOpen(false);
+  const handleMinuteChange = (next: number) => {
+    const updated = new Date(value);
+    updated.setHours(currentHour, next, 0, 0);
+    onChange(updated);
   };
-
-  const cancel = () => setOpen(false);
 
   return (
-    <View style={style}>
-      <Pressable
-        onPress={openSheet}
-        style={({ pressed }) => [
-          styles.trigger,
+    <View style={[styles.row, style]}>
+      {/* Centre highlight band — spans both wheels so the selected row
+          reads as a single chip. Lives behind the wheels (no
+          pointerEvents) so it doesn't intercept scroll gestures. */}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.highlight,
           {
-            backgroundColor: theme.surfaceContainerHigh,
-            opacity: pressed ? 0.85 : 1,
+            backgroundColor: `${theme.primary}14`,
+            borderColor: `${theme.primary}33`,
           },
         ]}
+      />
+      <Wheel
+        items={HOURS}
+        value={currentHour}
+        onChange={handleHourChange}
+        ariaLabel="Heures"
+      />
+      <Text
+        pointerEvents="none"
+        style={[styles.colon, { color: theme.textSoft, fontFamily: theme.fontDisplayItalic }]}
       >
-        <Text style={[styles.triggerText, { color: theme.text, fontFamily: theme.fontDisplayItalic }]}>
-          {`${pad2(value.getHours())}:${pad2(value.getMinutes())}`}
-        </Text>
-      </Pressable>
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={cancel}>
-        <BlurView
-          intensity={theme.isDark ? 28 : 36}
-          tint={theme.isDark ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-        <Pressable style={styles.backdrop} onPress={cancel}>
-          <Pressable
-            // Stop the inner card from triggering the backdrop's onPress.
-            onPress={(e) => e.stopPropagation()}
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: theme.surfaceLowest,
-                borderColor: theme.cardBorder,
-                shadowColor: theme.shadow,
-              },
-            ]}
-          >
-            {title ? (
-              <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-                {title}
-              </Text>
-            ) : null}
-
-            <View style={styles.wheelsRow}>
-              {/* Centre highlight band — spans behind both wheels so the
-                  middle row of HH and MM reads as a single chip. */}
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.highlight,
-                  {
-                    backgroundColor: `${theme.primary}14`,
-                    borderColor: `${theme.primary}33`,
-                  },
-                ]}
-              />
-              <Wheel
-                items={HOURS}
-                value={draftHour}
-                onChange={setDraftHour}
-                format={pad2}
-                ariaLabel="Heures"
-              />
-              <Text
-                style={[styles.colon, { color: theme.textSoft, fontFamily: theme.fontDisplayItalic }]}
-                pointerEvents="none"
-              >
-                :
-              </Text>
-              <Wheel
-                items={minutes}
-                value={draftMinute}
-                onChange={setDraftMinute}
-                format={pad2}
-                ariaLabel="Minutes"
-              />
-            </View>
-
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={cancel}
-                style={({ pressed }) => [
-                  styles.action,
-                  styles.actionSecondary,
-                  {
-                    backgroundColor: theme.surfaceContainer,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <Text style={[styles.actionLabel, { color: theme.text, fontFamily: theme.fontSemiBold }]}>
-                  {cancelLabel ?? 'Annuler'}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={confirm}
-                style={({ pressed }) => [
-                  styles.action,
-                  {
-                    backgroundColor: theme.primary,
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <Text style={[styles.actionLabel, { color: theme.onPrimary, fontFamily: theme.fontSemiBold }]}>
-                  {confirmLabel ?? 'Confirmer'}
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        :
+      </Text>
+      <Wheel
+        items={minutes}
+        value={currentMinute}
+        onChange={handleMinuteChange}
+        ariaLabel="Minutes"
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  trigger: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radii.md,
-    alignSelf: 'flex-start',
-  },
-  triggerText: {
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: -0.4,
-    minWidth: 56,
-    textAlign: 'center',
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(20, 14, 16, 0.32)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  sheet: {
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 10,
-    gap: spacing.lg,
-    width: '100%',
-    maxWidth: 360,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    textAlign: 'center',
-  },
-  wheelsRow: {
+  row: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm,
-    position: 'relative',
+    justifyContent: 'center',
     height: WHEEL_HEIGHT,
+    gap: 4,
+    position: 'relative',
+    alignSelf: 'flex-start',
   },
   wheel: {
     height: WHEEL_HEIGHT,
-    width: 84,
+    width: 64,
     overflow: 'hidden',
-    // The wheel only scrolls vertically — make that explicit so trackpad
-    // users on desktop don't accidentally trigger the modal's parent
-    // scroll.
-    // @ts-expect-error web-only prop
-    overscrollBehavior: 'contain',
   },
   wheelContent: {
     paddingVertical: PAD,
@@ -413,7 +279,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   wheelText: {
-    lineHeight: 28,
+    lineHeight: 26,
     letterSpacing: -0.4,
     textAlign: 'center',
   },
@@ -427,28 +293,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   colon: {
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 26,
     letterSpacing: -0.4,
     paddingHorizontal: 2,
-    // Pinned vertically with the wheels' centre row.
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  action: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  actionSecondary: {
-    // Subtler than the primary CTA; keeps focus on Confirmer.
-  },
-  actionLabel: {
-    fontSize: 15,
   },
 });

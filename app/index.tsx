@@ -69,12 +69,11 @@ export default function IndexRoute() {
   const [historyVisible, setHistoryVisible] = useState(false);
 
   // Loading shell — auth provider hasn't told us anything yet.
+  // FullScreenLoader now renders as a full-viewport overlay (no PhoneFrame
+  // wrapper) so the cream background runs edge-to-edge into the safe
+  // areas and nothing from a previous paint can bleed through.
   if (!authReady || workspaceLoading) {
-    return (
-      <PhoneFrame>
-        <FullScreenLoader label="Carnet du quotidien" />
-      </PhoneFrame>
-    );
+    return <FullScreenLoader label="Carnet du quotidien" />;
   }
 
   // Not authenticated — render Login as a state, never as a route.
@@ -102,11 +101,7 @@ export default function IndexRoute() {
   // user tap an empty timeline — the previous behaviour was confusing
   // because the SPA shell looked ready while it was still syncing.
   if (!isSandbox && !initialSyncDone) {
-    return (
-      <PhoneFrame>
-        <FullScreenLoader label="Synchronisation…" />
-      </PhoneFrame>
-    );
+    return <FullScreenLoader label="Synchronisation…" />;
   }
 
   const showHistory = () => setHistoryVisible(true);

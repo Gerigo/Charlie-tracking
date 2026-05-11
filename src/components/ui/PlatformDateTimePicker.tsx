@@ -42,7 +42,6 @@ export default function PlatformDateTimePicker({
   textColor,
   accentColor,
   minuteStep,
-  locale,
 }: Props) {
   const { theme } = useAppTheme();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -50,20 +49,17 @@ export default function PlatformDateTimePicker({
   const resolvedColor = textColor ?? theme.text;
   const resolvedAccent = accentColor ?? theme.primary;
 
-  // ── Time mode → iOS-style scrolling wheel picker ──
-  // Replaces the previous +/- stepper, which forced parents to tap the
-  // minute button dozens of times to nudge a feed time across the hour.
+  // ── Time mode → iOS-style scrolling wheel picker (inline) ──
+  // Replaces the previous +/- stepper. The wheels live directly in the
+  // form so changing the time is one continuous gesture instead of a
+  // tap → modal → spin → confirm chain.
   if (mode === 'time') {
-    const isEn = locale === 'en';
     return (
       <View style={style}>
         <WheelTimePicker
           value={value}
           onChange={(next) => onChange({ type: 'set' }, next)}
           minuteStep={minuteStep}
-          title={isEn ? 'Pick a time' : 'Choisir une heure'}
-          confirmLabel={isEn ? 'Confirm' : 'Confirmer'}
-          cancelLabel={isEn ? 'Cancel' : 'Annuler'}
         />
       </View>
     );
@@ -170,5 +166,9 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 14 },
     elevation: 10,
+    // Match the rest of the app's 480px phone-frame clamp so the
+    // calendar never sprawls across a desktop browser window.
+    maxWidth: 440,
+    width: '100%',
   },
 });
