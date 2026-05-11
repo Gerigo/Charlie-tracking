@@ -2450,6 +2450,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+    // Force every tile on the same row to share the row's tallest height
+    // so chip counts / live labels can't make one tile loom over its
+    // neighbour. Combined with `flex: 1` on `quickTile` below, the visible
+    // card fills the stretched wrapper instead of leaving a gap.
+    alignItems: "stretch",
   },
   quickTileWrap: {
     width: "47.5%",
@@ -2484,6 +2489,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.sm + 4,
     minHeight: 162,
+    // Fill the wrapper's stretched height so adjacent tiles in the same
+    // row visually match. The label column inside already uses
+    // justifyContent: 'flex-end' (see `quickTileType`), so the extra
+    // height pads the top — the footer chips stay anchored to the
+    // bottom of the card.
+    flex: 1,
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },

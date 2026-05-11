@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { AppButton, AppInput, AppModal, Chip } from '@/src/components/ui';
 import { radii, spacing } from '@/src/constants/theme';
@@ -9,6 +9,139 @@ import { useAppContext, type ManualEventInput } from '@/src/providers/AppProvide
 import { useAppTheme } from '@/src/providers/ThemeProvider';
 import type { CareCategory, DiaperType, FeedSide, StoolColor, TrackedEvent } from '@/src/types/domain';
 import { inferMedicationCategory } from '@/src/utils/careEvents';
+
+/**
+ * Two side-by-side numeric inputs (HH + MM) replacing the previous
+ * wheel-style time picker. Parents asked for plain digit entry — the
+ * wheel was fiddly on web and mis-fired on iOS Safari, while pure
+ * numeric inputs give a predictable, OS-native keyboard with no
+ * gesture surprises.
+ *
+ * Validation: hours 0–23, minutes 0–59. Out-of-range or non-numeric
+ * input is silently ignored (the underlying Date keeps its previous
+ * value) so the user can keep typing without us snapping fields back.
+ */
+function TimeNumberInput({
+  value,
+  onChange,
+}: {
+  value: Date;
+  onChange: (next: Date) => void;
+}) {
+  const { theme } = useAppTheme();
+  const [hh, setHh] = useState(() => String(value.getHours()).padStart(2, '0'));
+  const [mm, setMm] = useState(() => String(value.getMinutes()).padStart(2, '0'));
+
+  // Re-sync local strings whenever the parent's Date changes (e.g. the
+  // date picker bumps the day and the start time keeps its HH:MM but
+  // the Date reference is new). We only resync when the rendered
+  // HH/MM differ from the underlying value, so user keystrokes mid-
+  // edit aren't clobbered.
+  useEffect(() => {
+    const nextHh = String(value.getHours()).padStart(2, '0');
+    const nextMm = String(value.getMinutes()).padStart(2, '0');
+    setHh((prev) => (Number(prev) === value.getHours() ? prev : nextHh));
+    setMm((prev) => (Number(prev) === value.getMinutes() ? prev : nextMm));
+  }, [value]);
+
+  const commitHours = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
+    setHh(digits);
+    if (digits === '') return;
+    const n = Number(digits);
+    if (Number.isFinite(n) && n >= 0 && n <= 23) {
+      const next = new Date(value);
+      next.setHours(n, value.getMinutes(), 0, 0);
+      onChange(next);
+    }
+  };
+
+  const commitMinutes = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
+    setMm(digits);
+    if (digits === '') return;
+    const n = Number(digits);
+    if (Number.isFinite(n) && n >= 0 && n <= 59) {
+      const next = new Date(value);
+      next.setHours(value.getHours(), n, 0, 0);
+      onChange(next);
+    }
+  };
+
+  // On blur, pad the displayed value back to 2 digits so the field
+  // reads cleanly even after the user typed a single digit then tabbed
+  // away.
+  const padOnBlur = (setter: (next: string) => void, current: string) => {
+    if (current === '') return;
+    setter(String(Number(current)).padStart(2, '0'));
+  };
+
+  return (
+    <View style={timeInputStyles.row}>
+      <TextInput
+        value={hh}
+        onChangeText={commitHours}
+        onBlur={() => padOnBlur(setHh, hh)}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        maxLength={2}
+        placeholder="HH"
+        placeholderTextColor={theme.textMuted}
+        selectTextOnFocus
+        style={[
+          timeInputStyles.field,
+          {
+            color: theme.text,
+            borderColor: theme.cardBorder,
+            backgroundColor: theme.surfaceLowest,
+            fontFamily: theme.fontMedium,
+          },
+        ]}
+      />
+      <Text style={[timeInputStyles.separator, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>:</Text>
+      <TextInput
+        value={mm}
+        onChangeText={commitMinutes}
+        onBlur={() => padOnBlur(setMm, mm)}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        maxLength={2}
+        placeholder="MM"
+        placeholderTextColor={theme.textMuted}
+        selectTextOnFocus
+        style={[
+          timeInputStyles.field,
+          {
+            color: theme.text,
+            borderColor: theme.cardBorder,
+            backgroundColor: theme.surfaceLowest,
+            fontFamily: theme.fontMedium,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+const timeInputStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  field: {
+    width: 54,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    paddingHorizontal: 4,
+  },
+  separator: {
+    fontSize: 18,
+  },
+});
 
 /**
  * Shared event editor modal.
@@ -448,40 +581,14 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
             <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
               {activeType === 'sleep' ? 'Début' : 'Heure'}
             </Text>
-            <DateTimePicker
-              key={`time-${editStartTime.getTime()}`}
-              value={editStartTime}
-              mode="time"
-              display="compact"
-              locale={language}
-              themeVariant={theme.isDark ? 'dark' : 'light'}
-              textColor={theme.text}
-              accentColor={theme.primary}
-              onChange={(_, date) => {
-                if (date) setEditStartTime(date);
-              }}
-              style={styles.editTimePicker}
-            />
+            <TimeNumberInput value={editStartTime} onChange={setEditStartTime} />
           </View>
           {activeType === 'sleep' && editEndTime ? (
             <View style={styles.editTimeField}>
               <Text style={[styles.editTimeLabel, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
                 Réveil
               </Text>
-              <DateTimePicker
-                key={`end-${editEndTime?.getTime()}`}
-                value={editEndTime}
-                mode="time"
-                display="compact"
-                locale={language}
-                themeVariant={theme.isDark ? 'dark' : 'light'}
-                textColor={theme.text}
-                accentColor={theme.primary}
-                onChange={(_, date) => {
-                  if (date) setEditEndTime(date);
-                }}
-                style={styles.editTimePicker}
-              />
+              <TimeNumberInput value={editEndTime} onChange={setEditEndTime} />
             </View>
           ) : null}
         </View>
