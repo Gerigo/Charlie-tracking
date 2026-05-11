@@ -95,27 +95,37 @@ function LineChartCard({
 }) {
   const { theme } = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
-
-  // Reset to the latest point ONLY when the data set's shape changes
-  // (length or last date). Previously we depended on `[data]` directly,
-  // but the parent computes the array with `.map(...)` on every render
-  // so the reference flipped each tick — that wiped out the user's
-  // selection any time a sibling state changed, making it impossible
-  // to inspect older points.
-  const dataLength = data.length;
-  const lastDate = data[data.length - 1]?.date;
-  useEffect(() => {
-    setSelectedIndex(Math.max(dataLength - 1, 0));
-  }, [dataLength, lastDate]);
+  // Lazy init only — once the user has clicked a point we never want
+  // to reset that choice from a parent re-render. We just clamp the
+  // selection to the current range below so the chart never reads
+  // out-of-bounds when the data set shrinks.
+  const [rawSelectedIndex, setSelectedIndex] = useState(() => Math.max(data.length - 1, 0));
 
   const width = Math.max(280, screenWidth - 84);
   const innerWidth = width - PADDING.left - PADDING.right;
   const values = data.map((entry) => entry.value);
   const maxValue = Math.max(...values, 1);
   const points = buildLinePoints(values, width, maxValue, 0);
+  const selectedIndex = Math.min(Math.max(rawSelectedIndex, 0), Math.max(data.length - 1, 0));
   const selected = data[selectedIndex] ?? data[data.length - 1];
   const selectedPoint = points[selectedIndex] ?? points[points.length - 1];
+
+  // Tap-to-select handler. SVG hit testing with fill="transparent"
+  // turned out to be unreliable on react-native-web (some shapes don't
+  // capture pointer events because the default `pointer-events:
+  // visiblePainted` ignores transparent fills). Wrapping the chart in
+  // a Pressable and computing the index from the tap's x-coordinate is
+  // robust across web, native, and any SVG renderer.
+  const handlePress = (locationX: number) => {
+    if (data.length === 0) return;
+    const relativeX = Math.min(Math.max(locationX - PADDING.left, 0), innerWidth);
+    // Line points are distributed at index/(n-1) * innerWidth, with
+    // n>=2. For a single point everything collapses to index 0.
+    const denom = Math.max(data.length - 1, 1);
+    const idx = Math.round((relativeX / innerWidth) * denom);
+    const clamped = Math.min(Math.max(idx, 0), data.length - 1);
+    setSelectedIndex(clamped);
+  };
 
   // value bubble position — clamp so it stays inside chart
   const bubbleW = Math.max(46, `${selected?.value.toFixed(1)}${suffix}`.length * 8 + 16);
@@ -127,6 +137,7 @@ function LineChartCard({
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <Pressable onPress={(e) => handlePress(e.nativeEvent.locationX)}>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines + labels */}
         {[0, 1, 2, 3].map((step) => {
@@ -202,17 +213,8 @@ function LineChartCard({
           );
         })}
 
-        {/* Hit circles — rendered last so they sit on top of all visual elements */}
-        {points.map((point, index) => (
-          <Circle
-            key={`hit-${data[index]?.date}-${index}`}
-            cx={point.x} cy={point.y}
-            r={18}
-            fill="transparent"
-            onPress={() => setSelectedIndex(index)}
-          />
-        ))}
       </Svg>
+      </Pressable>
     </Card>
   );
 }
@@ -228,16 +230,8 @@ function BarChartCard({
 }) {
   const { theme } = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
-
-  // See LineChartCard — depend on the shape, not the array identity,
-  // otherwise every parent render snaps the selection back to the
-  // latest bar.
-  const dataLength = data.length;
-  const lastDate = data[data.length - 1]?.date;
-  useEffect(() => {
-    setSelectedIndex(Math.max(dataLength - 1, 0));
-  }, [dataLength, lastDate]);
+  // Lazy init only — keep the user's choice across parent re-renders.
+  const [rawSelectedIndex, setSelectedIndex] = useState(() => Math.max(data.length - 1, 0));
 
   const width = Math.max(280, screenWidth - 84);
   const innerWidth = width - PADDING.left - PADDING.right;
@@ -246,10 +240,23 @@ function BarChartCard({
   // Dynamic bar width: generous for few bars, narrower for many
   const gap = innerWidth / Math.max(data.length, 1);
   const barWidth = Math.min(28, Math.max(10, gap * 0.58));
+  const selectedIndex = Math.min(Math.max(rawSelectedIndex, 0), Math.max(data.length - 1, 0));
+
+  // Tap-to-select handler — same pattern as LineChartCard. Bars are
+  // laid out one per column, each column being `gap` wide. The index
+  // is just floor(relativeX / gap).
+  const handlePress = (locationX: number) => {
+    if (data.length === 0) return;
+    const relativeX = Math.min(Math.max(locationX - PADDING.left, 0), innerWidth - 0.001);
+    const idx = Math.floor(relativeX / gap);
+    const clamped = Math.min(Math.max(idx, 0), data.length - 1);
+    setSelectedIndex(clamped);
+  };
 
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <Pressable onPress={(e) => handlePress(e.nativeEvent.locationX)}>
       <Svg width={width} height={CHART_HEIGHT}>
         {/* Y-axis grid lines (3 levels) */}
         {[0, 1, 2, 3].map((step) => {
@@ -308,22 +315,8 @@ function BarChartCard({
           );
         })}
 
-        {/* Pass 2 — hit areas on top (z-order above visual elements) */}
-        {data.map((entry, index) => {
-          const xCenter = PADDING.left + index * gap + gap / 2;
-          return (
-            <Rect
-              key={`hit-${entry.date}-${index}`}
-              x={xCenter - gap / 2}
-              y={PADDING.top}
-              width={gap}
-              height={availableHeight}
-              fill="transparent"
-              onPress={() => setSelectedIndex(index)}
-            />
-          );
-        })}
       </Svg>
+      </Pressable>
     </Card>
   );
 }
@@ -338,16 +331,11 @@ function TemperatureChartCard({
   const { theme } = useAppTheme();
   const { t } = useI18n();
   const { width: screenWidth } = useWindowDimensions();
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(data.length - 1, 0));
-
-  // Match the shape-based dep used by the sister chart cards.
-  const dataLength = data.length;
-  const lastDate = data[data.length - 1]?.date;
-  useEffect(() => {
-    setSelectedIndex(Math.max(dataLength - 1, 0));
-  }, [dataLength, lastDate]);
+  // Lazy init only — same rationale as the sister chart cards.
+  const [rawSelectedIndex, setSelectedIndex] = useState(() => Math.max(data.length - 1, 0));
 
   const width = Math.max(280, screenWidth - 84);
+  const innerWidth = width - PADDING.left - PADDING.right;
   const allValues = data.flatMap((entry) => [entry.morning, entry.evening]).filter((value): value is number => typeof value === 'number');
   const maxValue = Math.max(...allValues, 38);
   const minValue = Math.min(...allValues, 35);
@@ -355,6 +343,7 @@ function TemperatureChartCard({
   const eveningValues = data.map((entry) => entry.evening ?? minValue);
   const morningPoints = buildLinePoints(morningValues, width, maxValue, minValue);
   const eveningPoints = buildLinePoints(eveningValues, width, maxValue, minValue);
+  const selectedIndex = Math.min(Math.max(rawSelectedIndex, 0), Math.max(data.length - 1, 0));
   const selected = data[selectedIndex] ?? data[data.length - 1];
   const pathFor = (points: Array<{ x: number; y: number }>, key: 'morning' | 'evening') =>
     points.reduce((path, point, index) => {
@@ -367,9 +356,21 @@ function TemperatureChartCard({
   const selMorningPt = morningPoints[selectedIndex];
   const selEveningPt = eveningPoints[selectedIndex];
 
+  // Tap-to-select handler — same formula as LineChartCard (lines
+  // distributed at index/(n-1) * innerWidth).
+  const handlePress = (locationX: number) => {
+    if (data.length === 0) return;
+    const relativeX = Math.min(Math.max(locationX - PADDING.left, 0), innerWidth);
+    const denom = Math.max(data.length - 1, 1);
+    const idx = Math.round((relativeX / innerWidth) * denom);
+    const clamped = Math.min(Math.max(idx, 0), data.length - 1);
+    setSelectedIndex(clamped);
+  };
+
   return (
     <Card>
       <Text style={[styles.cardTitle, { color: theme.text, fontFamily: theme.fontDisplayItalic, marginBottom: spacing.sm }]}>{title}</Text>
+      <Pressable onPress={(e) => handlePress(e.nativeEvent.locationX)}>
       <Svg width={width} height={CHART_HEIGHT}>
           {[0, 1, 2, 3].map((step) => {
             const value = Number((minValue + ((maxValue - minValue) * step) / 3).toFixed(1));
@@ -475,24 +476,8 @@ function TemperatureChartCard({
             ) : null
           )}
 
-          {/* Hit areas — rendered last, on top of everything */}
-          {data.map((entry, index) => {
-            const x = morningPoints[index]?.x ?? eveningPoints[index]?.x ?? 0;
-            const innerW = width - PADDING.left - PADDING.right;
-            const colW = innerW / Math.max(data.length, 1);
-            return (
-              <Rect
-                key={`hit-temp-${index}`}
-                x={x - colW / 2}
-                y={PADDING.top}
-                width={colW}
-                height={CHART_HEIGHT - PADDING.top - PADDING.bottom}
-                fill="transparent"
-                onPress={() => setSelectedIndex(index)}
-              />
-            );
-          })}
         </Svg>
+      </Pressable>
       {selected ? (
         <View style={styles.temperatureLegendRow}>
           <Text style={[styles.temperatureLegendText, { color: theme.textMuted, fontFamily: theme.fontMedium }]}>
