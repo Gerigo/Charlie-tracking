@@ -46,7 +46,7 @@ function translateMedicationName(value: string | undefined, t: ReturnType<typeof
   }
 }
 
-type CreateType = 'feed' | 'diaper' | 'medication' | 'temperature' | 'growth' | 'sleep';
+type CreateType = 'feed' | 'diaper' | 'medication' | 'temperature' | 'growth' | 'sleep' | 'pumping';
 
 interface Props {
   /** Event being edited. Pass `null` + `createMode=true` to open in
@@ -85,6 +85,11 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
   const [editWeight, setEditWeight] = useState('');
   const [editHeight, setEditHeight] = useState('');
   const [editHead, setEditHead] = useState('');
+  const [editPumpingSide, setEditPumpingSide] = useState<'left' | 'right' | 'both'>('left');
+  const [editPumpingVolume, setEditPumpingVolume] = useState('');
+  const [editPumpingLeft, setEditPumpingLeft] = useState('');
+  const [editPumpingRight, setEditPumpingRight] = useState('');
+  const [editPumpingDuration, setEditPumpingDuration] = useState('');
   const [editStartTime, setEditStartTime] = useState(new Date());
   const [editEndTime, setEditEndTime] = useState<Date | null>(null);
 
@@ -125,6 +130,11 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
       setEditWeight(typeof event.details?.weight === 'number' ? String(event.details.weight) : '');
       setEditHeight(typeof event.details?.height === 'number' ? String(event.details.height) : '');
       setEditHead(typeof event.details?.head === 'number' ? String(event.details.head) : '');
+      setEditPumpingSide(event.details?.pumpingSide ?? 'left');
+      setEditPumpingVolume(typeof event.details?.pumpingVolumeMl === 'number' ? String(event.details.pumpingVolumeMl) : '');
+      setEditPumpingLeft(typeof event.details?.pumpingLeftMl === 'number' ? String(event.details.pumpingLeftMl) : '');
+      setEditPumpingRight(typeof event.details?.pumpingRightMl === 'number' ? String(event.details.pumpingRightMl) : '');
+      setEditPumpingDuration(typeof event.details?.pumpingDurationMin === 'number' ? String(event.details.pumpingDurationMin) : '');
       const safeStart = typeof event.startTime === 'number' && event.startTime > 0
         ? new Date(event.startTime)
         : new Date();
@@ -151,6 +161,11 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
       setEditWeight('');
       setEditHeight('');
       setEditHead('');
+      setEditPumpingSide('left');
+      setEditPumpingVolume('');
+      setEditPumpingLeft('');
+      setEditPumpingRight('');
+      setEditPumpingDuration('');
       setEditStartTime(start);
       setEditEndTime(new Date(start.getTime() + 60 * 60 * 1000));
       setCreateType('feed');
@@ -243,6 +258,25 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
         };
         break;
       }
+      case 'pumping': {
+        const volume = Number((editPumpingVolume || '0').replace(',', '.'));
+        const leftMl = editPumpingLeft.trim() ? Number(editPumpingLeft.replace(',', '.')) : undefined;
+        const rightMl = editPumpingRight.trim() ? Number(editPumpingRight.replace(',', '.')) : undefined;
+        const durationMin = editPumpingDuration.trim() ? Number(editPumpingDuration.replace(',', '.')) : undefined;
+        payload = {
+          type: 'pumping',
+          startTime,
+          notes: editNotes.trim() || undefined,
+          details: {
+            pumpingSide: editPumpingSide,
+            pumpingVolumeMl: volume,
+            ...(editPumpingSide === 'both' && Number.isFinite(leftMl as number) ? { pumpingLeftMl: leftMl } : {}),
+            ...(editPumpingSide === 'both' && Number.isFinite(rightMl as number) ? { pumpingRightMl: rightMl } : {}),
+            ...(Number.isFinite(durationMin as number) ? { pumpingDurationMin: durationMin } : {}),
+          },
+        };
+        break;
+      }
     }
     await createManualEvent(payload);
     onClose();
@@ -320,6 +354,26 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
           head: editHead.trim() ? Number(editHead.replace(',', '.')) : undefined,
         },
       });
+    } else if (event.type === 'pumping') {
+      const volume = editPumpingVolume.trim() ? Number(editPumpingVolume.replace(',', '.')) : undefined;
+      const leftMl = editPumpingLeft.trim() ? Number(editPumpingLeft.replace(',', '.')) : undefined;
+      const rightMl = editPumpingRight.trim() ? Number(editPumpingRight.replace(',', '.')) : undefined;
+      const durationMin = editPumpingDuration.trim() ? Number(editPumpingDuration.replace(',', '.')) : undefined;
+      await updateEvent(event.id, {
+        ...timeUpdates,
+        notes: editNotes.trim() || undefined,
+        details: {
+          ...event.details,
+          pumpingSide: editPumpingSide,
+          pumpingVolumeMl: volume,
+          // For non-'both' sides, drop any stale L/R splits so an edit
+          // from "both" → "left" doesn't keep the orphan rightMl on the
+          // doc and confuse downstream consumers.
+          pumpingLeftMl: editPumpingSide === 'both' ? leftMl : undefined,
+          pumpingRightMl: editPumpingSide === 'both' ? rightMl : undefined,
+          pumpingDurationMin: durationMin,
+        },
+      });
     } else {
       await updateEvent(event.id, { ...timeUpdates, notes: editNotes.trim() || undefined });
     }
@@ -347,6 +401,7 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
             <Chip label={t('tracker.care')} selected={createType === 'medication'} tone="neutral" onPress={() => setCreateType('medication')} />
             <Chip label={t('tracker.temperature')} selected={createType === 'temperature'} tone="warning" onPress={() => setCreateType('temperature')} />
             <Chip label={t('event.growth.weighing')} selected={createType === 'growth'} tone="neutral" onPress={() => setCreateType('growth')} />
+            <Chip label={t('tracker.pumping')} selected={createType === 'pumping'} tone="feed" onPress={() => setCreateType('pumping')} />
           </View>
         ) : null}
 
@@ -498,6 +553,63 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
             <AppInput label={t('growth.weight_label')} value={editWeight} onChangeText={setEditWeight} keyboardType="decimal-pad" placeholder="4.2" />
             <AppInput label={t('growth.height_label')} value={editHeight} onChangeText={setEditHeight} keyboardType="decimal-pad" placeholder="55.4" />
             <AppInput label={t('growth.head_label')} value={editHead} onChangeText={setEditHead} keyboardType="decimal-pad" placeholder="37.5" />
+          </>
+        ) : null}
+
+        {activeType === 'pumping' ? (
+          <>
+            <View style={styles.chipsRow}>
+              <Chip
+                label={t('tracker.pumping_side_left')}
+                selected={editPumpingSide === 'left'}
+                tone="feed"
+                onPress={() => setEditPumpingSide('left')}
+              />
+              <Chip
+                label={t('tracker.pumping_side_right')}
+                selected={editPumpingSide === 'right'}
+                tone="feed"
+                onPress={() => setEditPumpingSide('right')}
+              />
+              <Chip
+                label={t('tracker.pumping_side_both')}
+                selected={editPumpingSide === 'both'}
+                tone="feed"
+                onPress={() => setEditPumpingSide('both')}
+              />
+            </View>
+            <AppInput
+              label={t('tracker.pumping_volume')}
+              value={editPumpingVolume}
+              onChangeText={setEditPumpingVolume}
+              keyboardType="decimal-pad"
+              placeholder="80"
+            />
+            {editPumpingSide === 'both' ? (
+              <>
+                <AppInput
+                  label={t('tracker.pumping_volume_left')}
+                  value={editPumpingLeft}
+                  onChangeText={setEditPumpingLeft}
+                  keyboardType="decimal-pad"
+                  placeholder="40"
+                />
+                <AppInput
+                  label={t('tracker.pumping_volume_right')}
+                  value={editPumpingRight}
+                  onChangeText={setEditPumpingRight}
+                  keyboardType="decimal-pad"
+                  placeholder="40"
+                />
+              </>
+            ) : null}
+            <AppInput
+              label={t('tracker.pumping_duration')}
+              value={editPumpingDuration}
+              onChangeText={setEditPumpingDuration}
+              keyboardType="number-pad"
+              placeholder="15"
+            />
           </>
         ) : null}
 

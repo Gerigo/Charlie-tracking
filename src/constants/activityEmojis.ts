@@ -5,6 +5,7 @@ const ACTIVITY_EMOJIS: Record<ActivityIconKind, string> = {
   breast: '🤱',
   bottle: '🍼',
   feed: '🍼',
+  pumping: '💧',
   diaper: '🧷',
   care: '🩺',
   visit: '🗓️',

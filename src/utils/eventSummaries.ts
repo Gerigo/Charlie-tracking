@@ -62,6 +62,44 @@ export function getDailySummary(events: TrackedEvent[], activeSession: ActiveSes
   return summary;
 }
 
+/**
+ * Sum sleep minutes inside a given day, optionally up to a wall-clock
+ * cutoff. Mirrors `feedCountUntil` on the consumer side: lets the
+ * "Today" screen compare *sleep so far* to the same offset yesterday.
+ *
+ * When `activeSession` matches an event whose endTime is still null,
+ * that session is extended to the cutoff (or `Date.now()` if the
+ * cutoff is in the future), so a baby who is still sleeping at 14:30
+ * counts toward today's running total instead of disappearing.
+ */
+export function sumSleepMinutesUntil(
+  events: TrackedEvent[],
+  date: Date,
+  cutoffTimestamp: number,
+  activeSession?: ActiveSession | null,
+): number {
+  const dayStart = startOfDay(date).getTime();
+  const nextDayStart = dayStart + 24 * 60 * 60 * 1000;
+  const cutoff = Math.min(cutoffTimestamp, nextDayStart);
+
+  let total = 0;
+  for (const event of events) {
+    if (event.type !== 'sleep') continue;
+    if (event.startTime >= cutoff) continue;
+
+    const isActive = activeSession?.eventId === event.id && event.endTime == null;
+    const effectiveEnd = isActive
+      ? Math.min(Date.now(), cutoff)
+      : event.endTime ?? event.startTime;
+
+    const overlapStart = Math.max(event.startTime, dayStart);
+    const overlapEnd = Math.min(effectiveEnd, cutoff);
+    if (overlapEnd <= overlapStart) continue;
+    total += Math.max(0, Math.round((overlapEnd - overlapStart) / 60000));
+  }
+  return total;
+}
+
 export function getLastFeedSide(events: TrackedEvent[]): FeedSide | null {
   const feed = [...events]
     .filter((event) => event.type === 'feed' && event.details?.feedSide)

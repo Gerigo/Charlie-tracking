@@ -784,6 +784,10 @@ export async function addGrowthEvent(scope: ScopedActionParams, details: EventDe
   await createInstantEvent(scope, 'growth', details, notes, timestamp);
 }
 
+export async function addPumpingEvent(scope: ScopedActionParams, details: EventDetails, notes?: string, timestamp = now()) {
+  await createInstantEvent(scope, 'pumping', details, notes, timestamp);
+}
+
 /**
  * Manual past sleep event — used when a parent retroactively logs a sleep
  * they forgot to track live. Writes a completed sleep doc (both start +

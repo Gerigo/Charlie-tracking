@@ -1,7 +1,11 @@
 /** manager = accès complet (parents) | viewer = lecture seule (famille élargie) */
 export type MembershipRole = 'manager' | 'viewer';
 export type BabySex = 'boy' | 'girl';
-export type TrackedEventType = 'sleep' | 'feed' | 'diaper' | 'medication' | 'growth' | 'temperature';
+export type TrackedEventType = 'sleep' | 'feed' | 'diaper' | 'medication' | 'growth' | 'temperature' | 'pumping';
+
+/** Côté tiré au cours d'une session de pumping. `'both'` = la session
+ * couvre les deux seins; volumes L/R optionnels pour ventiler. */
+export type PumpingSide = 'left' | 'right' | 'both';
 export type AppLanguage = 'fr' | 'en';
 export type FeedingMode = 'breastfeeding' | 'bottle' | 'mixed';
 export type BabyAvatarKey = 'babyAvatar' | 'trackerBaby' | 'growthBaby' | 'childOne' | 'childTwo';
@@ -112,6 +116,15 @@ export interface EventDetails {
   weight?: number;
   height?: number;
   head?: number;
+  // Pumping (tirage du lait) — distinct event type so it doesn't
+  // inflate the daily feed count. Saisie rapide: side + total ml.
+  // Saisie détaillée: leftMl / rightMl si side === 'both', durée
+  // optionnelle.
+  pumpingSide?: PumpingSide;
+  pumpingVolumeMl?: number;
+  pumpingLeftMl?: number;
+  pumpingRightMl?: number;
+  pumpingDurationMin?: number;
 }
 
 export interface TrackedEvent {

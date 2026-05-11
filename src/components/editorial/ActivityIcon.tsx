@@ -8,6 +8,7 @@ export type ActivityIconKind =
   | 'breast'
   | 'bottle'
   | 'feed'
+  | 'pumping'
   | 'diaper'
   | 'care'
   | 'visit'
@@ -28,6 +29,7 @@ export function ActivityIcon({ kind, size, color }: { kind: ActivityIconKind; si
     case 'breast':
     case 'bottle':
     case 'feed':
+    case 'pumping':
     case 'diaper':
     case 'care':
     case 'visit':

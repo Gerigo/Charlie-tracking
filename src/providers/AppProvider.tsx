@@ -36,6 +36,7 @@ import {
   addDiaperEvent,
   addFeedEvent,
   addGrowthEvent,
+  addPumpingEvent,
   addLegacyDiaperEvent,
   addLegacyFeedEvent,
   addLegacyGrowthEvent,
@@ -110,7 +111,19 @@ export type ManualEventInput =
   | { type: 'medication'; startTime: number; details: { medicationName?: string; careCategory: CareCategory }; notes?: string }
   | { type: 'temperature'; startTime: number; details: { temperature: number; temperaturePeriod?: 'morning' | 'evening' }; notes?: string }
   | { type: 'growth'; startTime: number; details: { weight?: number; height?: number; head?: number }; notes?: string }
-  | { type: 'sleep'; startTime: number; endTime: number; notes?: string };
+  | { type: 'sleep'; startTime: number; endTime: number; notes?: string }
+  | {
+      type: 'pumping';
+      startTime: number;
+      details: {
+        pumpingSide: 'left' | 'right' | 'both';
+        pumpingVolumeMl: number;
+        pumpingLeftMl?: number;
+        pumpingRightMl?: number;
+        pumpingDurationMin?: number;
+      };
+      notes?: string;
+    };
 type ToastKind = 'success' | 'error';
 // Realtime listener window: today / tracker / growth-spurt detection only
 // need ~14 days. Older events are loaded on demand via `loadFullHistory`.
@@ -211,6 +224,17 @@ interface AppContextValue {
   recordMedication: (input: { medicationName: string; careCategory?: CareCategory; notes?: string }) => Promise<void>;
   recordTemperature: (temperature: number) => Promise<void>;
   recordGrowth: (details: EventDetails) => Promise<void>;
+  /** Encode une session de tirage du lait. `side: 'both'` peut éventuellement
+   *  porter `leftMl` et `rightMl` pour ventiler le volume; sinon seul
+   *  `volumeMl` (total) est utilisé. */
+  recordPumping: (input: {
+    side: 'left' | 'right' | 'both';
+    volumeMl: number;
+    leftMl?: number;
+    rightMl?: number;
+    durationMin?: number;
+    notes?: string;
+  }) => Promise<void>;
   selectBaby: (babyId: string) => Promise<void>;
   addBaby: (input: { firstName: string; birthDate: string; sex: BabySex; feedingMode: FeedingMode; avatarKey?: BabyAvatarKey; setAsActive?: boolean }) => Promise<void>;
   updateBabyAvatar: (babyId: string, avatarKey: BabyAvatarKey) => Promise<void>;
@@ -1645,6 +1669,45 @@ export function AppProvider({ children }: PropsWithChildren) {
         showToast(translate(language, 'toast.temperature_saved.title'));
       });
     },
+    recordPumping: async ({ side, volumeMl, leftMl, rightMl, durationMin, notes }) => {
+      if (currentMembership && !canRecordEvents(currentMembership)) {
+        showToast(language === 'fr' ? 'Accès lecture seule' : 'Read-only access', language === 'fr' ? 'Demandez au responsable de vous accorder l\'accès.' : 'Ask the family manager to grant you access.', 'error');
+        return;
+      }
+      const details: EventDetails = {
+        pumpingSide: side,
+        pumpingVolumeMl: volumeMl,
+        ...(side === 'both' && typeof leftMl === 'number' ? { pumpingLeftMl: leftMl } : {}),
+        ...(side === 'both' && typeof rightMl === 'number' ? { pumpingRightMl: rightMl } : {}),
+        ...(typeof durationMin === 'number' ? { pumpingDurationMin: durationMin } : {}),
+      };
+
+      if (isSandbox) {
+        await runMutation(async () => {
+          const event = createSandboxEvent({ type: 'pumping', details, notes });
+          if (!event) return;
+          appendSandboxEvent(event);
+          showToast(translate(language, 'toast.pumping_saved.title'), translate(language, 'toast.local_test'));
+        });
+        return;
+      }
+
+      // Legacy workspace has no first-class pumping schema; bail out
+      // softly so we never write malformed legacy docs. (Legacy is
+      // already in the process of being phased out.)
+      if (usingLegacyWorkspace) {
+        showToast(translate(language, 'toast.pumping_saved.title'), language === 'fr' ? 'Indisponible dans le mode hérité.' : 'Not available in legacy mode.', 'error');
+        return;
+      }
+
+      const scope = liveScope();
+      if (!scope) return;
+      pushOptimistic('pumping', details, notes);
+      await runMutation(async () => {
+        await addPumpingEvent(scope, details, notes);
+        showToast(translate(language, 'toast.pumping_saved.title'));
+      });
+    },
     recordGrowth: async (details) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
         showToast(language === 'fr' ? 'Accès lecture seule' : 'Read-only access', language === 'fr' ? 'Demandez au responsable de vous accorder l\'accès.' : 'Ask the family manager to grant you access.', 'error');
@@ -2176,6 +2239,9 @@ export function AppProvider({ children }: PropsWithChildren) {
             break;
           case 'sleep':
             await addPastSleepEvent(scope, input.startTime, input.endTime, input.notes);
+            break;
+          case 'pumping':
+            await addPumpingEvent(scope, input.details, input.notes, input.startTime);
             break;
         }
         showToast(
