@@ -53,6 +53,8 @@ function eventMeta(event: TrackedEvent, t: ReturnType<typeof useI18n>['t']) {
       return { title: t('tracker.temperature'), iconKind: 'temperature' as const };
     case 'growth':
       return { title: t('growth.title'), iconKind: 'growth' as const };
+    case 'pumping':
+      return { title: t('tracker.pumping'), iconKind: 'pumping' as const };
     default:
       return inferMedicationCategory(event.details?.medicationName, event.details?.careCategory) === 'visit'
         ? { title: t('tracker.visits'), iconKind: 'visit' as const }
@@ -103,6 +105,27 @@ function eventSummary(event: TrackedEvent, t: ReturnType<typeof useI18n>['t']) {
       ].filter(Boolean).join(' · ');
     case 'medication':
       return translateMedicationName(event.details?.medicationName, t);
+    case 'pumping': {
+      const side = event.details?.pumpingSide;
+      const total = event.details?.pumpingVolumeMl;
+      const left = event.details?.pumpingLeftMl;
+      const right = event.details?.pumpingRightMl;
+      const sideLabel =
+        side === 'left'
+          ? t('tracker.pumping_side_left')
+          : side === 'right'
+            ? t('tracker.pumping_side_right')
+            : side === 'both'
+              ? t('tracker.pumping_side_both')
+              : '';
+      if (side === 'both' && typeof left === 'number' && typeof right === 'number') {
+        return `${sideLabel} · ${left} + ${right} ml`;
+      }
+      if (typeof total === 'number') {
+        return sideLabel ? `${sideLabel} · ${total} ml` : `${total} ml`;
+      }
+      return sideLabel || t('tracker.pumping');
+    }
     default:
       return event.endTime ? formatDuration(event.startTime, event.endTime) : t('event.sleep_in_progress');
   }

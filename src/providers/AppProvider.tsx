@@ -1184,7 +1184,24 @@ export function AppProvider({ children }: PropsWithChildren) {
     needsOnboarding,
   ]);
 
-  const runMutation = async (operation: () => Promise<void>) => {
+  const runMutation = async (
+    operation: () => Promise<void>,
+    options?: {
+      /**
+       * Skip the global "syncing" pill for this mutation. Use when the
+       * UI already gives instant feedback (optimistic event, optimistic
+       * active session, button `saving` state) so the loader doesn't
+       * needlessly blink on every tap.
+       */
+      suppressLoader?: boolean;
+      /**
+       * Called when the underlying operation throws — gives the caller
+       * a hook to roll back any optimistic state changes it made before
+       * invoking runMutation.
+       */
+      onError?: () => void;
+    },
+  ) => {
     if (mutationLockRef.current) return;
     if (!currentFamily || !currentBaby || (!authUser && !isSandbox) || !currentMembership || !profile) {
       showToast(translate(language, 'toast.incomplete_context.title'), translate(language, 'toast.incomplete_context.body'), 'error');
@@ -1193,7 +1210,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     mutationLockRef.current = true;
     setSaving(true);
-    if (!isSandbox) {
+    if (!isSandbox && !options?.suppressLoader) {
       setSyncStatus('syncing');
     }
     try {
@@ -1204,6 +1221,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       }
     } catch (error) {
       setSyncStatus('error');
+      options?.onError?.();
       logger.error('tracker', 'Action échouée', error, { mapped: mapError(error, language) });
       showToast(translate(language, 'toast.action_failed.title'), mapError(error, language), 'error');
     } finally {
@@ -1504,10 +1522,34 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
-      await runMutation(async () => {
-        await startSleepSession(scope);
-        showToast(translate(language, 'toast.sleep_started.title'), translate(language, 'toast.sleep_started.body'));
+      // Optimistic flip: bake a synthetic active session into local
+      // state right away so the tile switches to "Arrêter" / "Stop"
+      // without waiting on the Firestore round-trip. The listener will
+      // overwrite this with the canonical doc (real eventId) once the
+      // server replies — `onError` reverts if the write fails.
+      const previousSession = activeSessionState;
+      const optimisticStart = now();
+      setActiveSessionState({
+        id: scope.babyId,
+        familyId: scope.familyId,
+        babyId: scope.babyId,
+        eventId: `__opt_${optimisticStart}`,
+        type: 'sleep',
+        startTime: optimisticStart,
+        createdByUserId: scope.userId,
+        createdByRole: scope.role,
+        updatedAt: optimisticStart,
       });
+      await runMutation(
+        async () => {
+          await startSleepSession(scope);
+          showToast(translate(language, 'toast.sleep_started.title'), translate(language, 'toast.sleep_started.body'));
+        },
+        {
+          suppressLoader: true,
+          onError: () => setActiveSessionState(previousSession),
+        },
+      );
     },
     stopSleep: async () => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1545,11 +1587,21 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const scope = liveScope();
       if (!scope) return;
-      await runMutation(async () => {
-        await stopSleepSession(scope);
-        setActiveSessionState(null); // optimistic: don't wait for listener
-        showToast(translate(language, 'toast.sleep_stopped.title'), translate(language, 'toast.sleep_stopped.body'));
-      });
+      // Optimistic flip BEFORE the await so the tile reverts to
+      // "Démarrer" / "Start" instantly. Rollback restores the previous
+      // session if the Firestore write fails.
+      const previousSession = activeSessionState;
+      setActiveSessionState(null);
+      await runMutation(
+        async () => {
+          await stopSleepSession(scope);
+          showToast(translate(language, 'toast.sleep_stopped.title'), translate(language, 'toast.sleep_stopped.body'));
+        },
+        {
+          suppressLoader: true,
+          onError: () => setActiveSessionState(previousSession),
+        },
+      );
     },
     recordFeed: async (feedSide, amountMl, bottleSupplement) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1599,7 +1651,7 @@ export function AppProvider({ children }: PropsWithChildren) {
           translate(language, isHybrid ? 'toast.feed_hybrid_saved.title' : feedSide === 'bottle' ? 'toast.bottle_saved.title' : 'toast.feed_saved.title'),
           isBreastfeeding && language === 'fr' ? getBreastfeedingEncouragement() : translate(language, 'toast.feed_saved.body')
         );
-      });
+      }, { suppressLoader: true });
     },
     recordDiaper: async ({ diaperType, stoolColor, notes }) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1632,7 +1684,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       await runMutation(async () => {
         await addDiaperEvent(scope, { diaperType, ...(stoolColor ? { stoolColor } : {}) }, notes);
         showToast(translate(language, 'toast.diaper_saved.title'));
-      });
+      }, { suppressLoader: true });
     },
     recordMedication: async ({ medicationName, careCategory = 'care', notes }) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1665,7 +1717,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       await runMutation(async () => {
         await addMedicationEvent(scope, { medicationName, careCategory }, notes);
         showToast(translate(language, careCategory === 'visit' ? 'toast.visit_saved.title' : 'toast.care_saved.title'));
-      });
+      }, { suppressLoader: true });
     },
     recordTemperature: async (temperature) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1699,7 +1751,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       await runMutation(async () => {
         await addTemperatureEvent(scope, { temperature, temperaturePeriod: resolvedPeriod });
         showToast(translate(language, 'toast.temperature_saved.title'));
-      });
+      }, { suppressLoader: true });
     },
     recordPumping: async ({ side, volumeMl, leftMl, rightMl, durationMin, notes }) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
@@ -1738,7 +1790,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       await runMutation(async () => {
         await addPumpingEvent(scope, details, notes);
         showToast(translate(language, 'toast.pumping_saved.title'));
-      });
+      }, { suppressLoader: true });
     },
     recordGrowth: async (details) => {
       if (currentMembership && !canRecordEvents(currentMembership)) {
