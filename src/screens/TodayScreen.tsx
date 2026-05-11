@@ -474,6 +474,34 @@ function describeEvent(
         body: "",
         iconKind: "temperature" as const,
       };
+    case "pumping": {
+      // Mirror the Tracker / DayTimeline rendering so the same event
+      // reads identically wherever it's displayed: side label first,
+      // then the volume (or L+R split for two-breast sessions).
+      const side = event.details?.pumpingSide;
+      const total = event.details?.pumpingVolumeMl;
+      const left = event.details?.pumpingLeftMl;
+      const right = event.details?.pumpingRightMl;
+      const sideLabel =
+        side === "left"
+          ? t("tracker.pumping_side_left")
+          : side === "right"
+            ? t("tracker.pumping_side_right")
+            : side === "both"
+              ? t("tracker.pumping_side_both")
+              : "";
+      let body = sideLabel;
+      if (side === "both" && typeof left === "number" && typeof right === "number") {
+        body = `${sideLabel} · ${left} + ${right} ml`;
+      } else if (typeof total === "number") {
+        body = sideLabel ? `${sideLabel} · ${total} ml` : `${total} ml`;
+      }
+      return {
+        title: t("tracker.pumping"),
+        body,
+        iconKind: "pumping" as const,
+      };
+    }
     case "medication":
       return {
         title:
