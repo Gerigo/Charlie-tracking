@@ -2904,12 +2904,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalCard: {
-    borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    shadowOpacity: 0.16,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 18 },
   },
   modalActions: {
     flexDirection: "row",

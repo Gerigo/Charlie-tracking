@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@/src/components/ui/PlatformDateTimePicker';
 import { AppButton, AppInput, AppModal, Chip } from '@/src/components/ui';
-import { radii, spacing } from '@/src/constants/theme';
+import { spacing } from '@/src/constants/theme';
 import { stoolColorLabelKey } from '@/src/constants/i18n';
 import { useI18n } from '@/src/hooks/useI18n';
 import { useAppContext, type ManualEventInput } from '@/src/providers/AppProvider';
@@ -760,12 +760,8 @@ export function EventEditorModal({ event, onClose, createMode, defaultDate }: Pr
 
 const styles = StyleSheet.create({
   modalCard: {
-    borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    shadowOpacity: 0.12,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 18 },
   },
   modalTitle: {
     fontSize: 20,

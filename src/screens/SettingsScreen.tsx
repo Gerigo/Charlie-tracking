@@ -2741,12 +2741,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalCard: {
-    borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    shadowOpacity: 0.08,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 12 },
   },
   modalTitle: {
     fontSize: 20,
