@@ -56,7 +56,16 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
 // Carnet d'aquarelle — mirrors theme.ts background tokens. Avoids the
 // FOUC flash of an old palette colour before React mounts.
+//
+// `scrollbar-gutter: stable` reserves the vertical scrollbar's gutter even
+// when no scrollbar is shown. Without it, React Native Web's <Modal> locks
+// body scroll on open → the scrollbar disappears → the centred PhoneFrame
+// shifts ~15px horizontally → tab bar appears to "jump". Browsers without
+// support (Safari < 16) silently ignore the property.
 const responsiveBackground = `
+html {
+  scrollbar-gutter: stable;
+}
 body {
   background-color: #FAF3E8;
 }
