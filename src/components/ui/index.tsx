@@ -621,7 +621,15 @@ export function AppModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         pointerEvents="box-none"
       >
-        {children}
+        {/* Phone-frame width clamp. React Native's <Modal> renders at
+            viewport level (above the Stack), so on a wide desktop
+            browser the modal content used to span the entire window —
+            wildly out of phase with the 480-pixel PhoneFrame that hosts
+            the rest of the app. Clamping here keeps every AppModal
+            consumer inside the same visual frame as the SPA shell. */}
+        <View style={appModalStyles.contentClamp} pointerEvents="box-none">
+          {children}
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -638,7 +646,12 @@ const appModalStyles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
+    alignItems: "center",
     padding: 20,
+  },
+  contentClamp: {
+    width: "100%",
+    maxWidth: 480,
   },
 });
 

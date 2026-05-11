@@ -34,7 +34,7 @@ import {
   formatDuration,
   formatRelativeShort,
 } from "@/src/utils/date";
-import { getDailySummary, getEventsForDay } from "@/src/utils/eventSummaries";
+import { getDailySummary, getEventsForDay, sumSleepMinutesUntil } from "@/src/utils/eventSummaries";
 import { Icon } from "@/src/components/ui/Icon";
 import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -53,6 +53,7 @@ type TodayVisualKind =
   | "sleep"
   | "breast"
   | "bottle"
+  | "pumping"
   | "diaper"
   | "care"
   | "visit"
@@ -138,6 +139,93 @@ function feedDeltaLabel(
   return language === "fr"
     ? `C’est ${Math.abs(diff)} de moins ${suffix}`
     : `That’s ${Math.abs(diff)} less ${suffix}`;
+}
+
+function formatSleepDeltaSpan(minutes: number): string {
+  // Compact "1h 20" / "45 min" formatter for delta strings — short
+  // enough to fit on the SummaryTile detail line beside the day's
+  // total. Sign is added by the caller.
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m === 0 ? `${h}h` : `${h}h ${String(m).padStart(2, '0')}`;
+  }
+  return `${minutes} min`;
+}
+
+function sleepDeltaLabel(
+  todayMinutes: number,
+  yesterdayMinutes: number,
+  language: "fr" | "en",
+  compareMode: "same-time" | "full-day",
+): string {
+  const diff = todayMinutes - yesterdayMinutes;
+  // <15 min variance reads as parity rather than a meaningful shift —
+  // sleep durations are noisy day-to-day so we avoid surfacing
+  // micro-deltas as "more" or "less".
+  const equalLabel =
+    compareMode === "same-time"
+      ? language === "fr"
+        ? "Comme hier à la même heure"
+        : "Same as yesterday by this time"
+      : language === "fr"
+        ? "Comme la veille"
+        : "Same as the previous day";
+  if (Math.abs(diff) < 15) return equalLabel;
+
+  const span = formatSleepDeltaSpan(Math.abs(diff));
+  const suffix =
+    compareMode === "same-time"
+      ? language === "fr"
+        ? "qu’hier à la même heure"
+        : "than yesterday by this time"
+      : language === "fr"
+        ? "que la veille"
+        : "than the previous day";
+  if (diff > 0) {
+    return language === "fr"
+      ? `Il a dormi ${span} de plus ${suffix}`
+      : `Slept ${span} more ${suffix}`;
+  }
+  return language === "fr"
+    ? `Il a dormi ${span} de moins ${suffix}`
+    : `Slept ${span} less ${suffix}`;
+}
+
+function pumpingDeltaLabel(
+  todayMl: number,
+  yesterdayMl: number,
+  language: "fr" | "en",
+  compareMode: "same-time" | "full-day",
+): string {
+  // Round to 5 ml — under that, volumes feel like measurement noise
+  // (graduated bottles aren't more precise than that anyway).
+  const diff = todayMl - yesterdayMl;
+  if (Math.abs(diff) < 5) {
+    return compareMode === "same-time"
+      ? language === "fr"
+        ? "Comme hier à la même heure"
+        : "Same as yesterday by this time"
+      : language === "fr"
+        ? "Comme la veille"
+        : "Same as the previous day";
+  }
+  const suffix =
+    compareMode === "same-time"
+      ? language === "fr"
+        ? "qu’hier à la même heure"
+        : "than yesterday by this time"
+      : language === "fr"
+        ? "que la veille"
+        : "than the previous day";
+  if (diff > 0) {
+    return language === "fr"
+      ? `${diff} ml de plus ${suffix}`
+      : `${diff} ml more ${suffix}`;
+  }
+  return language === "fr"
+    ? `${Math.abs(diff)} ml de moins ${suffix}`
+    : `${Math.abs(diff)} ml less ${suffix}`;
 }
 
 function feedCountLabel(count: number, language: "fr" | "en") {
@@ -272,20 +360,6 @@ function trackedLabelForDate(
   return language === "fr"
     ? `Suivi du ${formatSectionLabel(date, language)}`
     : `Tracked on ${formatSectionLabel(date, language)}`;
-}
-
-function totalSleepLabel(
-  language: "fr" | "en",
-  viewingToday: boolean,
-  date: Date,
-) {
-  if (viewingToday) {
-    return language === "fr" ? "Aujourd’hui" : "Today";
-  }
-
-  return language === "fr"
-    ? `Sommeil total du ${formatSectionLabel(date, language)}`
-    : `Total sleep on ${formatSectionLabel(date, language)}`;
 }
 
 function countFeedsUntil(
@@ -444,6 +518,7 @@ function getAccentForKind(
       return theme.sleep;
     case "breast":
     case "bottle":
+    case "pumping":
       return theme.feed;
     case "diaper":
       return theme.diaper;
@@ -467,6 +542,7 @@ function AnimatedSummaryIcon({
     | "sleep"
     | "breast"
     | "bottle"
+    | "pumping"
     | "diaper"
     | "care"
     | "visit"
@@ -699,6 +775,7 @@ function SummaryTile({
     | "sleep"
     | "breast"
     | "bottle"
+    | "pumping"
     | "diaper"
     | "care"
     | "visit"
@@ -1221,6 +1298,22 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
       startOfDay(previousDate).getTime() + cutoffOffset,
     );
   }, [comparisonCutoff, events, selectedDate]);
+  // Sleep parity — same idea as feed counts but in minutes.
+  // `liveNow` (1-min ticker) is already a dep of `comparisonCutoff`,
+  // so the running total of an active session re-renders on its own.
+  const sleepMinutesAtSameTime = useMemo(
+    () => sumSleepMinutesUntil(events, selectedDate, comparisonCutoff, viewingToday ? activeSession : null),
+    [comparisonCutoff, events, selectedDate, activeSession, viewingToday],
+  );
+  const yesterdaySleepMinutesAtSameTime = useMemo(() => {
+    const previousDate = new Date(selectedDate.getTime() - 24 * 60 * 60 * 1000);
+    const cutoffOffset = comparisonCutoff - startOfDay(selectedDate).getTime();
+    return sumSleepMinutesUntil(
+      events,
+      previousDate,
+      startOfDay(previousDate).getTime() + cutoffOffset,
+    );
+  }, [comparisonCutoff, events, selectedDate]);
   const careEvents = useMemo(
     () => todayEvents.filter((event) => isCareEvent(event)),
     [todayEvents],
@@ -1244,6 +1337,46 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
     [careEvents, t],
   );
   const lastFeed = todayEvents.find((event) => event.type === "feed") ?? null;
+  // Pumping aggregates for today + comparison with yesterday at same
+  // offset. Only displayed when feeding mode includes breastfeeding
+  // (a bottle-only baby never has a parent pumping).
+  const showPumpingTile =
+    currentBaby?.feedingMode === "breastfeeding" || currentBaby?.feedingMode === "mixed";
+  const pumpingEvents = useMemo(
+    () => todayEvents.filter((event) => event.type === "pumping"),
+    [todayEvents],
+  );
+  const lastPumping = pumpingEvents[0] ?? null;
+  const sumPumpingMl = (eventsList: TrackedEvent[]) =>
+    eventsList.reduce(
+      (acc, event) => acc + (typeof event.details?.pumpingVolumeMl === "number" ? event.details.pumpingVolumeMl : 0),
+      0,
+    );
+  const pumpingMlToday = useMemo(() => {
+    const dayStart = startOfDay(selectedDate).getTime();
+    return sumPumpingMl(
+      events.filter(
+        (event) =>
+          event.type === "pumping" &&
+          event.startTime >= dayStart &&
+          event.startTime <= comparisonCutoff,
+      ),
+    );
+  }, [events, selectedDate, comparisonCutoff]);
+  const yesterdayPumpingMlAtSameTime = useMemo(() => {
+    const previousDate = new Date(selectedDate.getTime() - 24 * 60 * 60 * 1000);
+    const cutoffOffset = comparisonCutoff - startOfDay(selectedDate).getTime();
+    const prevStart = startOfDay(previousDate).getTime();
+    const prevCutoff = prevStart + cutoffOffset;
+    return sumPumpingMl(
+      events.filter(
+        (event) =>
+          event.type === "pumping" &&
+          event.startTime >= prevStart &&
+          event.startTime <= prevCutoff,
+      ),
+    );
+  }, [events, selectedDate, comparisonCutoff]);
   const lastDiaper =
     todayEvents.find((event) => event.type === "diaper") ?? null;
   const lastCare = careEvents[0] ?? null;
@@ -1588,13 +1721,20 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
               : "—"
           }
           detail={
-            liveSleepActive
-              ? language === "fr"
-                ? `${totalSleepLabel(language, viewingToday, selectedDate)}`
-                : `${totalSleepLabel(language, viewingToday, selectedDate)}`
-              : summary.totalSleepMinutes > 0
-                ? totalSleepLabel(language, viewingToday, selectedDate)
-                : undefined
+            // Prefer the yesterday-at-this-time comparison whenever we
+            // have any sleep recorded — same idiom as the feed tile,
+            // gives parents a quick read of "is today on track".
+            // Falls back to the "total sleep on …" label when there's
+            // no sleep at all (otherwise the comparison would always
+            // read "less than yesterday" — noisy at 6 AM).
+            summary.totalSleepMinutes > 0
+              ? sleepDeltaLabel(
+                  sleepMinutesAtSameTime,
+                  yesterdaySleepMinutesAtSameTime,
+                  language,
+                  viewingToday ? "same-time" : "full-day",
+                )
+              : undefined
           }
           active={liveSleepActive}
         />
@@ -1689,6 +1829,39 @@ export function TodayScreen({ onShowHistory }: { onShowHistory?: () => void } = 
               : undefined
           }
         />
+        {/* Pumping tile — only for parents who pump (breastfeeding or
+            mixed). Hidden entirely for bottle-only families to keep the
+            grid clean. */}
+        {showPumpingTile ? (
+          <SummaryTile
+            iconKind="pumping"
+            title={pumpingEvents.length > 0 ? undefined : t("tracker.pumping")}
+            meta={
+              lastPumping
+                ? formatRelativeShort(lastPumping.startTime, language)
+                : t("common.not_available")
+            }
+            value={
+              pumpingMlToday > 0
+                ? `${pumpingMlToday} ml`
+                : language === "fr"
+                  ? "—"
+                  : "—"
+            }
+            detail={
+              pumpingMlToday > 0 || yesterdayPumpingMlAtSameTime > 0
+                ? pumpingDeltaLabel(
+                    pumpingMlToday,
+                    yesterdayPumpingMlAtSameTime,
+                    language,
+                    viewingToday ? "same-time" : "full-day",
+                  )
+                : language === "fr"
+                  ? "Aucun tirage"
+                  : "No pumping yet"
+            }
+          />
+        ) : null}
       </View>
 
       {/* ── Soins du jour — détail horodaté ── */}

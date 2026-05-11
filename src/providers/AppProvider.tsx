@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { Icon } from '@/src/components/ui/Icon';
 import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { User } from 'firebase/auth';
 import { translate } from '@/src/constants/i18n';
 import { MOCK_STORAGE_KEY, type GrowthSpurtMockKey } from '@/src/lib/devMocks';
@@ -35,6 +36,7 @@ import {
   addDiaperEvent,
   addFeedEvent,
   addGrowthEvent,
+  addPumpingEvent,
   addLegacyDiaperEvent,
   addLegacyFeedEvent,
   addLegacyGrowthEvent,
@@ -109,7 +111,19 @@ export type ManualEventInput =
   | { type: 'medication'; startTime: number; details: { medicationName?: string; careCategory: CareCategory }; notes?: string }
   | { type: 'temperature'; startTime: number; details: { temperature: number; temperaturePeriod?: 'morning' | 'evening' }; notes?: string }
   | { type: 'growth'; startTime: number; details: { weight?: number; height?: number; head?: number }; notes?: string }
-  | { type: 'sleep'; startTime: number; endTime: number; notes?: string };
+  | { type: 'sleep'; startTime: number; endTime: number; notes?: string }
+  | {
+      type: 'pumping';
+      startTime: number;
+      details: {
+        pumpingSide: 'left' | 'right' | 'both';
+        pumpingVolumeMl: number;
+        pumpingLeftMl?: number;
+        pumpingRightMl?: number;
+        pumpingDurationMin?: number;
+      };
+      notes?: string;
+    };
 type ToastKind = 'success' | 'error';
 // Realtime listener window: today / tracker / growth-spurt detection only
 // need ~14 days. Older events are loaded on demand via `loadFullHistory`.
@@ -169,6 +183,13 @@ interface AppContextValue {
   authReady: boolean;
   workspaceLoading: boolean;
   needsOnboarding: boolean;
+  /** True once the live data listeners have produced at least one
+   * snapshot since this auth session started (or immediately in sandbox
+   * mode, or when the user has no family yet). Used by the SPA shell to
+   * keep the FullScreenLoader visible while Firestore is still hydrating
+   * — without this, the UI becomes interactive before the events list
+   * has loaded and taps hit empty timelines. */
+  initialSyncDone: boolean;
   syncStatus: SyncStatus;
   /** Increments each time a fresh event arrives via Firestore listener.
    * Lets UI fragments (e.g. SyncDot) trigger a brief animation. */
@@ -203,6 +224,17 @@ interface AppContextValue {
   recordMedication: (input: { medicationName: string; careCategory?: CareCategory; notes?: string }) => Promise<void>;
   recordTemperature: (temperature: number) => Promise<void>;
   recordGrowth: (details: EventDetails) => Promise<void>;
+  /** Encode une session de tirage du lait. `side: 'both'` peut éventuellement
+   *  porter `leftMl` et `rightMl` pour ventiler le volume; sinon seul
+   *  `volumeMl` (total) est utilisé. */
+  recordPumping: (input: {
+    side: 'left' | 'right' | 'both';
+    volumeMl: number;
+    leftMl?: number;
+    rightMl?: number;
+    durationMin?: number;
+    notes?: string;
+  }) => Promise<void>;
   selectBaby: (babyId: string) => Promise<void>;
   addBaby: (input: { firstName: string; birthDate: string; sex: BabySex; feedingMode: FeedingMode; avatarKey?: BabyAvatarKey; setAsActive?: boolean }) => Promise<void>;
   updateBabyAvatar: (babyId: string, avatarKey: BabyAvatarKey) => Promise<void>;
@@ -525,6 +557,14 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [legacyOverrides, setLegacyOverrides] = useState<LegacyWorkspaceOverrides>({});
   const [authReady, setAuthReady] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  // True once the live data listeners have produced at least one snapshot
+  // since this auth session started. Used to keep the FullScreenLoader up
+  // during the initial sync phase — otherwise the SPA shell becomes
+  // interactive a fraction of a second before any events are visible, and
+  // taps land on a screen that's still hydrating from Firestore.
+  // We never reset this back to false on subsequent baby switches or
+  // mutation syncs: only sign-out / sign-in resets it.
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [optimisticEvents, setOptimisticEvents] = useState<TrackedEvent[]>([]);
   const optimisticEventsRef = useRef<TrackedEvent[]>([]);
   useEffect(() => {
@@ -665,6 +705,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setWorkspaceLoading(false);
       setSyncStatus('live');
       setLastSyncedAt(now());
+      setInitialSyncDone(true);
       return;
     }
 
@@ -677,6 +718,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveSessionState(null);
       setLastSyncedAt(null);
       setWorkspaceLoading(false);
+      setInitialSyncDone(false);
       return;
     }
 
@@ -694,6 +736,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       // si pas de famille encore, on attend le listener famille
       if (!nextProfile?.familyId) {
         setWorkspaceLoading(false);
+        // No family attached → onboarding path, no live data to wait for.
+        setInitialSyncDone(true);
       }
     });
 
@@ -730,11 +774,13 @@ export function AppProvider({ children }: PropsWithChildren) {
         setLegacyEventsReady(true);
         setLastSyncedAt(now());
         setSyncStatus('live');
+        setInitialSyncDone(true);
       },
       (payload) => {
         setLegacyErrorState(payload);
         setLegacyEventsReady(true);
         setSyncStatus('error');
+        setInitialSyncDone(true);
         logger.error('firestore', `Erreur snapshot legacy-events (${payload.error.code})`, payload.error, {
           source: payload.source,
           userId: authUser.uid,
@@ -748,6 +794,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         setLegacySessionReady(true);
         setLastSyncedAt(now());
         setSyncStatus('live');
+        setInitialSyncDone(true);
       },
       (payload) => {
         setLegacyErrorState(payload);
@@ -907,9 +954,13 @@ export function AppProvider({ children }: PropsWithChildren) {
         setEventsState(nextEvents);
         setSyncStatus('live');
         setLastSyncedAt(now());
+        setInitialSyncDone(true);
       },
       (err) => {
         setSyncStatus('error');
+        // Surface the error to the UI even if no snapshot ever arrives, so
+        // the user is not stuck behind the sync loader forever.
+        setInitialSyncDone(true);
         logger.error('firestore', `Erreur snapshot events (${err.code})`, err, { babyId: currentBabyState.id });
       },
     );
@@ -918,6 +969,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveSessionState(session);
       setSyncStatus('live');
       setLastSyncedAt(now());
+      setInitialSyncDone(true);
     });
 
     return () => {
@@ -1148,10 +1200,25 @@ export function AppProvider({ children }: PropsWithChildren) {
   };
 
   const updateSandboxEvent = (eventId: string, updater: (event: TrackedEvent) => TrackedEvent) => {
-    setSandbox((current) => current ? {
-      ...current,
-      events: current.events.map((event) => event.id === eventId ? updater(event) : event),
-    } : current);
+    setSandbox((current) => {
+      if (!current) return current;
+      const events = current.events.map((event) => event.id === eventId ? updater(event) : event);
+      // If the edited event is the in-progress sleep session, mirror
+      // its startTime onto the active session so the live counter on
+      // Today picks the corrected value up immediately.
+      const nextActiveSessions = { ...current.activeSessions };
+      Object.entries(nextActiveSessions).forEach(([babyId, session]) => {
+        if (session.eventId !== eventId) return;
+        const updatedEvent = events.find((e) => e.id === eventId);
+        if (!updatedEvent) return;
+        nextActiveSessions[babyId] = {
+          ...session,
+          startTime: updatedEvent.startTime,
+          updatedAt: Date.now(),
+        };
+      });
+      return { ...current, events, activeSessions: nextActiveSessions };
+    });
   };
 
   const deleteSandboxEventById = (eventId: string) => {
@@ -1312,6 +1379,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     authReady,
     workspaceLoading: effectiveWorkspaceLoading,
     needsOnboarding,
+    initialSyncDone,
     syncStatus: debugSyncOverride ?? (isNetworkOffline ? 'offline' : isSandbox ? 'live' : syncStatus),
     livePulseToken,
     growthSpurtMock,
@@ -1614,6 +1682,45 @@ export function AppProvider({ children }: PropsWithChildren) {
       await runMutation(async () => {
         await addTemperatureEvent(scope, { temperature, temperaturePeriod: resolvedPeriod });
         showToast(translate(language, 'toast.temperature_saved.title'));
+      });
+    },
+    recordPumping: async ({ side, volumeMl, leftMl, rightMl, durationMin, notes }) => {
+      if (currentMembership && !canRecordEvents(currentMembership)) {
+        showToast(language === 'fr' ? 'Accès lecture seule' : 'Read-only access', language === 'fr' ? 'Demandez au responsable de vous accorder l\'accès.' : 'Ask the family manager to grant you access.', 'error');
+        return;
+      }
+      const details: EventDetails = {
+        pumpingSide: side,
+        pumpingVolumeMl: volumeMl,
+        ...(side === 'both' && typeof leftMl === 'number' ? { pumpingLeftMl: leftMl } : {}),
+        ...(side === 'both' && typeof rightMl === 'number' ? { pumpingRightMl: rightMl } : {}),
+        ...(typeof durationMin === 'number' ? { pumpingDurationMin: durationMin } : {}),
+      };
+
+      if (isSandbox) {
+        await runMutation(async () => {
+          const event = createSandboxEvent({ type: 'pumping', details, notes });
+          if (!event) return;
+          appendSandboxEvent(event);
+          showToast(translate(language, 'toast.pumping_saved.title'), translate(language, 'toast.local_test'));
+        });
+        return;
+      }
+
+      // Legacy workspace has no first-class pumping schema; bail out
+      // softly so we never write malformed legacy docs. (Legacy is
+      // already in the process of being phased out.)
+      if (usingLegacyWorkspace) {
+        showToast(translate(language, 'toast.pumping_saved.title'), language === 'fr' ? 'Indisponible dans le mode hérité.' : 'Not available in legacy mode.', 'error');
+        return;
+      }
+
+      const scope = liveScope();
+      if (!scope) return;
+      pushOptimistic('pumping', details, notes);
+      await runMutation(async () => {
+        await addPumpingEvent(scope, details, notes);
+        showToast(translate(language, 'toast.pumping_saved.title'));
       });
     },
     recordGrowth: async (details) => {
@@ -2031,7 +2138,11 @@ export function AppProvider({ children }: PropsWithChildren) {
       }
 
       await runMutation(async () => {
-        await updateTrackedEvent(eventId, updates);
+        // Forward the baby id so updateTrackedEvent can also keep the
+        // activeSessions doc in sync when this event is the live sleep
+        // session — without that, editing the start time from history
+        // didn't update the "Charlie dort depuis…" counter on Today.
+        await updateTrackedEvent(eventId, updates, currentBaby?.id);
         showToast(translate(language, 'toast.event_updated.title'), translate(language, 'toast.event_updated.body'), 'success');
       });
     },
@@ -2147,6 +2258,9 @@ export function AppProvider({ children }: PropsWithChildren) {
             break;
           case 'sleep':
             await addPastSleepEvent(scope, input.startTime, input.endTime, input.notes);
+            break;
+          case 'pumping':
+            await addPumpingEvent(scope, input.details, input.notes, input.startTime);
             break;
         }
         showToast(
@@ -2341,6 +2455,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     familyMembersResolved,
     familyState,
     feedingMode,
+    initialSyncDone,
     isSandbox,
     language,
     languageState,
@@ -2436,7 +2551,37 @@ export function useAppContext() {
   return context;
 }
 
-export function FullScreenLoader({ label }: { label: string }) {
+function LoaderDot({ delay, color }: { delay: number; color: string }) {
+  const value = useRef(new Animated.Value(0.25)).current;
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(value, { toValue: 1, duration: 450, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+        Animated.timing(value, { toValue: 0.25, duration: 450, useNativeDriver: true, easing: Easing.in(Easing.quad) }),
+        Animated.delay(450),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [delay, value]);
+  return (
+    <Animated.View
+      style={[
+        styles.loaderDot,
+        { backgroundColor: color, opacity: value, transform: [{ scale: value }] },
+      ]}
+    />
+  );
+}
+
+/**
+ * The animated "Charlie." wordmark + label + bouncing dots. Used both
+ * by the full-screen boot loader (FullScreenLoader) and by the in-shell
+ * sync loader (BodyLoader) — extracted so the visual identity stays in
+ * one place.
+ */
+function LoaderContent({ label }: { label: string }) {
   const { theme } = useAppTheme();
   const breath = useRef(new Animated.Value(0.5)).current;
 
@@ -2450,7 +2595,7 @@ export function FullScreenLoader({ label }: { label: string }) {
   }, [breath]);
 
   return (
-    <View style={[styles.loaderScreen, { backgroundColor: theme.background }]}>
+    <View style={styles.loaderScreen}>
       <Animated.Text
         style={[
           styles.loaderBrand,
@@ -2464,11 +2609,44 @@ export function FullScreenLoader({ label }: { label: string }) {
         Charlie.
       </Animated.Text>
       <Text style={[styles.loaderLabel, { color: theme.textSoft, fontFamily: theme.fontMedium }]}>{label}</Text>
+      <View style={styles.loaderDotsRow}>
+        <LoaderDot delay={0} color={theme.primary} />
+        <LoaderDot delay={180} color={theme.primary} />
+        <LoaderDot delay={360} color={theme.primary} />
+      </View>
     </View>
   );
 }
 
+/**
+ * Full-viewport loader used during the early boot phase — before auth
+ * is ready and before we know which baby's hero banner to render.
+ * Covers the cream background edge-to-edge so the iOS status-bar /
+ * notch area doesn't show a different shade.
+ */
+export function FullScreenLoader({ label }: { label: string }) {
+  const { theme } = useAppTheme();
+  return (
+    <SafeAreaView style={[styles.loaderSafe, { backgroundColor: theme.background }]} edges={['top', 'bottom', 'left', 'right']}>
+      <LoaderContent label={label} />
+    </SafeAreaView>
+  );
+}
+
+/**
+ * Body-only loader used during the initial Firestore sync, AFTER the
+ * SPA shell + hero banner are ready to render. Caller wraps this in
+ * the usual Screen / EditorialTopBar so the parent still sees who they
+ * are while data hydrates underneath.
+ */
+export function BodyLoader({ label }: { label: string }) {
+  return <LoaderContent label={label} />;
+}
+
 const styles = StyleSheet.create({
+  loaderSafe: {
+    flex: 1,
+  },
   loaderScreen: {
     flex: 1,
     alignItems: 'center',
@@ -2485,6 +2663,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     opacity: 0.85,
+  },
+  loaderDotsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  loaderDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   savingOverlay: {
     position: 'absolute',

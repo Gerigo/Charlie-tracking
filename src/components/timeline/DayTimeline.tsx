@@ -319,6 +319,33 @@ function describeEvent(
         body: '',
         iconKind: 'temperature',
       };
+    case 'pumping': {
+      const side = event.details?.pumpingSide;
+      const total = event.details?.pumpingVolumeMl;
+      const left = event.details?.pumpingLeftMl;
+      const right = event.details?.pumpingRightMl;
+      // Side label (G / D / Deux) keeps things compact on the timeline
+      // card — the volume goes in the tags row below.
+      const sideLabel =
+        side === 'left'
+          ? t('tracker.pumping_side_left')
+          : side === 'right'
+            ? t('tracker.pumping_side_right')
+            : side === 'both'
+              ? t('tracker.pumping_side_both')
+              : '';
+      let body = sideLabel;
+      if (side === 'both' && typeof left === 'number' && typeof right === 'number') {
+        body = `${sideLabel} · ${left} + ${right} ml`;
+      } else if (typeof total === 'number') {
+        body = sideLabel ? `${sideLabel} · ${total} ml` : `${total} ml`;
+      }
+      return {
+        title: t('tracker.pumping'),
+        body,
+        iconKind: 'pumping',
+      };
+    }
     case 'medication': {
       const category = inferMedicationCategory(
         event.details?.medicationName,
@@ -387,6 +414,7 @@ function getAccentForKind(kind: TimelineKind, theme: AppTheme): string {
       return theme.sleep;
     case 'breast':
     case 'bottle':
+    case 'pumping':
       return theme.feed;
     case 'diaper':
       return theme.diaper;

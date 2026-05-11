@@ -113,6 +113,7 @@ type ActionKind =
   | "sleep"
   | "breast"
   | "bottle"
+  | "pumping"
   | "temperature"
   | "diaper"
   | "care"
@@ -154,6 +155,23 @@ function getActionPalette(theme: AppTheme, kind: ActionKind, active?: boolean) {
       background: `${theme.feed}14`,
       border: `${theme.feed}33`,
       iconBackground: `${theme.feed}1F`,
+      emoji: theme.feed,
+      label: theme.text,
+      subtitle: theme.textMuted,
+      accentA: `${theme.feed}10`,
+      accentB: `${theme.feed}1C`,
+      eyebrow: theme.feed,
+    };
+  }
+
+  // Pumping shares the feed palette (lait tiré = nourriture) with a
+  // slightly cooler tinted background so it doesn't read as "the same
+  // tile twice" next to breastfeeding.
+  if (kind === "pumping") {
+    return {
+      background: `${theme.feed}10`,
+      border: `${theme.feed}28`,
+      iconBackground: `${theme.feed}18`,
       emoji: theme.feed,
       label: theme.text,
       subtitle: theme.textMuted,
@@ -832,10 +850,13 @@ function QuickTile({
           ) : null}
         </View>
 
-        {/* Hero typography — label is THE design element */}
+        {/* Hero typography — label is THE design element.
+            selectable={false} on every Text prevents the OS from
+            interpreting the long-press as a text-highlight gesture. */}
         <View style={styles.quickTileType}>
           <Text
             numberOfLines={1}
+            selectable={false}
             style={[styles.quickTileLabel, { color: labelColor, fontFamily: theme.fontDisplayItalic }]}
           >
             {label}
@@ -860,6 +881,7 @@ function QuickTile({
               />
               <Text
                 numberOfLines={1}
+                selectable={false}
                 style={[
                   styles.quickTileLiveLabel,
                   {
@@ -874,6 +896,7 @@ function QuickTile({
           ) : (
             <Text
               numberOfLines={1}
+              selectable={false}
               style={[
                 styles.quickTileLast,
                 {
@@ -1051,6 +1074,7 @@ export function TrackerScreen() {
     recordDiaper,
     recordMedication,
     recordTemperature,
+    recordPumping,
     triggerSleep,
     stopSleep,
     feedingMode,
@@ -1126,6 +1150,48 @@ export function TrackerScreen() {
   };
   const lastDiaper = getLastEventOfType(events, "diaper");
   const lastTemperature = getLastEventOfType(events, "temperature");
+  const lastPumping = getLastEventOfType(events, "pumping");
+  // Pumping is only meaningful when the parent is breastfeeding (or
+  // mixed-feeding). For an exclusively-bottle-fed baby, milk is not
+  // pumped from the parent's body so the tile would be noise.
+  const showPumpingTile = feedingMode === "breastfeeding" || feedingMode === "mixed";
+
+  // Detailed-encoding modal state. Quick-tap chips on the tile call
+  // recordPumping directly with `volumeMl: 0` — the parent then opens
+  // the modal via long-press to set the actual volume.
+  const [pumpingModalVisible, setPumpingModalVisible] = useState(false);
+  const [pumpingSide, setPumpingSide] = useState<'left' | 'right' | 'both'>('left');
+  const [pumpingVolume, setPumpingVolume] = useState('');
+  const [pumpingLeft, setPumpingLeft] = useState('');
+  const [pumpingRight, setPumpingRight] = useState('');
+  const [pumpingDuration, setPumpingDuration] = useState('');
+  const resetPumpingModal = () => {
+    setPumpingModalVisible(false);
+    setPumpingSide('left');
+    setPumpingVolume('');
+    setPumpingLeft('');
+    setPumpingRight('');
+    setPumpingDuration('');
+  };
+  const handlePumpingSave = async () => {
+    const total = Number(pumpingVolume.replace(',', '.'));
+    if (!Number.isFinite(total) || total <= 0) return;
+    const leftMl = pumpingLeft.trim() ? Number(pumpingLeft.replace(',', '.')) : undefined;
+    const rightMl = pumpingRight.trim() ? Number(pumpingRight.replace(',', '.')) : undefined;
+    const durationMin = pumpingDuration.trim() ? Number(pumpingDuration.replace(',', '.')) : undefined;
+    await recordPumping({
+      side: pumpingSide,
+      volumeMl: total,
+      ...(pumpingSide === 'both' && Number.isFinite(leftMl as number) ? { leftMl } : {}),
+      ...(pumpingSide === 'both' && Number.isFinite(rightMl as number) ? { rightMl } : {}),
+      ...(Number.isFinite(durationMin as number) ? { durationMin } : {}),
+    });
+    triggerPulse(
+      'pumping',
+      language === 'fr' ? `${total} ml tirés` : `${total} ml pumped`,
+    );
+    resetPumpingModal();
+  };
   const lastCare = useMemo(
     () =>
       [...events]
@@ -1528,6 +1594,61 @@ export function TrackerScreen() {
             }}
           />
         </QuickTile>
+
+        {/* ── Pumping (tirage du lait) ──
+            Only surfaced for breastfeeding / mixed-feeding parents.
+            Tap chips encode a quick session with a default volume of 0
+            (timeline records the side); long-press opens the detailed
+            modal to set ml and L/R split. */}
+        {showPumpingTile ? (
+          <QuickTile
+            kind="pumping"
+            label={t("tracker.pumping")}
+            lastLabel={lastLabelFor(lastPumping)}
+            accent={theme.feed}
+            pulsing={pulseKind === "pumping"}
+            confirmation={confirmation?.kind === "pumping" ? confirmation.message : null}
+            onLongPress={() => {
+              triggerSelectionFeedback();
+              setPumpingSide('left');
+              setPumpingModalVisible(true);
+            }}
+          >
+            <QuickChip
+              accent={theme.feed}
+              disabled={saving || isViewer}
+              onPress={() => {
+                triggerSelectionFeedback();
+                setPumpingSide('left');
+                setPumpingModalVisible(true);
+              }}
+            >
+              G
+            </QuickChip>
+            <QuickChip
+              accent={theme.feed}
+              disabled={saving || isViewer}
+              onPress={() => {
+                triggerSelectionFeedback();
+                setPumpingSide('right');
+                setPumpingModalVisible(true);
+              }}
+            >
+              D
+            </QuickChip>
+            <QuickChip
+              accent={theme.feed}
+              disabled={saving || isViewer}
+              onPress={() => {
+                triggerSelectionFeedback();
+                setPumpingSide('both');
+                setPumpingModalVisible(true);
+              }}
+            >
+              2
+            </QuickChip>
+          </QuickTile>
+        ) : null}
 
         {/* ── Care ── */}
         <QuickTile
@@ -2182,6 +2303,100 @@ export function TrackerScreen() {
             </View>
           </Pressable>
       </AppModal>
+
+      <AppModal visible={pumpingModalVisible} onClose={resetPumpingModal}>
+        <Pressable
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: theme.surfaceLowest,
+              shadowColor: theme.shadow,
+            },
+          ]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <Text
+            style={[
+              styles.detailTitle,
+              { color: theme.text, fontFamily: theme.fontSemiBold },
+            ]}
+          >
+            {t("tracker.pumping")}
+          </Text>
+          {/* Side chips — pre-filled by whichever quick chip launched the
+              modal, but the parent can still flip it before saving. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            <Chip
+              label={t("tracker.pumping_side_left")}
+              selected={pumpingSide === 'left'}
+              tone="feed"
+              onPress={() => setPumpingSide('left')}
+            />
+            <Chip
+              label={t("tracker.pumping_side_right")}
+              selected={pumpingSide === 'right'}
+              tone="feed"
+              onPress={() => setPumpingSide('right')}
+            />
+            <Chip
+              label={t("tracker.pumping_side_both")}
+              selected={pumpingSide === 'both'}
+              tone="feed"
+              onPress={() => setPumpingSide('both')}
+            />
+          </View>
+          <AppInput
+            label={t("tracker.pumping_volume")}
+            value={pumpingVolume}
+            onChangeText={setPumpingVolume}
+            keyboardType="decimal-pad"
+            placeholder="80"
+          />
+          {pumpingSide === 'both' ? (
+            <>
+              {/* L/R volumes are optional even when both breasts are
+                  pumped — leaving them blank just keeps the total. */}
+              <AppInput
+                label={t("tracker.pumping_volume_left")}
+                value={pumpingLeft}
+                onChangeText={setPumpingLeft}
+                keyboardType="decimal-pad"
+                placeholder="40"
+              />
+              <AppInput
+                label={t("tracker.pumping_volume_right")}
+                value={pumpingRight}
+                onChangeText={setPumpingRight}
+                keyboardType="decimal-pad"
+                placeholder="40"
+              />
+            </>
+          ) : null}
+          <AppInput
+            label={t("tracker.pumping_duration")}
+            value={pumpingDuration}
+            onChangeText={setPumpingDuration}
+            keyboardType="number-pad"
+            placeholder="15"
+          />
+          <View style={styles.modalActions}>
+            <AppButton
+              style={styles.modalButton}
+              variant="secondary"
+              onPress={resetPumpingModal}
+            >
+              {t("common.cancel")}
+            </AppButton>
+            <AppButton
+              style={styles.modalButton}
+              disabled={saving || !pumpingVolume.trim()}
+              onPress={() => void handlePumpingSave()}
+            >
+              {t("tracker.save_pumping")}
+            </AppButton>
+          </View>
+        </Pressable>
+      </AppModal>
     </Screen>
   );
 }
@@ -2228,7 +2443,15 @@ const styles = StyleSheet.create({
   quickTileWrap: {
     width: "47.5%",
     position: "relative",
-  },
+    // Web/PWA: long-pressing the tile to open the detailed editor used to
+    // race the OS' text-selection gesture, popping the copy/paste menu
+    // mid-press. Disabling user-select + touch-callout on the wrapper
+    // (and on every Text inside via selectable={false}) makes the tile
+    // behave like a real button on Safari iOS and Chrome Android.
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none",
+  } as never,
   quickTileGlow: {
     position: "absolute",
     top: -8,
