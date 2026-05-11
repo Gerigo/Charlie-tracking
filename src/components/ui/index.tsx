@@ -1,5 +1,6 @@
 import { radii, spacing } from "@/src/constants/theme";
 import { Wash } from "@/src/components/decor";
+import { Icon } from "@/src/components/ui/Icon";
 import { triggerSelectionFeedback } from "@/src/lib/feedback";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
 import { LinearGradient } from "expo-linear-gradient";
@@ -590,13 +591,19 @@ export function Divider() {
 }
 
 /**
- * Wrapper modal avec backdrop flouté (BlurView expo-blur).
- * Remplace le pattern `<Modal><Pressable modalOverlay>` dans tous les écrans.
+ * Full-screen sheet that slides up from the bottom. Mirrors the History
+ * presentation so every editor in the app feels like the same kind of
+ * "sub-screen". Closing is explicit — the top-right X button or a save
+ * action inside the body. No backdrop tap-to-close, matching iOS sheets.
+ *
+ * Consumers pass their existing card-shaped content as `children`. The
+ * card styling becomes a slight tonal layer over the sheet background —
+ * not a separate floating element — which reads as one continuous surface.
  */
 export function AppModal({
   visible,
   onClose,
-  animationType = "fade",
+  animationType = "slide",
   children,
 }: {
   visible: boolean;
@@ -604,54 +611,88 @@ export function AppModal({
   animationType?: "fade" | "slide" | "none";
   children: ReactNode;
 }) {
+  const { theme } = useAppTheme();
+
   return (
     <Modal
-      transparent
       animationType={animationType}
       visible={visible}
       onRequestClose={onClose}
     >
-      {/* Overlay neutre foncé — indépendant du fond de l'app (pas de BlurView
-          qui piocherait les dégradés roses). */}
-      <Pressable style={appModalStyles.backdrop} onPress={onClose}>
-        <View style={appModalStyles.backdropInner} />
-      </Pressable>
-      <KeyboardAvoidingView
-        style={appModalStyles.root}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        pointerEvents="box-none"
-      >
-        {/* Phone-frame width clamp. React Native's <Modal> renders at
-            viewport level (above the Stack), so on a wide desktop
-            browser the modal content used to span the entire window —
-            wildly out of phase with the 480-pixel PhoneFrame that hosts
-            the rest of the app. Clamping here keeps every AppModal
-            consumer inside the same visual frame as the SPA shell. */}
-        <View style={appModalStyles.contentClamp} pointerEvents="box-none">
-          {children}
-        </View>
-      </KeyboardAvoidingView>
+      {/* React Native's <Modal> renders at viewport level (above the
+          Stack), so on a wide desktop browser the sheet would span the
+          entire window — wildly out of phase with the 480-pixel
+          PhoneFrame that hosts the rest of the app. Centring + clamping
+          here keeps every AppModal inside the same visual frame as the
+          SPA shell. */}
+      <View style={[appModalStyles.outer, { backgroundColor: theme.background }]}>
+        <SafeAreaView style={appModalStyles.frame} edges={["top", "left", "right"]}>
+          <View style={appModalStyles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fermer"
+              onPress={() => {
+                triggerSelectionFeedback();
+                onClose();
+              }}
+              style={[appModalStyles.closeButton, { backgroundColor: theme.surfaceRaised }]}
+            >
+              <Icon name="close" size={18} color={theme.primary} />
+            </Pressable>
+          </View>
+          <KeyboardAvoidingView
+            style={appModalStyles.body}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              style={appModalStyles.scrollFlex}
+              contentContainerStyle={appModalStyles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 const appModalStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  backdropInner: {
+  outer: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.72)",
-  },
-  root: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
-  contentClamp: {
+  frame: {
+    flex: 1,
     width: "100%",
     maxWidth: 480,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  closeButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  body: {
+    flex: 1,
+  },
+  scrollFlex: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl * 2,
+    gap: spacing.md,
   },
 });
 
