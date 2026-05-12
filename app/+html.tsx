@@ -57,14 +57,24 @@ export default function Root({ children }: { children: React.ReactNode }) {
 // Carnet d'aquarelle — mirrors theme.ts background tokens. Avoids the
 // FOUC flash of an old palette colour before React mounts.
 //
-// `scrollbar-gutter: stable` reserves the vertical scrollbar's gutter even
-// when no scrollbar is shown. Without it, React Native Web's <Modal> locks
-// body scroll on open → the scrollbar disappears → the centred PhoneFrame
-// shifts ~15px horizontally → tab bar appears to "jump". Browsers without
-// support (Safari < 16) silently ignore the property.
+// Lock the document to the viewport. Every scroll inside the app lives
+// in a React Native <ScrollView>, so the body itself has no business
+// scrolling. iOS Safari PWA was using that latitude to scroll the body
+// horizontally when the soft keyboard opened on a focused input — and
+// never resetting that offset on dismissal, leaving the entire carnet
+// shifted to the right after every typing session. `overflow: hidden`
+// on html + body removes that escape hatch entirely.
+//
+// On desktop this also obviates the previous `scrollbar-gutter: stable`
+// trick — with the body unable to scroll there is no scrollbar to
+// reserve in the first place.
 const responsiveBackground = `
-html {
-  scrollbar-gutter: stable;
+html, body {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 body {
   background-color: #FAF3E8;
