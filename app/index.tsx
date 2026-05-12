@@ -159,9 +159,18 @@ const styles = StyleSheet.create({
   // Outer wrapper that fills the viewport. Cream backdrop comes from
   // theme.background, so any gutter on a wide desktop screen looks
   // intentional rather than a white void.
+  //
+  // NOTE: We deliberately do NOT use `alignItems: 'center'` to centre
+  // the inner frame. Flex centring asks the layout engine to recompute
+  // a cross-axis offset on every parent measure pass, and on iOS Safari
+  // PWA that pass runs at unfortunate moments during the soft-keyboard
+  // animation — the result was the whole carnet ending up shifted
+  // sideways after every modal typing session. The inner frame instead
+  // centres itself via `marginLeft/Right: 'auto'`, which the browser
+  // resolves once per layout against `maxWidth` and is stable across
+  // viewport transitions.
   frameOuter: {
     flex: 1,
-    alignItems: 'center',
   },
   // The actual phone-shaped frame.
   //   maxWidth 480  → above iPhone 16 Pro Max (~440pt) so no crop on
@@ -176,6 +185,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     minWidth: 320,
+    marginLeft: 'auto',
+    marginRight: 'auto',
   },
   shell: {
     flex: 1,

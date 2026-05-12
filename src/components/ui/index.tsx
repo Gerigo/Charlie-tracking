@@ -660,14 +660,19 @@ export function AppModal({
 }
 
 const appModalStyles = StyleSheet.create({
+  // Mirror PhoneFrame: centre the sheet via marginLeft/Right: 'auto'
+  // rather than alignItems:'center' on the outer flex parent, so the
+  // browser resolves the offset once per layout from maxWidth and the
+  // sheet stays put through iOS soft-keyboard transitions.
   outer: {
     flex: 1,
-    alignItems: "center",
   },
   frame: {
     flex: 1,
     width: "100%",
     maxWidth: 480,
+    marginLeft: "auto",
+    marginRight: "auto",
   },
   header: {
     flexDirection: "row",
