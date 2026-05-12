@@ -46,6 +46,9 @@ export default function Root({ children }: { children: React.ReactNode }) {
         {/* Avoid background flicker between dark/light */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
 
+        {/* Defensive: undo any scroll iOS PWA induces around input focus. */}
+        <script dangerouslySetInnerHTML={{ __html: scrollResetSnippet }} />
+
         {/* Service worker registration — soft fail if unsupported */}
         <script dangerouslySetInnerHTML={{ __html: serviceWorkerSnippet }} />
       </head>
@@ -62,19 +65,24 @@ export default function Root({ children }: { children: React.ReactNode }) {
 // scrolling. iOS Safari PWA was using that latitude to scroll the body
 // horizontally when the soft keyboard opened on a focused input — and
 // never resetting that offset on dismissal, leaving the entire carnet
-// shifted to the right after every typing session. `overflow: hidden`
-// on html + body removes that escape hatch entirely.
+// shifted to the right after every typing session.
 //
-// On desktop this also obviates the previous `scrollbar-gutter: stable`
-// trick — with the body unable to scroll there is no scrollbar to
-// reserve in the first place.
+// `position: fixed` + `inset: 0` is the only lock iOS Safari PWA fully
+// respects — `overflow: hidden` alone wasn't enough; iOS would still
+// nudge the layout sideways when bringing an input into view above the
+// keyboard. With the body fixed to the viewport, internal RN
+// ScrollViews remain the only place anything can scroll.
 const responsiveBackground = `
 html, body {
   margin: 0;
-  height: 100%;
+  padding: 0;
+  position: fixed;
+  inset: 0;
   width: 100%;
+  height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 body {
   background-color: #FAF3E8;
@@ -84,6 +92,41 @@ body {
     background-color: #1F1814;
   }
 }`;
+
+// Even with the body pinned, iOS Safari PWA can momentarily push
+// document.scrollingElement / window.scrollX off zero when it ferries an
+// input above the soft keyboard. The offset usually sticks until the
+// next layout, which is why the carnet appeared shifted after every
+// modal typing session. Forcing the scroll back to 0 after every
+// keyboard-related event undoes the drift without fighting iOS in real
+// time. visualViewport gives us the precise hooks (resize + scroll)
+// for keyboard show / hide / orientation changes.
+const scrollResetSnippet = `
+(function () {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  function resetScroll() {
+    try {
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+      var el = document.scrollingElement || document.documentElement;
+      if (el) { el.scrollLeft = 0; el.scrollTop = 0; }
+      if (document.body) { document.body.scrollLeft = 0; document.body.scrollTop = 0; }
+    } catch (e) { /* swallow */ }
+  }
+  document.addEventListener('focusin', function () {
+    requestAnimationFrame(resetScroll);
+    setTimeout(resetScroll, 60);
+    setTimeout(resetScroll, 300);
+  }, true);
+  document.addEventListener('focusout', function () {
+    requestAnimationFrame(resetScroll);
+    setTimeout(resetScroll, 60);
+    setTimeout(resetScroll, 300);
+  }, true);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resetScroll);
+    window.visualViewport.addEventListener('scroll', resetScroll);
+  }
+})();`;
 
 const serviceWorkerSnippet = `
 if ('serviceWorker' in navigator) {
