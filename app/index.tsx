@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { BodyLoader, FullScreenLoader, useAppContext } from '@/src/providers/AppProvider';
 import { useAppTheme } from '@/src/providers/ThemeProvider';
-import { Screen } from '@/src/components/ui';
+import { FullScreenPortal, Screen } from '@/src/components/ui';
+import { ModalHost, ModalPortalProvider } from '@/src/components/ui/ModalPortal';
 import { EditorialTopBar } from '@/src/components/editorial/TopBar';
 import { SPATabBar, type SPATabName } from '@/src/components/navigation/SPATabBar';
 import { SPANavProvider } from '@/src/lib/spaNav';
@@ -29,9 +30,18 @@ import { HistoryScreen } from '@/src/screens/HistoryScreen';
 function PhoneFrame({ children }: { children: ReactNode }) {
   const { theme } = useAppTheme();
   return (
-    <View style={[styles.frameOuter, { backgroundColor: theme.background }]}>
-      <View style={styles.frameInner}>{children}</View>
-    </View>
+    <ModalPortalProvider>
+      <View style={[styles.frameOuter, { backgroundColor: theme.background }]}>
+        <View style={styles.frameInner}>
+          {children}
+          {/* In-tree overlay layer for every AppModal/FullScreenPortal in
+              the app. Lives inside the centered phone frame so iOS Safari
+              PWA can never drag the document sideways via a separate
+              body-level portal during keyboard transitions. */}
+          <ModalHost />
+        </View>
+      </View>
+    </ModalPortalProvider>
   );
 }
 
@@ -141,14 +151,9 @@ export default function IndexRoute() {
 
           <SPATabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-          <Modal
-            transparent={false}
-            animationType="slide"
-            visible={historyVisible}
-            onRequestClose={hideHistory}
-          >
+          <FullScreenPortal visible={historyVisible} onClose={hideHistory}>
             <HistoryScreen onClose={hideHistory} />
-          </Modal>
+          </FullScreenPortal>
         </View>
       </PhoneFrame>
     </SPANavProvider>

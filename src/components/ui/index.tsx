@@ -1,13 +1,23 @@
 import { radii, spacing } from "@/src/constants/theme";
 import { Wash } from "@/src/components/decor";
 import { Icon } from "@/src/components/ui/Icon";
+import { ModalPortal } from "@/src/components/ui/ModalPortal";
 import { triggerSelectionFeedback } from "@/src/lib/feedback";
 import { useAppTheme } from "@/src/providers/ThemeProvider";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useState, type PropsWithChildren, type ReactNode } from "react";
 import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
+import {
+  Animated,
+  BackHandler,
+  Easing,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -599,6 +609,17 @@ export function Divider() {
  * Consumers pass their existing card-shaped content as `children`. The
  * card styling becomes a slight tonal layer over the sheet background —
  * not a separate floating element — which reads as one continuous surface.
+ *
+ * Implementation note: we deliberately do NOT use React Native's <Modal>.
+ * On the web, RN's <Modal> mounts a body-level portal, escaping the
+ * PhoneFrame's centering AND giving iOS Safari PWA a separate document
+ * surface to play visualViewport games on when the soft keyboard opens
+ * over a focused input. The PWA was leaking those games back onto the
+ * main app — the whole carnet ended up shifted sideways after every
+ * modal typing session. Hoisting the sheet into <ModalHost/> (an
+ * absolute-fill child of the PhoneFrame) keeps every overlay inside the
+ * same fixed-position root that the rest of the app lives in. The iOS
+ * keyboard simply has nowhere else to drift to.
  */
 export function AppModal({
   visible,
@@ -611,68 +632,174 @@ export function AppModal({
   animationType?: "fade" | "slide" | "none";
   children: ReactNode;
 }) {
+  return (
+    <FullScreenPortal
+      visible={visible}
+      onClose={onClose}
+      animationType={animationType}
+    >
+      <AppModalChrome onClose={onClose}>{children}</AppModalChrome>
+    </FullScreenPortal>
+  );
+}
+
+function AppModalChrome({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: ReactNode;
+}) {
   const { theme } = useAppTheme();
+  return (
+    <SafeAreaView style={appModalStyles.frame} edges={["top", "left", "right"]}>
+      <View style={appModalStyles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Fermer"
+          onPress={() => {
+            triggerSelectionFeedback();
+            onClose();
+          }}
+          style={[appModalStyles.closeButton, { backgroundColor: theme.surfaceRaised }]}
+        >
+          <Icon name="close" size={18} color={theme.primary} />
+        </Pressable>
+      </View>
+      <KeyboardAvoidingView
+        style={appModalStyles.body}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={appModalStyles.scrollFlex}
+          contentContainerStyle={appModalStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+/**
+ * Bare full-screen overlay hoisted into <ModalHost/>. No header, no
+ * scroll wrapper — for screens (HistoryScreen, DataScreen, LogsScreen)
+ * that already provide their own SafeArea + close button. Handles the
+ * slide/fade animation and the same Esc-to-close affordance AppModal
+ * offers, so a refactor from <Modal> → <FullScreenPortal> is a drop-in.
+ */
+export function FullScreenPortal({
+  visible,
+  onClose,
+  animationType = "slide",
+  transparent = false,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  animationType?: "fade" | "slide" | "none";
+  /** When true, the surface paints no background — the caller renders
+   *  its own backdrop (typically a translucent overlay). */
+  transparent?: boolean;
+  children: ReactNode;
+}) {
+  const { theme } = useAppTheme();
+  const [mounted, setMounted] = useState(visible);
+  const progressRef = useRef(new Animated.Value(visible ? 1 : 0));
+  const progress = progressRef.current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      if (animationType === "none") {
+        progress.setValue(1);
+        return;
+      }
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    } else {
+      if (animationType === "none") {
+        progress.setValue(0);
+        setMounted(false);
+        return;
+      }
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+  }, [visible, animationType, progress]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [visible, onClose]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS === "web") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
+  if (!mounted) return null;
+
+  const slideTransform =
+    animationType === "slide"
+      ? {
+          transform: [
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [600, 0],
+              }),
+            },
+          ],
+        }
+      : null;
+  const opacity = animationType === "fade" ? progress : 1;
 
   return (
-    <Modal
-      animationType={animationType}
-      visible={visible}
-      onRequestClose={onClose}
-    >
-      {/* React Native's <Modal> renders at viewport level (above the
-          Stack), so on a wide desktop browser the sheet would span the
-          entire window — wildly out of phase with the 480-pixel
-          PhoneFrame that hosts the rest of the app. Centring + clamping
-          here keeps every AppModal inside the same visual frame as the
-          SPA shell. */}
-      <View style={[appModalStyles.outer, { backgroundColor: theme.background }]}>
-        <SafeAreaView style={appModalStyles.frame} edges={["top", "left", "right"]}>
-          <View style={appModalStyles.header}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Fermer"
-              onPress={() => {
-                triggerSelectionFeedback();
-                onClose();
-              }}
-              style={[appModalStyles.closeButton, { backgroundColor: theme.surfaceRaised }]}
-            >
-              <Icon name="close" size={18} color={theme.primary} />
-            </Pressable>
-          </View>
-          <KeyboardAvoidingView
-            style={appModalStyles.body}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <ScrollView
-              style={appModalStyles.scrollFlex}
-              contentContainerStyle={appModalStyles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {children}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+    <ModalPortal>
+      <Animated.View
+        style={[
+          appModalStyles.surface,
+          transparent ? null : { backgroundColor: theme.background },
+          { opacity },
+          slideTransform,
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </ModalPortal>
   );
 }
 
 const appModalStyles = StyleSheet.create({
-  // Mirror PhoneFrame: centre the sheet via marginLeft/Right: 'auto'
-  // rather than alignItems:'center' on the outer flex parent, so the
-  // browser resolves the offset once per layout from maxWidth and the
-  // sheet stays put through iOS soft-keyboard transitions.
-  outer: {
-    flex: 1,
+  // Fills the <ModalHost/> region, which itself fills the PhoneFrame.
+  // No maxWidth/marginAuto here — the centering already happened one
+  // level up at PhoneFrame.
+  surface: {
+    ...StyleSheet.absoluteFillObject,
   },
   frame: {
     flex: 1,
-    width: "100%",
-    maxWidth: 480,
-    marginLeft: "auto",
-    marginRight: "auto",
   },
   header: {
     flexDirection: "row",

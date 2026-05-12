@@ -1,5 +1,5 @@
 import { EditorialTopBar } from "@/src/components/editorial/TopBar";
-import { AppBadge, AppButton, AppInput, AppModal, Screen } from "@/src/components/ui";
+import { AppBadge, AppButton, AppInput, AppModal, FullScreenPortal, Screen } from "@/src/components/ui";
 import {
   babyAvatarOptions,
   getBabyAvatarUri,
@@ -32,7 +32,7 @@ import DateTimePicker from "@/src/components/ui/PlatformDateTimePicker";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { useMemo, useState, type ReactNode } from "react";
-import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 function formatBabyAge(birthDate: string, language: AppLanguage) {
   const birth = new Date(birthDate);
@@ -2148,22 +2148,12 @@ export function SettingsScreen() {
       </ModalSheet>
 
       {/* Données — page sheet depuis Paramètres */}
-      <Modal
-        visible={dataVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setDataVisible(false)}
-      >
+      <FullScreenPortal visible={dataVisible} onClose={() => setDataVisible(false)}>
         <DataScreen onClose={() => setDataVisible(false)} />
-      </Modal>
+      </FullScreenPortal>
 
       {/* Logs viewer — owner only, full-screen page sheet */}
-      <Modal
-        visible={logsVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setLogsVisible(false)}
-      >
+      <FullScreenPortal visible={logsVisible} onClose={() => setLogsVisible(false)}>
         <View
           style={[
             styles.logsModalContainer,
@@ -2193,7 +2183,7 @@ export function SettingsScreen() {
           </View>
           <LogsScreen />
         </View>
-      </Modal>
+      </FullScreenPortal>
     </Screen>
   );
 }

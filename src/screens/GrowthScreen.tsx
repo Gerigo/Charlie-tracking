@@ -5,7 +5,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,7 +13,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { EditorialTopBar } from '@/src/components/editorial/TopBar';
-import { AppBadge, AppButton, AppInput, Card, Screen } from '@/src/components/ui';
+import { AppBadge, AppButton, AppInput, Card, FullScreenPortal, Screen } from '@/src/components/ui';
 import { radii, spacing } from '@/src/constants/theme';
 import { useI18n } from '@/src/hooks/useI18n';
 import {
@@ -800,11 +799,11 @@ export function GrowthScreen({ onShowHistory }: { onShowHistory?: () => void } =
       </View>
 
       {/* ── Measure modal ── */}
-      <Modal
-        transparent
-        animationType="fade"
+      <FullScreenPortal
         visible={measureModalVisible}
-        onRequestClose={closeModal}
+        onClose={closeModal}
+        animationType="fade"
+        transparent
       >
         <KeyboardAvoidingView
           style={styles.modalKeyboardWrap}
@@ -875,7 +874,7 @@ export function GrowthScreen({ onShowHistory }: { onShowHistory?: () => void } =
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
-      </Modal>
+      </FullScreenPortal>
     </Screen>
   );
 }
