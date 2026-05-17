@@ -4,6 +4,7 @@ import { BottomNav, type Tab } from "@/components/BottomNav";
 import { Tracker } from "@/components/tracker/Tracker";
 import { Growth } from "@/components/Growth";
 import { Evolution } from "@/components/Evolution";
+import { Toaster } from "@/components/ui/Toaster";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { PALETTES } from "@/lib/theme";
 import Login from "@/pages/Login";
@@ -98,6 +99,7 @@ export default function App() {
   return (
     <AppShell>
       {loading ? <Loader /> : user ? <Shell /> : <Login />}
+      <Toaster />
     </AppShell>
   );
 }

@@ -23,6 +23,8 @@ import {
   type FeedData,
 } from "@/lib/events";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
+import { ScreenLoader } from "@/components/ui/Loader";
+import { toast, withToast } from "@/lib/toast";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
@@ -263,10 +265,19 @@ export function Tracker() {
     activeSleep: null,
   });
   const [sheet, setSheet] = useState<SheetState>(null);
+  const [loaded, setLoaded] = useState(false);
   const [, forceTick] = useState(0);
 
   useEffect(() => {
-    return subscribeTracker(setSnap);
+    let first = true;
+    return subscribeTracker((s) => {
+      setSnap(s);
+      if (first) {
+        first = false;
+        setLoaded(true);
+        toast.info("Application à jour");
+      }
+    });
   }, []);
 
   const today = snap.day;
@@ -292,6 +303,8 @@ export function Tracker() {
     flexDirection: "column",
     background: P.bg,
   };
+
+  if (!loaded) return <ScreenLoader label="Chargement de Charlie…" />;
 
   return (
     <div style={containerStyle}>
@@ -392,7 +405,12 @@ export function Tracker() {
                   : "Rien aujourd'hui"
             }
             onClick={() => {
-              void (activeSleep ? stopSleep(activeSleep.id) : startSleep());
+              void (activeSleep
+                ? withToast(
+                    () => stopSleep(activeSleep.id),
+                    "Réveil enregistré",
+                  )
+                : withToast(() => startSleep(), "Sommeil démarré"));
             }}
           />
           <EventTile

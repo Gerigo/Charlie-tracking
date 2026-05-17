@@ -13,6 +13,7 @@ import {
   type PumpData,
 } from "@/lib/events";
 import { Segmented } from "@/components/ui/primitives";
+import { ScreenLoader } from "@/components/ui/Loader";
 import { LineChart, type Point } from "@/components/ui/Chart";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
@@ -218,8 +219,16 @@ export function Growth() {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [range, setRange] = useState<Range>("total");
   const [sheet, setSheet] = useState<SheetState>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => subscribeAllEvents(setEvents), []);
+  useEffect(
+    () =>
+      subscribeAllEvents((e) => {
+        setEvents(e);
+        setLoaded(true);
+      }),
+    [],
+  );
 
   const { poids, taille, pc, pump, last, first } = useMemo(() => {
     const growth = events
@@ -274,6 +283,8 @@ export function Growth() {
       first: growth[0]?.data as GrowthData | undefined,
     };
   }, [events, range]);
+
+  if (!loaded) return <ScreenLoader label="Chargement…" />;
 
   return (
     <div

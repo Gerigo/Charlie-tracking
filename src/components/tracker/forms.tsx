@@ -12,6 +12,7 @@ import {
 import { IconCaca, IconPipi } from "@/components/ui/icons";
 import { TONES } from "@/lib/theme";
 import { pad2 } from "@/lib/dates";
+import { withToast } from "@/lib/toast";
 import {
   addInstantEvent,
   CARE_OPTIONS,
@@ -184,15 +185,18 @@ function FeedForm({
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
+        onClick={() => {
           const data: FeedData = {
             kind,
             breast: kind === "sein" ? breast : null,
             ml: kind === "biberon" ? ml : null,
             note,
           };
-          await addInstantEvent("feed", parseHM(time), data, note);
-          onDone();
+          void withToast(
+            () => addInstantEvent("feed", parseHM(time), data, note),
+            "Tétée enregistrée",
+            onDone,
+          );
         }}
       />
     </div>
@@ -252,10 +256,13 @@ function PumpForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
+        onClick={() => {
           const data: PumpData = { breast, ml, note };
-          await addInstantEvent("pump", parseHM(time), data, note);
-          onDone();
+          void withToast(
+            () => addInstantEvent("pump", parseHM(time), data, note),
+            "Tirage enregistré",
+            onDone,
+          );
         }}
       />
     </div>
@@ -365,15 +372,18 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
+        onClick={() => {
           const data: DiaperData = {
             pipi,
             caca,
             color: caca ? color : null,
             note,
           };
-          await addInstantEvent("diaper", parseHM(time), data, note);
-          onDone();
+          void withToast(
+            () => addInstantEvent("diaper", parseHM(time), data, note),
+            "Couche enregistrée",
+            onDone,
+          );
         }}
       />
     </div>
@@ -499,20 +509,28 @@ function CareForm({ onDone }: { onDone: () => void }) {
             ? `Enregistrer (${selected.length})`
             : "Enregistrer"
         }
-        onClick={async () => {
+        onClick={() => {
           if (!canSave) return;
           const t = parseHM(time);
-          // One event per selected care item (keeps the model simple
-          // and the daily count meaningful).
-          for (const kind of selected) {
-            const data: CareData = {
-              kind,
-              custom: kind === "custom" ? custom.trim() : null,
-              note,
-            };
-            await addInstantEvent("care", t, data, note);
-          }
-          onDone();
+          const items = [...selected];
+          void withToast(
+            async () => {
+              // One event per selected care item (keeps the model
+              // simple and the daily count meaningful).
+              for (const kind of items) {
+                const data: CareData = {
+                  kind,
+                  custom: kind === "custom" ? custom.trim() : null,
+                  note,
+                };
+                await addInstantEvent("care", t, data, note);
+              }
+            },
+            items.length > 1
+              ? `${items.length} soins enregistrés`
+              : "Soin enregistré",
+            onDone,
+          );
         }}
       />
     </div>
@@ -615,10 +633,13 @@ function TempForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
+        onClick={() => {
           const data: TempData = { value, slot, note };
-          await addInstantEvent("temp", parseHM(time), data, note);
-          onDone();
+          void withToast(
+            () => addInstantEvent("temp", parseHM(time), data, note),
+            "Température enregistrée",
+            onDone,
+          );
         }}
       />
     </div>
@@ -682,17 +703,24 @@ function EditForm({
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
-          await editEvent(event.id, {
-            start: parseHM(time),
-            end: hasEnd && endTime ? parseHM(endTime) : undefined,
-            note,
-          });
-          onDone();
+        onClick={() => {
+          void withToast(
+            () =>
+              editEvent(event.id, {
+                start: parseHM(time),
+                end: hasEnd && endTime ? parseHM(endTime) : undefined,
+                note,
+              }),
+            "Événement modifié",
+            onDone,
+          );
         }}
-        onDelete={async () => {
-          await deleteEvent(event.id);
-          onDone();
+        onDelete={() => {
+          void withToast(
+            () => deleteEvent(event.id),
+            "Événement supprimé",
+            onDone,
+          );
         }}
       />
     </div>
@@ -819,15 +847,18 @@ function GrowthForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <SubmitBar
-        onClick={async () => {
+        onClick={() => {
           const data: GrowthData = {
             weight,
             height,
             head,
             note,
           };
-          await addInstantEvent("growth", parseHM(time), data, note);
-          onDone();
+          void withToast(
+            () => addInstantEvent("growth", parseHM(time), data, note),
+            "Mesure enregistrée",
+            onDone,
+          );
         }}
       />
     </div>
