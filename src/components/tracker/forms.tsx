@@ -17,11 +17,12 @@ import {
   addInstantEvent,
   CARE_OPTIONS,
   deleteEvent,
-  editEvent,
+  updateEvent,
   STOOL_COLORS,
   type AppEvent,
   type CareData,
   type DiaperData,
+  type EventData,
   type FeedData,
   type GrowthData,
   type PumpData,
@@ -34,10 +35,6 @@ export type SheetState =
   | { type: "edit"; event: AppEvent }
   | null;
 
-function parseHM(s: string): TimeOfDay {
-  const [h, m] = s.split(":").map(Number);
-  return { h, m };
-}
 /** Current time as {h,m} — events are timestamped to "now" by default. */
 function nowTOD(): TimeOfDay {
   const d = new Date();
@@ -661,6 +658,16 @@ function TempForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+const EDIT_LABELS: Record<AppEvent["type"], string> = {
+  sleep: "Sommeil",
+  feed: "Tétée",
+  pump: "Tirage",
+  diaper: "Couche",
+  care: "Soins",
+  temp: "Température",
+  growth: "Mesure",
+};
+
 function EditForm({
   event,
   onDone,
@@ -668,28 +675,98 @@ function EditForm({
   event: AppEvent;
   onDone: () => void;
 }) {
-  const [time, setTime] = useState(
-    `${pad2(event.start.getHours())}:${pad2(event.start.getMinutes())}`,
-  );
-  const hasEnd = event.end != null && event.durMin > 0;
+  const t = event.type;
+  const fd = event.data as unknown as Record<string, unknown>;
+  const str = (k: string) =>
+    typeof fd[k] === "string" ? (fd[k] as string) : undefined;
+  const num = (k: string, d: number) =>
+    typeof fd[k] === "number" ? (fd[k] as number) : d;
+  const hm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+  const [time, setTime] = useState(hm(event.start));
   const [endTime, setEndTime] = useState(
-    event.end
-      ? `${pad2(event.end.getHours())}:${pad2(event.end.getMinutes())}`
-      : "",
+    event.end ? hm(event.end) : hm(event.start),
   );
   const [note, setNote] = useState(event.data.note ?? "");
-  const labels: Record<AppEvent["type"], string> = {
-    sleep: "Sommeil",
-    feed: "Tétée",
-    pump: "Tirage",
-    diaper: "Couche",
-    care: "Soins",
-    temp: "Température",
-    growth: "Mesure",
+  // feed
+  const [fKind, setFKind] = useState<"sein" | "biberon">(
+    str("kind") === "biberon" ? "biberon" : "sein",
+  );
+  const [fBreast, setFBreast] = useState<"G" | "D">(
+    str("breast") === "D" ? "D" : "G",
+  );
+  const [fMl, setFMl] = useState(num("ml", 120));
+  // pump
+  const [pSide, setPSide] = useState<"G" | "D" | "GD">(
+    str("breast") === "GD" ? "GD" : str("breast") === "D" ? "D" : "G",
+  );
+  const [pMl, setPMl] = useState(num("ml", 110));
+  // diaper
+  const [pipi, setPipi] = useState(fd.pipi === true);
+  const [caca, setCaca] = useState(fd.caca === true);
+  const [color, setColor] = useState<string>(str("color") ?? "jaune_or");
+  // care
+  const [selected, setSelected] = useState<string[]>(
+    Array.isArray(fd.kinds) ? (fd.kinds as string[]) : [],
+  );
+  const [custom, setCustom] = useState(str("custom") ?? "");
+  // temp
+  const [tVal, setTVal] = useState(num("value", 36.8));
+  const [tSlot, setTSlot] = useState<"matin" | "soir">(
+    str("slot") === "soir" ? "soir" : "matin",
+  );
+  // growth
+  const [gW, setGW] = useState(num("weight", 4.5));
+  const [gH, setGH] = useState(num("height", 56));
+  const [gHead, setGHead] = useState(num("head", 38));
+
+  const toggle = (v: string) =>
+    setSelected((s) =>
+      s.includes(v) ? s.filter((x) => x !== v) : [...s, v],
+    );
+
+  const buildData = (): EventData => {
+    switch (t) {
+      case "feed":
+        return {
+          kind: fKind,
+          breast: fKind === "sein" ? fBreast : null,
+          ml: fKind === "biberon" ? fMl : null,
+          note,
+        };
+      case "pump":
+        return { breast: pSide, ml: pMl, note };
+      case "diaper":
+        return { pipi, caca, color: caca ? color : null, note };
+      case "care":
+        return {
+          kinds: selected.length ? selected : ["custom"],
+          custom: selected.includes("custom") ? custom.trim() : null,
+          note,
+        };
+      case "temp":
+        return { value: tVal, slot: tSlot, note };
+      case "growth":
+        return { weight: gW, height: gH, head: gHead, note };
+      default:
+        return { note };
+    }
   };
+
+  const optBtn = (active: boolean, tone = TONES.sky) => ({
+    padding: "12px 14px",
+    borderRadius: 14,
+    textAlign: "left" as const,
+    background: active ? tone.bg : "#fff",
+    border: `1px solid ${active ? tone.ink + "55" : "rgba(0,0,0,0.08)"}`,
+    color: active ? tone.ink : "#2A2620",
+    fontWeight: 600,
+    fontSize: 14,
+  });
+
   return (
     <div>
-      <FormHeader title={`Modifier · ${labels[event.type]}`} />
+      <FormHeader title={`Modifier · ${EDIT_LABELS[t]}`} />
       <div
         style={{
           padding: "0 24px",
@@ -698,32 +775,401 @@ function EditForm({
           gap: 20,
         }}
       >
-        <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        {hasEnd && (
+        {t !== "growth" && (
+          <div>
+            <FieldLabel>{t === "sleep" ? "Début" : "Heure"}</FieldLabel>
+            <TimeField value={time} onChange={setTime} />
+          </div>
+        )}
+        {t === "sleep" && (
           <div>
             <FieldLabel>Fin</FieldLabel>
             <TimeField value={endTime} onChange={setEndTime} />
           </div>
         )}
+
+        {t === "feed" && (
+          <>
+            <div>
+              <FieldLabel>Type</FieldLabel>
+              <Segmented
+                value={fKind}
+                onChange={setFKind}
+                options={[
+                  { value: "sein", label: "Sein" },
+                  { value: "biberon", label: "Biberon" },
+                ]}
+              />
+            </div>
+            {fKind === "sein" ? (
+              <div>
+                <FieldLabel>Sein</FieldLabel>
+                <Segmented
+                  value={fBreast}
+                  onChange={setFBreast}
+                  options={[
+                    { value: "G", label: "Gauche" },
+                    { value: "D", label: "Droit" },
+                  ]}
+                />
+              </div>
+            ) : (
+              <div>
+                <FieldLabel>Quantité</FieldLabel>
+                <Stepper
+                  value={fMl}
+                  onChange={setFMl}
+                  min={10}
+                  max={300}
+                  step={10}
+                  unit=" ml"
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {t === "pump" && (
+          <>
+            <div>
+              <FieldLabel>Sein</FieldLabel>
+              <Segmented
+                value={pSide}
+                onChange={setPSide}
+                options={[
+                  { value: "G", label: "Gauche" },
+                  { value: "D", label: "Droit" },
+                  { value: "GD", label: "Les deux" },
+                ]}
+              />
+            </div>
+            <div>
+              <FieldLabel>Quantité tirée</FieldLabel>
+              <Stepper
+                value={pMl}
+                onChange={setPMl}
+                min={5}
+                max={400}
+                step={5}
+                unit=" ml"
+              />
+            </div>
+          </>
+        )}
+
+        {t === "diaper" && (
+          <>
+            <div>
+              <FieldLabel>Contenu</FieldLabel>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setPipi(!pipi)}
+                  style={{
+                    flex: 1,
+                    padding: "16px 12px",
+                    borderRadius: 14,
+                    background: pipi ? TONES.olive.bg : "#fff",
+                    border: `1px solid ${
+                      pipi ? TONES.olive.ink + "55" : "rgba(0,0,0,0.08)"
+                    }`,
+                    color: pipi ? TONES.olive.ink : "#2A2620",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    justifyContent: "center",
+                  }}
+                >
+                  <IconPipi size={18} /> Pipi
+                </button>
+                <button
+                  onClick={() => setCaca(!caca)}
+                  style={{
+                    flex: 1,
+                    padding: "16px 12px",
+                    borderRadius: 14,
+                    background: caca ? TONES.olive.bg : "#fff",
+                    border: `1px solid ${
+                      caca ? TONES.olive.ink + "55" : "rgba(0,0,0,0.08)"
+                    }`,
+                    color: caca ? TONES.olive.ink : "#2A2620",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    justifyContent: "center",
+                  }}
+                >
+                  <IconCaca size={18} /> Caca
+                </button>
+              </div>
+            </div>
+            {caca && (
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 14 }}
+              >
+                {(
+                  [
+                    { label: "À surveiller", items: STOOL_COLORS.surveiller },
+                    {
+                      label: "Selles habituelles",
+                      items: STOOL_COLORS.habituelles,
+                    },
+                  ] as const
+                ).map((g) => (
+                  <div key={g.label}>
+                    <FieldLabel>{g.label}</FieldLabel>
+                    <div
+                      style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                    >
+                      {g.items.map((c) => {
+                        const on = color === c.v;
+                        return (
+                          <button
+                            key={c.v}
+                            onClick={() => setColor(c.v)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "9px 13px",
+                              borderRadius: 999,
+                              background: on ? "#2A2620" : "#fff",
+                              color: on ? "#FAF9F5" : "#2A2620",
+                              border: on
+                                ? "1px solid #2A2620"
+                                : "1px solid rgba(0,0,0,0.08)",
+                              fontSize: 13,
+                              fontWeight: 600,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 15,
+                                height: 15,
+                                borderRadius: "50%",
+                                background: c.sw,
+                                border: "1px solid rgba(0,0,0,0.15)",
+                              }}
+                            />
+                            {c.l}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {t === "care" && (
+          <>
+            <div>
+              <FieldLabel>Type · plusieurs possibles</FieldLabel>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 8,
+                }}
+              >
+                {CARE_OPTIONS.map((o) => (
+                  <button
+                    key={o.v}
+                    onClick={() => toggle(o.v)}
+                    style={optBtn(selected.includes(o.v))}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {selected.includes("custom") && (
+              <div>
+                <FieldLabel>Détail (autre)</FieldLabel>
+                <input
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  placeholder="ex: tire-lait, peau à peau…"
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    background: "#fff",
+                    fontFamily: "inherit",
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {t === "temp" && (
+          <>
+            <div>
+              <FieldLabel>Moment</FieldLabel>
+              <Segmented
+                value={tSlot}
+                onChange={setTSlot}
+                options={[
+                  { value: "matin", label: "Matin" },
+                  { value: "soir", label: "Soir" },
+                ]}
+              />
+            </div>
+            <div>
+              <FieldLabel>Mesure</FieldLabel>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 14 }}
+              >
+                <button
+                  onClick={() => setTVal(+(tVal - 0.1).toFixed(1))}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    background: "#fff",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                    fontSize: 22,
+                  }}
+                >
+                  −
+                </button>
+                <div
+                  className="serif num"
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: 52,
+                    color: tVal > 38 ? "#9A4F3F" : "#2A2620",
+                  }}
+                >
+                  {tVal.toFixed(1)}°
+                </div>
+                <button
+                  onClick={() => setTVal(+(tVal + 0.1).toFixed(1))}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    background: "#fff",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                    fontSize: 22,
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {t === "growth" && (
+          <>
+            {(
+              [
+                { l: "Poids", v: gW, set: setGW, st: 0.05, mn: 1, mx: 20, u: "kg", d: 2 },
+                { l: "Taille", v: gH, set: setGH, st: 0.5, mn: 30, mx: 120, u: "cm", d: 1 },
+                { l: "Périmètre crânien", v: gHead, set: setGHead, st: 0.1, mn: 25, mx: 60, u: "cm", d: 1 },
+              ] as const
+            ).map((f) => (
+              <div
+                key={f.l}
+                style={{
+                  padding: 14,
+                  background: "#fff",
+                  borderRadius: 14,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                <FieldLabel>{f.l}</FieldLabel>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 12 }}
+                >
+                  <button
+                    onClick={() =>
+                      f.set(Math.max(f.mn, +(f.v - f.st).toFixed(2)))
+                    }
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.05)",
+                      fontSize: 20,
+                    }}
+                  >
+                    −
+                  </button>
+                  <div
+                    className="num serif"
+                    style={{ flex: 1, textAlign: "center", fontSize: 34 }}
+                  >
+                    {f.v.toFixed(f.d)}
+                    <span
+                      style={{ fontSize: 15, opacity: 0.5, marginLeft: 4 }}
+                    >
+                      {f.u}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      f.set(Math.min(f.mx, +(f.v + f.st).toFixed(2)))
+                    }
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.05)",
+                      fontSize: 20,
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
         <div>
           <FieldLabel>Note</FieldLabel>
-          <NoteField
-            value={note}
-            onChange={setNote}
-            placeholder="Optionnel…"
-          />
+          <NoteField value={note} onChange={setNote} placeholder="Optionnel…" />
         </div>
       </div>
       <SubmitBar
         onClick={() => {
+          const base = event.start;
+          const mk = (s: string) => {
+            const [h, m] = s.split(":").map(Number);
+            return new Date(
+              base.getFullYear(),
+              base.getMonth(),
+              base.getDate(),
+              h,
+              m,
+              0,
+              0,
+            ).getTime();
+          };
+          const startMs = t === "growth" ? event.start.getTime() : mk(time);
+          let endMs: number | null;
+          if (t === "sleep") {
+            endMs = mk(endTime);
+            if (endMs <= startMs) endMs += 86400000; // overnight
+          } else {
+            endMs = startMs;
+          }
           void withToast(
             () =>
-              editEvent(event.id, {
-                start: parseHM(time),
-                end: hasEnd && endTime ? parseHM(endTime) : undefined,
+              updateEvent(event.id, {
+                startMs,
+                endMs,
+                type: t,
+                data: buildData() as never,
                 note,
               }),
             "Événement modifié",

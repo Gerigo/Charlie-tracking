@@ -436,6 +436,30 @@ export async function editEvent(
   await setDoc(doc(db, "events", id), out, { merge: true });
 }
 
+/** Full update of an existing event (times + details + note). */
+export async function updateEvent(
+  id: string,
+  patch: {
+    startMs: number;
+    endMs: number | null;
+    type: EventType;
+    data: EventData;
+    note: string;
+  },
+): Promise<void> {
+  await setDoc(
+    doc(db, "events", id),
+    {
+      startTime: patch.startMs,
+      endTime: patch.endMs,
+      details: toDetails(patch.type, patch.data),
+      notes: patch.note.trim() || null,
+      updatedAt: Date.now(),
+    },
+    { merge: true },
+  );
+}
+
 export async function deleteEvent(id: string): Promise<void> {
   await deleteDoc(doc(db, "events", id));
 }

@@ -19,6 +19,7 @@ import {
 } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
+import { Sheet } from "@/components/ui/primitives";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
@@ -257,6 +258,7 @@ export function Today() {
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(10);
   const [sheet, setSheet] = useState<SheetState>(null);
+  const [add, setAdd] = useState(false);
 
   const M = useMemo(() => {
     const latest = events.length
@@ -379,11 +381,27 @@ export function Today() {
           >
             Aujourd'hui
           </div>
-          {!M.isLatest && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {!M.isLatest && (
+              <button
+                onClick={() => setOffset(0)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 999,
+                  background: P.surface,
+                  border: `1px solid ${P.line}`,
+                  color: P.inkSoft,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                }}
+              >
+                Aujourd'hui
+              </button>
+            )}
             <button
-              onClick={() => setOffset(0)}
+              onClick={() => setAdd(true)}
               style={{
-                padding: "6px 12px",
+                padding: "6px 14px",
                 borderRadius: 999,
                 background: P.ink,
                 color: "#FAF9F5",
@@ -391,9 +409,9 @@ export function Today() {
                 fontWeight: 700,
               }}
             >
-              Revenir à aujourd'hui
+              + Ajouter
             </button>
-          )}
+          </div>
         </div>
         <div
           style={{
@@ -741,6 +759,57 @@ export function Today() {
           })()
         )}
       </div>
+
+      <Sheet open={add} onClose={() => setAdd(false)}>
+        <div style={{ padding: "6px 24px 28px" }}>
+          <div
+            className="serif"
+            style={{ fontSize: 27, lineHeight: 1.1, marginBottom: 16 }}
+          >
+            Ajouter un événement
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 10,
+            }}
+          >
+            {(
+              [
+                ["feed", "Tétée", EVENT_EMOJI.feed],
+                ["pump", "Tirage", EVENT_EMOJI.pump],
+                ["diaper", "Couche", EVENT_EMOJI.diaper],
+                ["care", "Soins", EVENT_EMOJI.care],
+                ["temp", "Température", EVENT_EMOJI.temp],
+                ["growth", "Mesure", "📏"],
+              ] as const
+            ).map(([typ, lbl, emo]) => (
+              <button
+                key={typ}
+                onClick={() => {
+                  setAdd(false);
+                  setSheet({ type: typ });
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "16px 14px",
+                  borderRadius: 16,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ fontSize: 22 }}>{emo}</span> {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Sheet>
 
       <EncodeSheet
         sheet={sheet}
