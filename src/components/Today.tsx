@@ -62,12 +62,18 @@ function emojiFor(e: AppEvent): string {
   return EVENT_EMOJI[e.type as keyof typeof EVENT_EMOJI] ?? "•";
 }
 
+/** Italic, non-bold trailing part (duration / state). */
+function rowDur(e: AppEvent): string {
+  if (e.type === "sleep") return e.end ? fmtDur(e.durMin) : "en cours";
+  return "";
+}
+
 function rowText(e: AppEvent): string {
   switch (e.type) {
     case "sleep":
       return e.end
-        ? `Sommeil de ${hm(e.start)} à ${hm(e.end)} · ${fmtDur(e.durMin)}`
-        : `Sommeil depuis ${hm(e.start)} · en cours`;
+        ? `Sommeil de ${hm(e.start)} à ${hm(e.end)}`
+        : `Sommeil depuis ${hm(e.start)}`;
     case "feed": {
       const d = e.data as FeedData;
       return d.kind === "sein"
@@ -694,27 +700,37 @@ export function Today() {
                             style={{
                               display: "block",
                               fontSize: 13.5,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
+                              lineHeight: 1.3,
                             }}
                           >
-                            {rowText(e)}
+                            <span style={{ fontWeight: 700 }}>
+                              {rowText(e)}
+                            </span>
+                            {rowDur(e) && (
+                              <span
+                                style={{
+                                  fontStyle: "italic",
+                                  fontWeight: 400,
+                                  opacity: 0.7,
+                                }}
+                              >
+                                {" · "}
+                                {rowDur(e)}
+                              </span>
+                            )}
                           </span>
-                          {e.data.note ? (
+                          {e.data.note?.trim() ? (
                             <span
                               style={{
                                 display: "block",
-                                fontSize: 12,
-                                opacity: 0.6,
-                                marginTop: 1,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
+                                fontSize: 12.5,
+                                fontStyle: "italic",
+                                opacity: 0.75,
+                                marginTop: 3,
+                                lineHeight: 1.35,
                               }}
                             >
-                              {e.data.note}
+                              « {e.data.note.trim()} »
                             </span>
                           ) : null}
                         </span>
