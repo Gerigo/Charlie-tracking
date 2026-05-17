@@ -1,25 +1,86 @@
-import { Route, Routes } from "react-router-dom";
-import { Baby } from "lucide-react";
+import { PhoneFrame } from "@/components/PhoneFrame";
+import { useAuth, signOut } from "@/hooks/useAuth";
+import { PALETTES } from "@/lib/theme";
+import Login from "@/pages/Login";
 
-function Placeholder({ title }: { title: string }) {
+const P = PALETTES.sage;
+
+function Loader() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-      <Baby className="size-12 text-primary" />
-      <h1 className="text-2xl font-semibold">{title}</h1>
-      <p className="text-muted-foreground text-sm">
-        Phase 0 — scaffold OK. Le contenu arrive aux phases suivantes.
-      </p>
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: P.bg,
+        display: "grid",
+        placeItems: "center",
+      }}
+    >
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          border: `2px solid ${P.line}`,
+          borderTopColor: P.olive,
+          animation: "spin 700ms linear infinite",
+        }}
+      />
+    </div>
+  );
+}
+
+function Home() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: P.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        padding: 28,
+        textAlign: "center",
+      }}
+    >
+      <div
+        className="serif"
+        style={{ fontSize: 40, color: P.ink, fontWeight: 400 }}
+      >
+        Bonjour
+      </div>
+      <div style={{ fontSize: 14, color: P.inkSoft, fontWeight: 500 }}>
+        Connecté. Le Tracker arrive à la prochaine phase.
+      </div>
+      <button
+        onClick={() => void signOut()}
+        style={{
+          marginTop: 18,
+          padding: "10px 18px",
+          borderRadius: 999,
+          background: P.surface,
+          border: `1px solid ${P.line}`,
+          color: P.inkSoft,
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        Se déconnecter
+      </button>
     </div>
   );
 }
 
 export default function App() {
+  const { user, loading } = useAuth();
+
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <Routes>
-        <Route path="/" element={<Placeholder title="Charlie v2" />} />
-        <Route path="*" element={<Placeholder title="404" />} />
-      </Routes>
-    </div>
+    <PhoneFrame>
+      {loading ? <Loader /> : user ? <Home /> : <Login />}
+    </PhoneFrame>
   );
 }

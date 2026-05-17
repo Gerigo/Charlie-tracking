@@ -4,44 +4,36 @@
 
 @layer base {
   :root {
-    --background: 36 50% 95%;
-    --foreground: 20 14% 15%;
-    --card: 36 50% 98%;
-    --card-foreground: 20 14% 15%;
-    --primary: 12 39% 48%;
-    --primary-foreground: 36 50% 98%;
-    --secondary: 36 30% 90%;
-    --secondary-foreground: 20 14% 15%;
-    --muted: 36 30% 90%;
-    --muted-foreground: 20 10% 40%;
-    --accent: 36 40% 88%;
-    --accent-foreground: 20 14% 15%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 36 25% 85%;
-    --input: 36 25% 85%;
-    --ring: 12 39% 48%;
-    --radius: 0.75rem;
-  }
+    /* Charlie — palette "sage" (design system) */
+    --bg: 45 19% 92%;          /* #EFEDE8 */
+    --surface: 0 0% 100%;      /* #FFFFFF */
+    --soft: 45 30% 95%;        /* #F6F4EE */
+    --line: 39 25% 82%;        /* #DAD4C8 */
+    --mid: 42 21% 73%;         /* #C6BFAE */
+    --olive: 38 12% 51%;       /* #928774 */
+    --ink: 40 14% 14%;         /* #2A2620 */
+    --ink-soft: 35 10% 38%;    /* #6B6358 */
 
-  .dark {
-    --background: 20 14% 10%;
-    --foreground: 36 30% 92%;
-    --card: 20 14% 13%;
-    --card-foreground: 36 30% 92%;
-    --primary: 12 60% 60%;
-    --primary-foreground: 20 14% 10%;
-    --secondary: 20 10% 20%;
-    --secondary-foreground: 36 30% 92%;
-    --muted: 20 10% 18%;
-    --muted-foreground: 36 15% 65%;
-    --accent: 20 10% 22%;
-    --accent-foreground: 36 30% 92%;
-    --destructive: 0 60% 45%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 20 10% 22%;
-    --input: 20 10% 22%;
-    --ring: 12 60% 60%;
+    --radius: 1.125rem;
+
+    /* shadcn aliases mapped onto the Charlie palette */
+    --background: var(--bg);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --primary: var(--olive);
+    --primary-foreground: 45 30% 97%;
+    --secondary: 45 30% 95%;
+    --secondary-foreground: var(--ink);
+    --muted: 45 30% 95%;
+    --muted-foreground: var(--ink-soft);
+    --accent: 42 21% 73%;
+    --accent-foreground: var(--ink);
+    --destructive: 12 30% 48%;
+    --destructive-foreground: 45 30% 97%;
+    --border: 39 25% 82%;
+    --input: 39 25% 82%;
+    --ring: 38 12% 51%;
   }
 }
 
@@ -49,11 +41,52 @@
   * {
     @apply border-border;
   }
-  html, body, #root {
+  html,
+  body,
+  #root {
     @apply h-full;
+    margin: 0;
+    padding: 0;
   }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    @apply text-foreground antialiased;
+    background: #1f1d1a;
+    font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.005em;
+    overflow: hidden;
+  }
+}
+
+@layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  .serif {
+    font-family: "Instrument Serif", "Times New Roman", serif;
+    letter-spacing: 0;
+  }
+  .scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+  .scroll {
+    scrollbar-width: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
