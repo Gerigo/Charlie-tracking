@@ -403,7 +403,11 @@ export function Evolution() {
     };
     if (!events.length) return empty;
 
-    const firstDay = startOfDay(events[0].start);
+    // main exclut growth & temperature pour borner la période ("trackerEvents").
+    const tracker = events.filter(
+      (e) => e.type !== "growth" && e.type !== "temp",
+    );
+    const firstDay = startOfDay((tracker[0] ?? events[0]).start);
     const lastDay = startOfDay(events[events.length - 1].start);
     const spanDays =
       Math.round((lastDay.getTime() - firstDay.getTime()) / 86400000) + 1;

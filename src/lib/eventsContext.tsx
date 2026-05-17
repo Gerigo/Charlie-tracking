@@ -7,6 +7,7 @@ import {
 } from "react";
 import { auth } from "@/lib/firebase";
 import {
+  CHARLIE_SCOPE,
   setScope,
   subscribeActiveSession,
   subscribeBabies,
@@ -20,23 +21,19 @@ interface EventsCtx {
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
   loaded: boolean;
-  /** Set when the profile has no linked baby (wrong account, etc.). */
-  noScope: boolean;
 }
 
 const Ctx = createContext<EventsCtx>({
   events: [],
   activeSleep: null,
   loaded: false,
-  noScope: false,
 });
 
 /**
- * Resolves the same scope as main (userProfiles → familyId →
- * babies → baby), then keeps ONE live listener on that baby's events
- * (+ active sleep session). `loaded` only turns true once the scope is
- * resolved AND the first events snapshot arrived, so the UI never lets
- * you encode before writes can be scoped.
+ * Charlie's data lives at a fixed (familyId, babyId) address — the same
+ * one main reads/writes. We open it immediately (no profile wait, no
+ * "baby not linked"), and still listen to the profile as a safety net
+ * in case a different baby is ever resolved.
  */
 export function EventsProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<AppEvent[]>([]);
@@ -44,37 +41,24 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [loaded, setLoaded] = useState(false);
-  const [noScope, setNoScope] = useState(false);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    const uid = auth.currentUser?.uid ?? "unknown";
 
-    let unsubBabies: (() => void) | null = null;
     let unsubEvents: (() => void) | null = null;
     let unsubActive: (() => void) | null = null;
-    let familyId: string | null = null;
-    let defaultBabyId: string | null = null;
-    let scopeOpened = false;
+    let curBaby = "";
     let first = true;
 
-    // If nothing resolved after a while, surface a clear message
-    // instead of a broken-but-usable screen.
-    const noScopeTimer = setTimeout(() => {
-      if (!scopeOpened) setNoScope(true);
-    }, 9000);
-
-    const openForBaby = (babyId: string, fam: string) => {
-      scopeOpened = true;
-      setNoScope(false);
-      setScope({ familyId: fam, babyId, userId: uid, role: "manager" });
-      console.info(
-        `[scope] famille=${fam} bébé=${babyId} (uid=${uid})`,
-      );
+    const openForBaby = (babyId: string, familyId: string) => {
+      if (babyId === curBaby) return;
+      curBaby = babyId;
+      setScope({ familyId, babyId, userId: uid, role: "manager" });
+      console.info(`[scope] famille=${familyId} bébé=${babyId} (uid=${uid})`);
       unsubEvents?.();
       unsubActive?.();
       unsubEvents = subscribeScopedEvents(
-        fam,
+        familyId,
         babyId,
         (e) => {
           setEvents(e);
@@ -89,6 +73,13 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       unsubActive = subscribeActiveSession(babyId, setActiveSleep);
     };
 
+    // 1. Open Charlie's fixed address right away.
+    openForBaby(CHARLIE_SCOPE.babyId, CHARLIE_SCOPE.familyId);
+
+    // 2. Safety net: if the profile points to another baby, switch.
+    let familyId: string | null = CHARLIE_SCOPE.familyId;
+    let defaultBabyId: string | null = null;
+    let unsubBabies: (() => void) | null = null;
     const resolveBaby = () => {
       if (!familyId) return;
       unsubBabies?.();
@@ -97,30 +88,18 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         const baby =
           (defaultBabyId && babies.find((b) => b.id === defaultBabyId)) ||
           babies[0];
-        console.info(
-          `[scope] babies=${babies.length} defaultBabyId=${defaultBabyId ?? "—"}`,
-        );
         if (baby) openForBaby(baby.id, familyId);
       });
     };
-
     const unsubProfile = subscribeProfile(uid, (p) => {
-      console.info(
-        `[scope] profil familyId=${p.familyId ?? "—"} defaultBabyId=${p.defaultBabyId ?? "—"}`,
-      );
       defaultBabyId = p.defaultBabyId;
-      if (p.familyId && p.familyId !== familyId) {
+      if (p.familyId) {
         familyId = p.familyId;
         resolveBaby();
-      } else if (p.familyId) {
-        resolveBaby();
       }
-      // No familyId yet → keep waiting (could be the first cache
-      // snapshot); the timeout handles the truly-unlinked case.
     });
 
     return () => {
-      clearTimeout(noScopeTimer);
       unsubProfile();
       unsubBabies?.();
       unsubEvents?.();
@@ -130,7 +109,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ events, activeSleep, loaded, noScope }}>
+    <Ctx.Provider value={{ events, activeSleep, loaded }}>
       {children}
     </Ctx.Provider>
   );

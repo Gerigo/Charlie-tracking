@@ -40,41 +40,8 @@ function Loader() {
 }
 
 function Tabs() {
-  const { loaded, noScope } = useEvents();
+  const { loaded } = useEvents();
   const [tab, setTab] = useState<Tab>("tracker");
-  if (noScope && !loaded) {
-    return (
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: P.bg,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 10,
-          padding: 32,
-          textAlign: "center",
-        }}
-      >
-        <div className="serif" style={{ fontSize: 30, color: P.ink }}>
-          Profil non lié
-        </div>
-        <div
-          style={{
-            fontSize: 13.5,
-            color: P.inkSoft,
-            fontWeight: 500,
-            lineHeight: 1.5,
-          }}
-        >
-          Ce compte n'est rattaché à aucun bébé. Connecte-toi avec le
-          compte utilisé sur l'app principale (Charlie).
-        </div>
-      </div>
-    );
-  }
   if (!loaded) return <ScreenLoader label="Chargement de Charlie…" />;
   return (
     <>

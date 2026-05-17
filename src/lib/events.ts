@@ -396,6 +396,16 @@ function scope(): Scope {
   return _scope;
 }
 
+/**
+ * Adresse de Charlie figée (DB privée, un seul bébé). Utilisée tout de
+ * suite au démarrage pour que ça marche sans dépendre du profil ; la
+ * résolution profil reste un filet de sécurité si un jour ça change.
+ */
+export const CHARLIE_SCOPE = {
+  familyId: "osWgSUAkUsuNv4SNrQzI",
+  babyId: "yZBl10Ybdph9ooGbguoe",
+} as const;
+
 /** Resolve userProfiles/{uid} → familyId + defaultBabyId (like main). */
 export function subscribeProfile(
   uid: string,
