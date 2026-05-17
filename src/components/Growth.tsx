@@ -107,14 +107,15 @@ function GrowthChart({
       </div>
     );
   }
+  const fmtShort = (dt: Date) => `${dt.getDate()}/${dt.getMonth() + 1}`;
   const points: Point[] = data.map((d, i) => ({
     y: d.y,
     label:
       i === 0 || i === data.length - 1
-        ? `J${d.day}`
+        ? fmtShort(d.date)
         : data.length > 5 && i % 2 !== 0
           ? undefined
-          : `J${d.day}`,
+          : fmtShort(d.date),
   }));
   const s = sel != null ? data[sel] : null;
   return (

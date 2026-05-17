@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { dayKey, fmtDur, startOfDay } from "@/lib/dates";
-import { statsFor, subscribeAllEvents, type AppEvent } from "@/lib/events";
+import { subscribeAllEvents, type AppEvent } from "@/lib/events";
 import { Segmented } from "@/components/ui/primitives";
 import { ScreenLoader } from "@/components/ui/Loader";
 import { LineChart, type Point } from "@/components/ui/Chart";
@@ -130,78 +130,119 @@ export function Evolution() {
     [],
   );
 
-  const { avg, daysCount, sleepS, feedS, pumpS, tempS } = useMemo(() => {
-    const ref = events.length
-      ? startOfDay(events[events.length - 1].start)
-      : startOfDay(new Date());
-    const count = range === "7j" ? 7 : range === "14j" ? 14 : 45;
+  const { avg, usageDays, sleepS, feedS, pumpS, tempS } = useMemo(() => {
+    const empty = {
+      avg: { sleepMin: 0, feeds: 0, pumpMl: 0, diaper: 0 },
+      usageDays: 0,
+      sleepS: [] as Point[],
+      feedS: [] as Point[],
+      pumpS: [] as Point[],
+      tempS: [] as Point[],
+    };
+    if (!events.length) return empty;
 
-    const byDay = new Map<string, AppEvent[]>();
-    events.forEach((e) => {
-      const k = dayKey(e.start);
-      const arr = byDay.get(k) ?? [];
-      arr.push(e);
-      byDay.set(k, arr);
-    });
+    const firstDay = startOfDay(events[0].start);
+    const lastDay = startOfDay(events[events.length - 1].start);
+    const spanDays =
+      Math.round((lastDay.getTime() - firstDay.getTime()) / 86400000) + 1;
 
-    const days = [];
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(
-        ref.getFullYear(),
-        ref.getMonth(),
-        ref.getDate() - i,
-      );
-      const evs = byDay.get(dayKey(d)) ?? [];
-      days.push({ date: d, stats: statsFor(evs), has: evs.length > 0 });
+    // Per-calendar-day accumulators (sleep split across midnight, like main).
+    const sleepMin = new Map<string, number>();
+    const feedCount = new Map<string, number>();
+    const pumpMl = new Map<string, number>();
+    const tempLast = new Map<string, { v: number; ts: number }>();
+
+    let totalSleepMin = 0;
+    let totalFeed = 0;
+    let totalPump = 0;
+    let totalDiaper = 0;
+
+    const addSleep = (start: Date, end: Date) => {
+      let cur = start.getTime();
+      const e = end.getTime();
+      totalSleepMin += Math.max(0, (e - cur) / 60000);
+      while (cur < e) {
+        const dayEnd = startOfDay(new Date(cur)).getTime() + 86400000;
+        const segEnd = Math.min(dayEnd, e);
+        const k = dayKey(new Date(cur));
+        sleepMin.set(k, (sleepMin.get(k) ?? 0) + (segEnd - cur) / 60000);
+        cur = segEnd;
+      }
+    };
+
+    for (const ev of events) {
+      const k = dayKey(ev.start);
+      if (ev.type === "sleep") {
+        addSleep(ev.start, ev.end ?? new Date());
+      } else if (ev.type === "feed") {
+        totalFeed += 1;
+        feedCount.set(k, (feedCount.get(k) ?? 0) + 1);
+      } else if (ev.type === "pump") {
+        const ml = (ev.data as { ml?: number }).ml ?? 0;
+        totalPump += ml;
+        pumpMl.set(k, (pumpMl.get(k) ?? 0) + ml);
+      } else if (ev.type === "diaper") {
+        totalDiaper += 1;
+      } else if (ev.type === "temp") {
+        const v = (ev.data as { value?: number }).value;
+        if (typeof v === "number") {
+          const prev = tempLast.get(k);
+          if (!prev || ev.start.getTime() >= prev.ts) {
+            tempLast.set(k, { v, ts: ev.start.getTime() });
+          }
+        }
+      }
     }
 
-    const valid = days.filter((d) => d.has);
-    const n = valid.length || 1;
+    const days = Math.max(1, spanDays);
     const avgComputed = {
-      sleepMin: Math.round(
-        valid.reduce((s, d) => s + d.stats.sleepMin, 0) / n,
-      ),
-      feeds: +(
-        valid.reduce((s, d) => s + d.stats.feedCount, 0) / n
-      ).toFixed(1),
-      pumpMl: Math.round(
-        valid.reduce((s, d) => s + d.stats.pumpMl, 0) / n,
-      ),
-      diaper: +(
-        valid.reduce((s, d) => s + d.stats.diaperCount, 0) / n
-      ).toFixed(1),
+      sleepMin: Math.round(totalSleepMin / days),
+      feeds: +(totalFeed / days).toFixed(1),
+      pumpMl: Math.round(totalPump / days),
+      diaper: +(totalDiaper / days).toFixed(1),
     };
 
+    // Buckets across the whole span; the range only limits visibility.
+    const buckets: Date[] = [];
+    for (let i = 0; i < spanDays; i++) {
+      buckets.push(new Date(firstDay.getTime() + i * 86400000));
+    }
+    const visibleCount =
+      range === "7j" ? 7 : range === "14j" ? 14 : buckets.length;
+    const visible = buckets.slice(-visibleCount);
+
     const lbl = (d: Date, i: number): string | undefined => {
-      if (i === 0 || i === days.length - 1)
-        return `${d.getDate()}/${d.getMonth() + 1}`;
-      if (days.length > 14 && i % 5 !== 0) return undefined;
-      if (days.length > 7 && i % 2 !== 0) return undefined;
-      return `${d.getDate()}/${d.getMonth() + 1}`;
+      const txt = `${d.getDate()}/${d.getMonth() + 1}`;
+      if (i === 0 || i === visible.length - 1) return txt;
+      if (visible.length > 14 && i % 5 !== 0) return undefined;
+      if (visible.length > 7 && i % 2 !== 0) return undefined;
+      return txt;
     };
+
+    const sleepS: Point[] = visible.map((d, i) => ({
+      y: Math.round(((sleepMin.get(dayKey(d)) ?? 0) / 60) * 10) / 10,
+      label: lbl(d, i),
+    }));
+    const feedS: Point[] = visible.map((d, i) => ({
+      y: feedCount.get(dayKey(d)) ?? 0,
+      label: lbl(d, i),
+    }));
+    const pumpS: Point[] = visible.map((d, i) => ({
+      y: pumpMl.get(dayKey(d)) ?? 0,
+      label: lbl(d, i),
+    }));
+    const tempS: Point[] = visible
+      .map((d, i) => ({ v: tempLast.get(dayKey(d))?.v, label: lbl(d, i) }))
+      .filter((p) => p.v != null)
+      .map((p) => ({ y: p.v as number, label: p.label }));
 
     return {
       avg: avgComputed,
-      daysCount: count,
-      sleepS: days.map((d, i) => ({
-        y: Math.round((d.stats.sleepMin / 60) * 10) / 10,
-        label: lbl(d.date, i),
-      })) as Point[],
-      feedS: days.map((d, i) => ({
-        y: d.stats.feedCount,
-        label: lbl(d.date, i),
-      })) as Point[],
-      pumpS: days.map((d, i) => ({
-        y: d.stats.pumpMl,
-        label: lbl(d.date, i),
-      })) as Point[],
-      tempS: days
-        .map((d, i) => ({
-          y: d.stats.lastTemp,
-          label: lbl(d.date, i),
-        }))
-        .filter((p) => p.y != null)
-        .map((p) => ({ y: p.y as number, label: p.label })) as Point[],
+      usageDays: spanDays,
+      sleepS,
+      feedS,
+      pumpS,
+      tempS,
     };
   }, [events, range]);
 
@@ -269,25 +310,25 @@ export function Evolution() {
             tone={TONES.indigo}
             label="Sommeil / jour"
             value={fmtDur(avg.sleepMin)}
-            sub={`moyenne · ${daysCount} j`}
+            sub={`moyenne · ${usageDays} j`}
           />
           <AvgCard
             tone={TONES.sand}
             label="Tétées / jour"
             value={avg.feeds.toFixed(1)}
-            sub={`moyenne · ${daysCount} j`}
+            sub={`moyenne · ${usageDays} j`}
           />
           <AvgCard
             tone={TONES.rose}
             label="Lait tiré / jour"
             value={`${avg.pumpMl} ml`}
-            sub={`moyenne · ${daysCount} j`}
+            sub={`moyenne · ${usageDays} j`}
           />
           <AvgCard
             tone={TONES.olive}
             label="Couches / jour"
             value={avg.diaper.toFixed(1)}
-            sub={`moyenne · ${daysCount} j`}
+            sub={`moyenne · ${usageDays} j`}
           />
         </div>
 

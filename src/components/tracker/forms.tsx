@@ -731,7 +731,6 @@ function GrowthForm({ onDone }: { onDone: () => void }) {
   const [weight, setWeight] = useState(4.5);
   const [height, setHeight] = useState(56);
   const [head, setHead] = useState(38);
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
   const fields = [
     {
@@ -838,10 +837,6 @@ function GrowthForm({ onDone }: { onDone: () => void }) {
           </div>
         ))}
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
         </div>
@@ -854,8 +849,15 @@ function GrowthForm({ onDone }: { onDone: () => void }) {
             head,
             note,
           };
+          const now = new Date();
           void withToast(
-            () => addInstantEvent("growth", parseHM(time), data, note),
+            () =>
+              addInstantEvent(
+                "growth",
+                { h: now.getHours(), m: now.getMinutes() },
+                data,
+                note,
+              ),
             "Mesure enregistrée",
             onDone,
           );
