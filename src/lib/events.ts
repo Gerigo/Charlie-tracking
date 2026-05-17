@@ -275,20 +275,19 @@ function uid(): string {
   return u.uid;
 }
 
-// ─── Live subscription: a given day's events + active sleep ───
+// ─── Live subscription: latest day's events + active sleep ───
 export interface DaySnapshot {
+  /** Calendar day the Tracker is showing (today if it has events,
+   *  otherwise the day of the most recent event). */
+  day: Date;
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
 }
 
-export function subscribeDay(
-  day: Date,
+export function subscribeTracker(
   cb: (snap: DaySnapshot) => void,
   onError?: (e: Error) => void,
 ): Unsubscribe {
-  const from = startOfDay(day).getTime();
-  const to = from + 86400000;
-
   let activeSleep: DaySnapshot["activeSleep"] = null;
 
   // Mirror the legacy reader: events live under either trackerId ==
@@ -301,26 +300,37 @@ export function subscribeDay(
     const merged = new Map<string, Record<string, unknown>>();
     userDocs.forEach((v, k) => merged.set(k, v));
     sharedDocs.forEach((v, k) => merged.set(k, v)); // shared wins
-    const all = [...merged.entries()].map(([id, raw]) => fromDoc(id, raw));
-    const events = all
-      .filter((e) => {
-        const t = e.start.getTime();
-        const endT = e.end ? e.end.getTime() : t;
-        return endT >= from && t < to;
-      })
+    const all = [...merged.entries()]
+      .map(([id, raw]) => fromDoc(id, raw))
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-    // Diagnostic — remove once data flow is confirmed.
+
+    // Anchor on today if it has events, else the most recent event's
+    // day — like the legacy app, which always shows the latest state
+    // rather than a strict calendar-today window.
+    const todayFrom = startOfDay(new Date()).getTime();
+    const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
+    const anchor =
+      hasToday || all.length === 0
+        ? new Date()
+        : all[all.length - 1].start;
+    const from = startOfDay(anchor).getTime();
+    const to = from + 86400000;
+
+    const events = all.filter((e) => {
+      const t = e.start.getTime();
+      const endT = e.end ? e.end.getTime() : t;
+      return endT >= from && t < to;
+    });
+
     if (all.length) {
-      const times = all.map((e) => e.start.getTime());
-      const min = new Date(Math.min(...times));
-      const max = new Date(Math.max(...times));
+      const max = new Date(all[all.length - 1].start);
       console.info(
-        `[events] ${all.length} docs · plage ${min.toLocaleString("fr")} → ${max.toLocaleString("fr")} · fenêtre jour ${new Date(from).toLocaleString("fr")}→${new Date(to).toLocaleString("fr")} · dans le jour=${events.length}`,
+        `[events] ${all.length} docs · dernier ${max.toLocaleString("fr")} · jour affiché ${new Date(from).toLocaleDateString("fr")} · dans le jour=${events.length}`,
       );
     } else {
       console.info("[events] 0 doc reçu");
     }
-    cb({ events, activeSleep });
+    cb({ day: new Date(from), events, activeSleep });
   };
 
   const handleErr = (label: string) => (err: unknown) => {

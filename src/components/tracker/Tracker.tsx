@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -18,7 +17,7 @@ import {
   startSleep,
   statsFor,
   stopSleep,
-  subscribeDay,
+  subscribeTracker,
   type AppEvent,
   type DaySnapshot,
   type FeedData,
@@ -239,8 +238,8 @@ function QuickStat({
 }
 
 export function Tracker() {
-  const today = useMemo(() => new Date(), []);
   const [snap, setSnap] = useState<DaySnapshot>({
+    day: new Date(),
     events: [],
     activeSleep: null,
   });
@@ -248,8 +247,10 @@ export function Tracker() {
   const [, forceTick] = useState(0);
 
   useEffect(() => {
-    return subscribeDay(today, setSnap);
-  }, [today]);
+    return subscribeTracker(setSnap);
+  }, []);
+
+  const today = snap.day;
 
   // live ticking for the in-progress sleep duration
   useEffect(() => {
