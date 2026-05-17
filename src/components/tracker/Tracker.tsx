@@ -147,6 +147,7 @@ function EventTile({
             display: "grid",
             placeItems: "center",
             color: ink,
+            flexShrink: 0,
             boxShadow: asleep ? "none" : "0 1px 2px var(--hairline)",
           }}
         >
@@ -164,7 +165,7 @@ function EventTile({
             <span
               className="num"
               style={{
-                fontSize: 11.5,
+                fontSize: 11,
                 fontWeight: 700,
                 opacity: asleep ? 0.6 : 0.5,
               }}
@@ -177,35 +178,36 @@ function EventTile({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 6,
-              height: 34,
-              padding: "0 6px 0 12px",
+              gap: 5,
+              height: 26,
+              padding: "0 4px 0 10px",
               borderRadius: 999,
               background: ink,
               color: tone.soft,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+              whiteSpace: "nowrap",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
             }}
           >
             <span
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.1em",
+                fontSize: 8.5,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                opacity: 0.7,
+                opacity: 0.65,
               }}
             >
               Dernier
             </span>
             <span
               style={{
-                minWidth: 22,
-                height: 22,
+                minWidth: 18,
+                height: 18,
                 borderRadius: 999,
                 background: tone.soft,
                 color: ink,
                 fontWeight: 800,
-                fontSize: 13,
+                fontSize: 11,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
