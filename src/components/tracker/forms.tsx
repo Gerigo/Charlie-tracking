@@ -60,7 +60,7 @@ function FeedForm({
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -177,7 +177,7 @@ function PumpForm({ onDone }: { onDone: () => void }) {
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -262,7 +262,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -350,7 +350,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -376,7 +376,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
                   }`,
                   color: kind === o.v ? TONES.sky.ink : "#2A2620",
                   fontWeight: 600,
-                  fontSize: 13.5,
+                  fontSize: 14,
                   letterSpacing: "-0.005em",
                 }}
               >
@@ -442,7 +442,7 @@ function TempForm({ onDone }: { onDone: () => void }) {
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -567,7 +567,7 @@ function EditForm({
           padding: "0 24px",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 20,
         }}
       >
         <div>
@@ -585,7 +585,7 @@ function EditForm({
           <NoteField
             value={note}
             onChange={setNote}
-            placeholder="Note libre…"
+            placeholder="Optionnel…"
           />
         </div>
       </div>

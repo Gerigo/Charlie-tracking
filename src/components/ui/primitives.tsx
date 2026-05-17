@@ -30,7 +30,7 @@ export function Sheet({
       style={{
         position: "absolute",
         inset: 0,
-        zIndex: 60,
+        zIndex: 90,
         display: "flex",
         flexDirection: "column",
         justifyContent: "flex-end",
@@ -201,12 +201,12 @@ export function FieldLabel({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 10.5,
+        fontSize: 11,
         fontWeight: 700,
-        letterSpacing: "0.14em",
+        letterSpacing: "0.12em",
         textTransform: "uppercase",
-        color: "rgba(42,38,32,0.55)",
-        marginBottom: 8,
+        color: "rgba(42,38,32,0.5)",
+        marginBottom: 10,
       }}
     >
       {children}
@@ -216,8 +216,11 @@ export function FieldLabel({ children }: { children: ReactNode }) {
 
 export function FormHeader({ title }: { title: string }) {
   return (
-    <div style={{ padding: "10px 24px 16px" }}>
-      <div className="serif" style={{ fontSize: 28, lineHeight: 1.15 }}>
+    <div style={{ padding: "6px 24px 18px" }}>
+      <div
+        className="serif"
+        style={{ fontSize: 27, lineHeight: 1.1, color: "#2A2620" }}
+      >
         {title}
       </div>
     </div>
@@ -232,20 +235,31 @@ export function TimeField({
   onChange: (v: string) => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <IconClock size={16} stroke="rgba(0,0,0,0.5)" />
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#fff",
+        border: "1px solid rgba(0,0,0,0.08)",
+        padding: "12px 14px",
+        borderRadius: 12,
+      }}
+    >
+      <IconClock size={17} stroke="rgba(42,38,32,0.45)" />
       <input
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          background: "rgba(0,0,0,0.04)",
+          flex: 1,
+          background: "transparent",
           border: "none",
-          padding: "8px 12px",
-          borderRadius: 10,
-          fontSize: 14,
+          padding: 0,
+          fontSize: 15,
           fontWeight: 600,
           fontFamily: "inherit",
+          color: "#2A2620",
         }}
       />
     </div>
@@ -264,25 +278,28 @@ export function SubmitBar({
   return (
     <div
       style={{
-        padding: "14px 24px 30px",
+        padding: "14px 24px calc(16px + env(safe-area-inset-bottom))",
         display: "flex",
         gap: 10,
-        borderTop: "0.5px solid rgba(0,0,0,0.06)",
-        marginTop: 10,
+        borderTop: "0.5px solid rgba(0,0,0,0.07)",
+        marginTop: 14,
         background: "#FAF9F5",
+        boxShadow: "0 -6px 18px rgba(40,38,32,0.05)",
         position: "sticky",
         bottom: 0,
+        zIndex: 1,
       }}
     >
       {onDelete && (
         <button
           onClick={onDelete}
           style={{
-            padding: "14px 18px",
+            height: 52,
+            padding: "0 20px",
             borderRadius: 16,
             background: "rgba(154,107,93,0.12)",
             color: "#7A4D3F",
-            fontWeight: 600,
+            fontWeight: 700,
             fontSize: 14,
           }}
         >
@@ -293,11 +310,11 @@ export function SubmitBar({
         onClick={onClick}
         style={{
           flex: 1,
-          padding: "15px 18px",
+          height: 52,
           borderRadius: 16,
           background: "#2A2620",
           color: "#FAF9F5",
-          fontWeight: 600,
+          fontWeight: 700,
           fontSize: 15,
           letterSpacing: "-0.005em",
         }}

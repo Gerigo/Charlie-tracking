@@ -142,22 +142,44 @@ function EventTile({
         {sideBadge ? (
           <span
             style={{
-              minWidth: 34,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
               height: 34,
-              padding: "0 9px",
+              padding: "0 6px 0 12px",
               borderRadius: 999,
               background: ink,
               color: tone.soft,
-              fontWeight: 800,
-              fontSize: 15,
-              letterSpacing: "0.02em",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
               boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
             }}
           >
-            {sideBadge}
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                opacity: 0.7,
+              }}
+            >
+              Dernier
+            </span>
+            <span
+              style={{
+                minWidth: 22,
+                height: 22,
+                borderRadius: 999,
+                background: tone.soft,
+                color: ink,
+                fontWeight: 800,
+                fontSize: 13,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {sideBadge}
+            </span>
           </span>
         ) : badge ? (
           <span
@@ -378,22 +400,12 @@ export function Tracker() {
                 ? lastBreast
                 : null
             }
-            primary={
-              lastFeed
-                ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `Sein ${lastBreast === "G" ? "gauche" : "droit"}`
-                  : "Biberon"
-                : "—"
-            }
+            primary={lastFeed ? fmtTime(lastFeed.start) : "—"}
             hint={
               lastFeed
                 ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `À ${fmtTime(lastFeed.start)} · prochain ${
-                      lastBreast === "G" ? "droit" : "gauche"
-                    }`
-                  : `${(lastFeed.data as FeedData).ml ?? "?"} ml · à ${fmtTime(
-                      lastFeed.start,
-                    )}`
+                  ? `Prochain → sein ${lastBreast === "G" ? "droit" : "gauche"}`
+                  : `Biberon · ${(lastFeed.data as FeedData).ml ?? "?"} ml`
                 : "Rien aujourd'hui"
             }
             onClick={() => setSheet({ type: "feed" })}
