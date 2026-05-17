@@ -247,18 +247,19 @@ function EventTile({
           ) : null}
         </div>
       </div>
-      <div style={{ marginTop: 14 }}>
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 800,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-            color: ink,
-          }}
-        >
-          {label}
-        </div>
+      <div>
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              fontSize: 20,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+              color: ink,
+            }}
+          >
+            {label}
+          </div>
         {primary != null && (
           <div
             className="num"
@@ -286,30 +287,31 @@ function EventTile({
             {hint}
           </div>
         )}
-        {meta && (
+          {meta && (
+            <div
+              style={{
+                fontSize: 11.5,
+                opacity: 0.5,
+                marginTop: 2,
+                fontWeight: 700,
+              }}
+            >
+              {meta}
+            </div>
+          )}
+        </div>
+        {footer && (
           <div
             style={{
-              fontSize: 11.5,
-              opacity: 0.5,
-              marginTop: 2,
-              fontWeight: 700,
+              display: "flex",
+              justifyContent: "flex-end",
+              marginTop: 14,
             }}
           >
-            {meta}
+            {footer}
           </div>
         )}
       </div>
-      {footer && (
-        <div
-          style={{
-            position: "absolute",
-            right: 12,
-            bottom: 12,
-          }}
-        >
-          {footer}
-        </div>
-      )}
     </button>
   );
 }
