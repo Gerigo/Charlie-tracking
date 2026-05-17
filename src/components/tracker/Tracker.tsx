@@ -179,6 +179,50 @@ function EventTile({
               {corner}
             </span>
           )}
+          {sideBadge && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                height: 22,
+                padding: "0 3px 0 8px",
+                borderRadius: 999,
+                background: ink,
+                color: tone.soft,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 7.5,
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  opacity: 0.6,
+                }}
+              >
+                Dernier
+              </span>
+              <span
+                style={{
+                  minWidth: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: tone.soft,
+                  color: ink,
+                  fontWeight: 800,
+                  fontSize: 10,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {sideBadge}
+              </span>
+            </span>
+          )}
           {badge ? (
           <span
             style={{
@@ -216,68 +260,14 @@ function EventTile({
         <div style={{ marginTop: 14 }}>
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
+              fontSize: 20,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+              color: ink,
             }}
           >
-            <div
-              style={{
-                fontSize: 20,
-                fontWeight: 800,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.1,
-                color: ink,
-              }}
-            >
-              {label}
-            </div>
-            {sideBadge && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  height: 28,
-                  padding: "0 5px 0 11px",
-                  borderRadius: 999,
-                  background: ink,
-                  color: tone.soft,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 8.5,
-                    fontWeight: 800,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    opacity: 0.65,
-                  }}
-                >
-                  Dernier
-                </span>
-                <span
-                  style={{
-                    minWidth: 20,
-                    height: 20,
-                    borderRadius: 999,
-                    background: tone.soft,
-                    color: ink,
-                    fontWeight: 800,
-                    fontSize: 12,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {sideBadge}
-                </span>
-              </span>
-            )}
+            {label}
           </div>
         {primary != null && (
           <div
