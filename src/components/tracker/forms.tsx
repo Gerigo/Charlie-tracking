@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  DateTimeField,
   FieldLabel,
   FormHeader,
   NoteField,
@@ -7,7 +8,6 @@ import {
   Sheet,
   Stepper,
   SubmitBar,
-  TimeField,
 } from "@/components/ui/primitives";
 import { IconCaca, IconPipi } from "@/components/ui/icons";
 import { TONES } from "@/lib/theme";
@@ -350,6 +350,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
               [
                 { label: "À surveiller", items: STOOL_COLORS.surveiller },
                 { label: "Selles habituelles", items: STOOL_COLORS.habituelles },
+                { label: "À signaler", items: STOOL_COLORS.autres },
               ] as const
             ).map((group) => (
               <div key={group.label}>
@@ -681,11 +682,14 @@ function EditForm({
     typeof fd[k] === "string" ? (fd[k] as string) : undefined;
   const num = (k: string, d: number) =>
     typeof fd[k] === "number" ? (fd[k] as number) : d;
-  const hm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const dtLocal = (d: Date) =>
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(
+      d.getHours(),
+    )}:${pad2(d.getMinutes())}`;
 
-  const [time, setTime] = useState(hm(event.start));
+  const [time, setTime] = useState(dtLocal(event.start));
   const [endTime, setEndTime] = useState(
-    event.end ? hm(event.end) : hm(event.start),
+    dtLocal(event.end ?? event.start),
   );
   const [note, setNote] = useState(event.data.note ?? "");
   // feed
@@ -696,6 +700,7 @@ function EditForm({
     str("breast") === "D" ? "D" : "G",
   );
   const [fMl, setFMl] = useState(num("ml", 120));
+  const [fSupp, setFSupp] = useState(num("supp", 0));
   // pump
   const [pSide, setPSide] = useState<"G" | "D" | "GD">(
     str("breast") === "GD" ? "GD" : str("breast") === "D" ? "D" : "G",
@@ -732,6 +737,7 @@ function EditForm({
           kind: fKind,
           breast: fKind === "sein" ? fBreast : null,
           ml: fKind === "biberon" ? fMl : null,
+          supp: fKind === "sein" && fSupp > 0 ? fSupp : null,
           note,
         };
       case "pump":
@@ -775,16 +781,14 @@ function EditForm({
           gap: 20,
         }}
       >
-        {t !== "growth" && (
-          <div>
-            <FieldLabel>{t === "sleep" ? "Début" : "Heure"}</FieldLabel>
-            <TimeField value={time} onChange={setTime} />
-          </div>
-        )}
+        <div>
+          <FieldLabel>{t === "sleep" ? "Début" : "Date et heure"}</FieldLabel>
+          <DateTimeField value={time} onChange={setTime} />
+        </div>
         {t === "sleep" && (
           <div>
             <FieldLabel>Fin</FieldLabel>
-            <TimeField value={endTime} onChange={setEndTime} />
+            <DateTimeField value={endTime} onChange={setEndTime} />
           </div>
         )}
 
@@ -802,17 +806,30 @@ function EditForm({
               />
             </div>
             {fKind === "sein" ? (
-              <div>
-                <FieldLabel>Sein</FieldLabel>
-                <Segmented
-                  value={fBreast}
-                  onChange={setFBreast}
-                  options={[
-                    { value: "G", label: "Gauche" },
-                    { value: "D", label: "Droit" },
-                  ]}
-                />
-              </div>
+              <>
+                <div>
+                  <FieldLabel>Sein</FieldLabel>
+                  <Segmented
+                    value={fBreast}
+                    onChange={setFBreast}
+                    options={[
+                      { value: "G", label: "Gauche" },
+                      { value: "D", label: "Droit" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Complément biberon (optionnel)</FieldLabel>
+                  <Stepper
+                    value={fSupp}
+                    onChange={setFSupp}
+                    min={0}
+                    max={200}
+                    step={10}
+                    unit=" ml"
+                  />
+                </div>
+              </>
             ) : (
               <div>
                 <FieldLabel>Quantité</FieldLabel>
@@ -915,6 +932,7 @@ function EditForm({
                       label: "Selles habituelles",
                       items: STOOL_COLORS.habituelles,
                     },
+                    { label: "À signaler", items: STOOL_COLORS.autres },
                   ] as const
                 ).map((g) => (
                   <div key={g.label}>
@@ -1142,24 +1160,27 @@ function EditForm({
       </div>
       <SubmitBar
         onClick={() => {
-          const base = event.start;
+          // datetime-local "YYYY-MM-DDTHH:MM" → epoch ms (local)
           const mk = (s: string) => {
-            const [h, m] = s.split(":").map(Number);
+            const m = s.match(
+              /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/,
+            );
+            if (!m) return event.start.getTime();
             return new Date(
-              base.getFullYear(),
-              base.getMonth(),
-              base.getDate(),
-              h,
-              m,
+              +m[1],
+              +m[2] - 1,
+              +m[3],
+              +m[4],
+              +m[5],
               0,
               0,
             ).getTime();
           };
-          const startMs = t === "growth" ? event.start.getTime() : mk(time);
+          const startMs = mk(time);
           let endMs: number | null;
           if (t === "sleep") {
             endMs = mk(endTime);
-            if (endMs <= startMs) endMs += 86400000; // overnight
+            if (endMs <= startMs) endMs = startMs + 60000; // pad like main
           } else {
             endMs = startMs;
           }

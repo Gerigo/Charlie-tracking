@@ -31,6 +31,8 @@ export interface FeedData {
   kind: "sein" | "biberon";
   breast: "G" | "D" | null;
   ml: number | null;
+  /** ml de complément au biberon donné en plus d'une tétée au sein. */
+  supp?: number | null;
   note: string;
 }
 export interface PumpData {
@@ -139,6 +141,12 @@ export const STOOL_COLORS = {
     { v: "ocre_bronze", l: "Ocre bronze", sw: "#B0793A" },
     { v: "vert", l: "Vert", sw: "#6E8B4A" },
   ],
+  autres: [
+    { v: "marron", l: "Marron", sw: "#7A5236" },
+    { v: "noir", l: "Noir", sw: "#2A2620" },
+    { v: "blanc", l: "Blanc", sw: "#EDEAE0" },
+    { v: "rouge", l: "Rouge", sw: "#A8483C" },
+  ],
 } as const;
 
 const STOOL_NORMALIZE: Record<string, string> = {
@@ -147,9 +155,10 @@ const STOOL_NORMALIZE: Record<string, string> = {
   moutarde: "ocre_bronze",
   mustard: "ocre_bronze",
   green: "vert",
-  marron: "ocre_bronze",
-  brown: "ocre_bronze",
-  noir: "ocre_bronze",
+  brown: "marron",
+  black: "noir",
+  white: "blanc",
+  red: "rouge",
 };
 
 /** design form data → Firestore `details`. */
@@ -159,7 +168,10 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
       const d = data as FeedData;
       if (d.kind === "biberon")
         return { feedSide: "bottle", feedAmountMl: d.ml ?? 0 };
-      return { feedSide: d.breast === "D" ? "right" : "left" };
+      return {
+        feedSide: d.breast === "D" ? "right" : "left",
+        ...(d.supp ? { bottleSupplement: d.supp } : {}),
+      };
     }
     case "pump": {
       const d = data as PumpData;
@@ -249,6 +261,10 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
         kind: side === "bottle" ? "biberon" : "sein",
         breast: side === "right" ? "D" : side === "left" ? "G" : null,
         ml: typeof det.feedAmountMl === "number" ? det.feedAmountMl : null,
+        supp:
+          typeof det.bottleSupplement === "number"
+            ? det.bottleSupplement
+            : null,
         note,
       } satisfies FeedData;
       break;

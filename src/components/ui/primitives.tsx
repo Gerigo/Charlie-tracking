@@ -266,6 +266,45 @@ export function TimeField({
   );
 }
 
+export function DateTimeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#fff",
+        border: "1px solid rgba(0,0,0,0.08)",
+        padding: "12px 14px",
+        borderRadius: 12,
+      }}
+    >
+      <IconClock size={17} stroke="rgba(42,38,32,0.45)" />
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          flex: 1,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: "#2A2620",
+        }}
+      />
+    </div>
+  );
+}
+
 export function SubmitBar({
   label = "Enregistrer",
   onClick,
