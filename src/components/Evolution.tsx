@@ -545,25 +545,7 @@ export function Evolution() {
     for (let h = 0; h < 24; h++) {
       sleepHour[h] = sleepHour[h] / nDays;
       feedHour[h] = feedHour[h] / nDays;
-    }
-    // Short summary: dominant sleep window + top feed hours.
-    const sleepyHours = sleepHour
-      .map((v, h) => ({ v, h }))
-      .filter((x) => x.v >= 0.5)
-      .map((x) => x.h);
-    let sleepWindow = "—";
-    if (sleepyHours.length) {
-      const lo = Math.min(...sleepyHours);
-      const hi = Math.max(...sleepyHours);
-      sleepWindow = `${lo}h–${(hi + 1) % 24}h`;
-    }
-    const topFeeds = feedHour
-      .map((v, h) => ({ v, h }))
-      .sort((a, b) => b.v - a.v)
-      .slice(0, 3)
-      .filter((x) => x.v > 0.2)
-      .sort((a, b) => a.h - b.h)
-      .map((x) => `${x.h}h`);
+    }  
     const summary = '';
 
     return {
