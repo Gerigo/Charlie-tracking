@@ -4,36 +4,166 @@
 
 @layer base {
   :root {
-    /* Charlie — palette "sage" (design system) */
-    --bg: 45 19% 92%;          /* #EFEDE8 */
-    --surface: 0 0% 100%;      /* #FFFFFF */
-    --soft: 45 30% 95%;        /* #F6F4EE */
-    --line: 39 25% 82%;        /* #DAD4C8 */
-    --mid: 42 21% 73%;         /* #C6BFAE */
-    --olive: 38 12% 51%;       /* #928774 */
-    --ink: 40 14% 14%;         /* #2A2620 */
-    --ink-soft: 35 10% 38%;    /* #6B6358 */
+    /* Charlie — palette "sage" (clair) */
+    --p-bg: #efede8;
+    --p-surface: #ffffff;
+    --p-soft: #f6f4ee;
+    --p-line: #dad4c8;
+    --p-mid: #c6bfae;
+    --p-olive: #928774;
+    --p-ink: #2a2620;
+    --p-ink-soft: #6b6358;
+
+    /* tones par type d'événement (clair) */
+    --t-indigo-bg: #d8d6e2;
+    --t-indigo-ink: #3a3650;
+    --t-indigo-soft: #ebeaf1;
+    --t-sand-bg: #e8dcc4;
+    --t-sand-ink: #5a4a2e;
+    --t-sand-soft: #f2eada;
+    --t-rose-bg: #e8cfc2;
+    --t-rose-ink: #5c3e33;
+    --t-rose-soft: #f2e0d6;
+    --t-olive-bg: #cfd4be;
+    --t-olive-ink: #3f4830;
+    --t-olive-soft: #e2e5d5;
+    --t-sky-bg: #c8d6db;
+    --t-sky-ink: #2e454d;
+    --t-sky-soft: #dde6ea;
+    --t-clay-bg: #dec2b5;
+    --t-clay-ink: #5a3528;
+    --t-clay-soft: #ebd4c8;
+
+    /* filets / séparateurs neutres */
+    --hairline: rgba(0, 0, 0, 0.08);
+    --hairline-strong: rgba(0, 0, 0, 0.16);
+    --chart-ink: rgba(42, 38, 32, 0.55);
+
+    /* barre de navigation "liquid glass" */
+    --glass-bg: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.62) 100%
+    );
+    --glass-border: rgba(255, 255, 255, 0.55);
+    --glass-sheen: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0) 38%
+    );
+    --glass-active: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.7) 100%
+    );
+    --glass-shadow: 0 8px 30px rgba(40, 38, 32, 0.16),
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 0 0 0.5px rgba(255, 255, 255, 0.6) inset;
+    --glass-active-shadow: 0 2px 8px rgba(40, 38, 32, 0.12),
+      0 0 0 0.5px rgba(255, 255, 255, 0.7) inset;
+
+    /* pastilles claires posées sur les tuiles colorées */
+    --chip-on-tone: rgba(255, 255, 255, 0.6);
+    --tile-sheen: rgba(255, 255, 255, 0.6);
 
     --radius: 1.125rem;
 
     /* shadcn aliases mapped onto the Charlie palette */
-    --background: var(--bg);
-    --foreground: var(--ink);
-    --card: var(--surface);
-    --card-foreground: var(--ink);
-    --primary: var(--olive);
+    --background: 45 19% 92%;
+    --foreground: 40 14% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 40 14% 14%;
+    --primary: 38 12% 51%;
     --primary-foreground: 45 30% 97%;
     --secondary: 45 30% 95%;
-    --secondary-foreground: var(--ink);
+    --secondary-foreground: 40 14% 14%;
     --muted: 45 30% 95%;
-    --muted-foreground: var(--ink-soft);
+    --muted-foreground: 35 10% 38%;
     --accent: 42 21% 73%;
-    --accent-foreground: var(--ink);
+    --accent-foreground: 40 14% 14%;
     --destructive: 12 30% 48%;
     --destructive-foreground: 45 30% 97%;
     --border: 39 25% 82%;
     --input: 39 25% 82%;
     --ring: 38 12% 51%;
+  }
+
+  .dark {
+    /* Charlie — palette "sage" (sombre, chaud) */
+    --p-bg: #1b1a17;
+    --p-surface: #26241f;
+    --p-soft: #2d2a24;
+    --p-line: #3b372f;
+    --p-mid: #4c473c;
+    --p-olive: #b6ab90;
+    --p-ink: #ece7db;
+    --p-ink-soft: #a59c8b;
+
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hairline-strong: rgba(255, 255, 255, 0.2);
+    --chart-ink: rgba(236, 231, 219, 0.5);
+
+    --glass-bg: linear-gradient(
+      180deg,
+      rgba(46, 43, 38, 0.86) 0%,
+      rgba(34, 32, 28, 0.74) 100%
+    );
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-sheen: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0) 38%
+    );
+    --glass-active: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(255, 255, 255, 0.06) 100%
+    );
+    --glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.55),
+      0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+    --glass-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.45),
+      0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
+
+    --chip-on-tone: rgba(255, 255, 255, 0.07);
+    --tile-sheen: rgba(255, 255, 255, 0.04);
+
+    /* tones par type d'événement (sombre) */
+    --t-indigo-bg: #34324a;
+    --t-indigo-ink: #c2bedb;
+    --t-indigo-soft: #292838;
+    --t-sand-bg: #423923;
+    --t-sand-ink: #dccaa3;
+    --t-sand-soft: #322c1e;
+    --t-rose-bg: #43302a;
+    --t-rose-ink: #dcb9a8;
+    --t-rose-soft: #322521;
+    --t-olive-bg: #353c2a;
+    --t-olive-ink: #c3cba6;
+    --t-olive-soft: #282d1f;
+    --t-sky-bg: #28393f;
+    --t-sky-ink: #abc6cd;
+    --t-sky-soft: #1f2b2f;
+    --t-clay-bg: #3e2b22;
+    --t-clay-ink: #dab19c;
+    --t-clay-soft: #2d201a;
+
+    --background: 45 7% 10%;
+    --foreground: 42 27% 89%;
+    --card: 40 8% 14%;
+    --card-foreground: 42 27% 89%;
+    --primary: 40 19% 64%;
+    --primary-foreground: 45 7% 10%;
+    --secondary: 40 8% 16%;
+    --secondary-foreground: 42 27% 89%;
+    --muted: 40 8% 16%;
+    --muted-foreground: 40 11% 60%;
+    --accent: 40 9% 28%;
+    --accent-foreground: 42 27% 89%;
+    --destructive: 12 38% 55%;
+    --destructive-foreground: 45 30% 97%;
+    --border: 40 11% 21%;
+    --input: 40 11% 21%;
+    --ring: 40 19% 64%;
   }
 }
 
@@ -50,7 +180,7 @@
   }
   body {
     @apply text-foreground antialiased;
-    background: #1f1d1a;
+    background: var(--p-bg);
     font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
     letter-spacing: -0.005em;
     overflow: hidden;

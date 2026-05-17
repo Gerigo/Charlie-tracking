@@ -10,7 +10,7 @@ import {
   SubmitBar,
 } from "@/components/ui/primitives";
 import { IconCaca, IconPipi } from "@/components/ui/icons";
-import { TONES } from "@/lib/theme";
+import { TONES, alpha } from "@/lib/theme";
 import { pad2 } from "@/lib/dates";
 import { withToast } from "@/lib/toast";
 import {
@@ -62,9 +62,9 @@ function FeedForm({
     flex: 1,
     padding: "14px 12px",
     borderRadius: 14,
-    background: on ? TONES.sand.bg : "#fff",
-    border: `1px solid ${on ? TONES.sand.ink + "55" : "rgba(0,0,0,0.08)"}`,
-    color: on ? TONES.sand.ink : "#2A2620",
+    background: on ? TONES.sand.bg : "var(--p-surface)",
+    border: `1px solid ${on ? alpha(TONES.sand.ink, 33) : "var(--hairline)"}`,
+    color: on ? TONES.sand.ink : "var(--p-ink)",
     fontWeight: 700,
     fontSize: 14,
   });
@@ -108,11 +108,11 @@ function FeedForm({
                     flex: 1,
                     padding: "16px 12px",
                     borderRadius: 14,
-                    background: breast === b ? TONES.sand.bg : "#fff",
+                    background: breast === b ? TONES.sand.bg : "var(--p-surface)",
                     border: `1px solid ${
-                      breast === b ? TONES.sand.ink + "40" : "rgba(0,0,0,0.08)"
+                      breast === b ? alpha(TONES.sand.ink, 25) : "var(--hairline)"
                     }`,
-                    color: breast === b ? TONES.sand.ink : "#2A2620",
+                    color: breast === b ? TONES.sand.ink : "var(--p-ink)",
                     fontWeight: 600,
                     textAlign: "left",
                   }}
@@ -170,8 +170,8 @@ function FeedForm({
                     marginTop: 12,
                     padding: "12px 14px",
                     borderRadius: 14,
-                    background: "#fff",
-                    border: "1px solid rgba(0,0,0,0.06)",
+                    background: "var(--p-surface)",
+                    border: "1px solid var(--hairline)",
                   }}
                 >
                   <div
@@ -194,7 +194,7 @@ function FeedForm({
                       position: "relative",
                       height: 8,
                       borderRadius: 999,
-                      background: "rgba(0,0,0,0.06)",
+                      background: "var(--hairline)",
                       marginTop: 8,
                       overflow: "hidden",
                     }}
@@ -222,7 +222,7 @@ function FeedForm({
                     style={{
                       fontSize: 11.5,
                       fontWeight: 600,
-                      color: "rgba(42,38,32,0.55)",
+                      color: "var(--p-ink-soft)",
                       marginTop: 8,
                     }}
                   >
@@ -343,11 +343,11 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
     flex: 1,
     padding: "16px 12px",
     borderRadius: 14,
-    background: active ? TONES.olive.bg : "#fff",
+    background: active ? TONES.olive.bg : "var(--p-surface)",
     border: `1px solid ${
-      active ? TONES.olive.ink + "40" : "rgba(0,0,0,0.08)"
+      active ? alpha(TONES.olive.ink, 25) : "var(--hairline)"
     }`,
-    color: active ? TONES.olive.ink : "#2A2620",
+    color: active ? TONES.olive.ink : "var(--p-ink)",
     fontWeight: 600,
     display: "flex",
     alignItems: "center",
@@ -400,11 +400,11 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
                           gap: 8,
                           padding: "9px 13px",
                           borderRadius: 999,
-                          background: on ? "#2A2620" : "#fff",
-                          color: on ? "#FAF9F5" : "#2A2620",
+                          background: on ? "var(--p-ink)" : "var(--p-surface)",
+                          color: on ? "var(--p-surface)" : "var(--p-ink)",
                           border: on
-                            ? "1px solid #2A2620"
-                            : "1px solid rgba(0,0,0,0.08)",
+                            ? "1px solid var(--p-ink)"
+                            : "1px solid var(--hairline)",
                           fontSize: 13,
                           fontWeight: 600,
                         }}
@@ -415,7 +415,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
                             height: 15,
                             borderRadius: "50%",
                             background: c.sw,
-                            border: "1px solid rgba(0,0,0,0.15)",
+                            border: "1px solid var(--hairline-strong)",
                           }}
                         />
                         {c.l}
@@ -497,11 +497,11 @@ function CareForm({ onDone }: { onDone: () => void }) {
                     padding: "12px 14px",
                     borderRadius: 14,
                     textAlign: "left",
-                    background: on ? TONES.sky.bg : "#fff",
+                    background: on ? TONES.sky.bg : "var(--p-surface)",
                     border: `1px solid ${
-                      on ? TONES.sky.ink + "55" : "rgba(0,0,0,0.08)"
+                      on ? alpha(TONES.sky.ink, 33) : "var(--hairline)"
                     }`,
-                    color: on ? TONES.sky.ink : "#2A2620",
+                    color: on ? TONES.sky.ink : "var(--p-ink)",
                     fontWeight: 600,
                     fontSize: 14,
                     letterSpacing: "-0.005em",
@@ -520,7 +520,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
                       flexShrink: 0,
                       border: on
                         ? "none"
-                        : "1.5px solid rgba(0,0,0,0.18)",
+                        : "1.5px solid var(--hairline-strong)",
                       background: on ? TONES.sky.ink : "transparent",
                       color: TONES.sky.soft,
                       fontSize: 12,
@@ -547,8 +547,8 @@ function CareForm({ onDone }: { onDone: () => void }) {
                 width: "100%",
                 padding: "12px 14px",
                 borderRadius: 12,
-                border: "1px solid rgba(0,0,0,0.08)",
-                background: "#fff",
+                border: "1px solid var(--hairline)",
+                background: "var(--p-surface)",
                 fontFamily: "inherit",
                 fontSize: 16,
               }}
@@ -623,8 +623,8 @@ function TempForm({ onDone }: { onDone: () => void }) {
                 width: 44,
                 height: 44,
                 borderRadius: 999,
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                background: "var(--p-surface)",
+                boxShadow: "0 1px 3px var(--hairline)",
                 fontSize: 22,
               }}
             >
@@ -636,7 +636,7 @@ function TempForm({ onDone }: { onDone: () => void }) {
                 flex: 1,
                 textAlign: "center",
                 fontSize: 52,
-                color: value > 38 ? "#9A4F3F" : "#2A2620",
+                color: value > 38 ? "#9A4F3F" : "var(--p-ink)",
               }}
             >
               {value.toFixed(1)}°
@@ -647,8 +647,8 @@ function TempForm({ onDone }: { onDone: () => void }) {
                 width: 44,
                 height: 44,
                 borderRadius: 999,
-                background: "#fff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                background: "var(--p-surface)",
+                boxShadow: "0 1px 3px var(--hairline)",
                 fontSize: 22,
               }}
             >
@@ -796,9 +796,9 @@ function EditForm({
     padding: "12px 14px",
     borderRadius: 14,
     textAlign: "left" as const,
-    background: active ? tone.bg : "#fff",
-    border: `1px solid ${active ? tone.ink + "55" : "rgba(0,0,0,0.08)"}`,
-    color: active ? tone.ink : "#2A2620",
+    background: active ? tone.bg : "var(--p-surface)",
+    border: `1px solid ${active ? alpha(tone.ink, 33) : "var(--hairline)"}`,
+    color: active ? tone.ink : "var(--p-ink)",
     fontWeight: 600,
     fontSize: 14,
   });
@@ -930,11 +930,11 @@ function EditForm({
                     flex: 1,
                     padding: "16px 12px",
                     borderRadius: 14,
-                    background: pipi ? TONES.olive.bg : "#fff",
+                    background: pipi ? TONES.olive.bg : "var(--p-surface)",
                     border: `1px solid ${
-                      pipi ? TONES.olive.ink + "55" : "rgba(0,0,0,0.08)"
+                      pipi ? alpha(TONES.olive.ink, 33) : "var(--hairline)"
                     }`,
-                    color: pipi ? TONES.olive.ink : "#2A2620",
+                    color: pipi ? TONES.olive.ink : "var(--p-ink)",
                     fontWeight: 600,
                     display: "flex",
                     alignItems: "center",
@@ -950,11 +950,11 @@ function EditForm({
                     flex: 1,
                     padding: "16px 12px",
                     borderRadius: 14,
-                    background: caca ? TONES.olive.bg : "#fff",
+                    background: caca ? TONES.olive.bg : "var(--p-surface)",
                     border: `1px solid ${
-                      caca ? TONES.olive.ink + "55" : "rgba(0,0,0,0.08)"
+                      caca ? alpha(TONES.olive.ink, 33) : "var(--hairline)"
                     }`,
-                    color: caca ? TONES.olive.ink : "#2A2620",
+                    color: caca ? TONES.olive.ink : "var(--p-ink)",
                     fontWeight: 600,
                     display: "flex",
                     alignItems: "center",
@@ -997,11 +997,11 @@ function EditForm({
                               gap: 8,
                               padding: "9px 13px",
                               borderRadius: 999,
-                              background: on ? "#2A2620" : "#fff",
-                              color: on ? "#FAF9F5" : "#2A2620",
+                              background: on ? "var(--p-ink)" : "var(--p-surface)",
+                              color: on ? "var(--p-surface)" : "var(--p-ink)",
                               border: on
-                                ? "1px solid #2A2620"
-                                : "1px solid rgba(0,0,0,0.08)",
+                                ? "1px solid var(--p-ink)"
+                                : "1px solid var(--hairline)",
                               fontSize: 13,
                               fontWeight: 600,
                             }}
@@ -1012,7 +1012,7 @@ function EditForm({
                                 height: 15,
                                 borderRadius: "50%",
                                 background: c.sw,
-                                border: "1px solid rgba(0,0,0,0.15)",
+                                border: "1px solid var(--hairline-strong)",
                               }}
                             />
                             {c.l}
@@ -1060,8 +1060,8 @@ function EditForm({
                     width: "100%",
                     padding: "12px 14px",
                     borderRadius: 12,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    background: "#fff",
+                    border: "1px solid var(--hairline)",
+                    background: "var(--p-surface)",
                     fontFamily: "inherit",
                     fontSize: 16,
                   }}
@@ -1095,8 +1095,8 @@ function EditForm({
                     width: 44,
                     height: 44,
                     borderRadius: 999,
-                    background: "#fff",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                    background: "var(--p-surface)",
+                    boxShadow: "0 1px 3px var(--hairline)",
                     fontSize: 22,
                   }}
                 >
@@ -1108,7 +1108,7 @@ function EditForm({
                     flex: 1,
                     textAlign: "center",
                     fontSize: 52,
-                    color: tVal > 38 ? "#9A4F3F" : "#2A2620",
+                    color: tVal > 38 ? "#9A4F3F" : "var(--p-ink)",
                   }}
                 >
                   {tVal.toFixed(1)}°
@@ -1119,8 +1119,8 @@ function EditForm({
                     width: 44,
                     height: 44,
                     borderRadius: 999,
-                    background: "#fff",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                    background: "var(--p-surface)",
+                    boxShadow: "0 1px 3px var(--hairline)",
                     fontSize: 22,
                   }}
                 >
@@ -1144,9 +1144,9 @@ function EditForm({
                 key={f.l}
                 style={{
                   padding: 14,
-                  background: "#fff",
+                  background: "var(--p-surface)",
                   borderRadius: 14,
-                  border: "1px solid rgba(0,0,0,0.06)",
+                  border: "1px solid var(--hairline)",
                 }}
               >
                 <FieldLabel>{f.l}</FieldLabel>
@@ -1161,7 +1161,7 @@ function EditForm({
                       width: 40,
                       height: 40,
                       borderRadius: 999,
-                      background: "rgba(0,0,0,0.05)",
+                      background: "var(--hairline)",
                       fontSize: 20,
                     }}
                   >
@@ -1186,7 +1186,7 @@ function EditForm({
                       width: 40,
                       height: 40,
                       borderRadius: 999,
-                      background: "rgba(0,0,0,0.05)",
+                      background: "var(--hairline)",
                       fontSize: 20,
                     }}
                   >
@@ -1318,9 +1318,9 @@ function GrowthForm({
             key={f.key}
             style={{
               padding: 14,
-              background: "#fff",
+              background: "var(--p-surface)",
               borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.06)",
+              border: "1px solid var(--hairline)",
             }}
           >
             <FieldLabel>{f.label}</FieldLabel>
@@ -1339,7 +1339,7 @@ function GrowthForm({
                   width: 40,
                   height: 40,
                   borderRadius: 999,
-                  background: "rgba(0,0,0,0.05)",
+                  background: "var(--hairline)",
                   fontSize: 20,
                 }}
               >
@@ -1362,7 +1362,7 @@ function GrowthForm({
                   width: 40,
                   height: 40,
                   borderRadius: 999,
-                  background: "rgba(0,0,0,0.05)",
+                  background: "var(--hairline)",
                   fontSize: 20,
                 }}
               >

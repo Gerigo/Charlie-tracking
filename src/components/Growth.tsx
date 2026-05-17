@@ -453,7 +453,7 @@ export function Growth() {
             height: 50,
             borderRadius: 16,
             background: P.ink,
-            color: "#FAF9F5",
+            color: "var(--p-surface)",
             fontWeight: 700,
             fontSize: 14,
             marginBottom: 18,

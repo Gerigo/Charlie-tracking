@@ -17,6 +17,23 @@
       rel="stylesheet"
     />
     <title>Charlie</title>
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem("charlie-theme");
+          var dark =
+            s === "dark" ||
+            (s !== "light" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) {
+            document.documentElement.classList.add("dark");
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m) m.setAttribute("content", "#1b1a17");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

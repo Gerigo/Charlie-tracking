@@ -26,7 +26,7 @@ function AvgCard({
         borderRadius: 16,
         background: tone.soft,
         color: tone.ink,
-        border: "0.5px solid rgba(0,0,0,0.04)",
+        border: "0.5px solid var(--hairline)",
       }}
     >
       <div
@@ -276,7 +276,7 @@ function HourDetail({
                       flex: 1,
                       height: 9,
                       borderRadius: 999,
-                      background: "rgba(0,0,0,0.06)",
+                      background: "var(--hairline)",
                       overflow: "hidden",
                     }}
                   >

@@ -10,7 +10,7 @@ const STYLES: Record<
   { bg: string; fg: string; icon: string; ttl: number }
 > = {
   success: { bg: "#2F3A2A", fg: "#EAF0E4", icon: "✓", ttl: 2800 },
-  info: { bg: "#2A2620", fg: "#F0EEE7", icon: "ℹ", ttl: 2800 },
+  info: { bg: "var(--p-ink)", fg: "var(--p-bg)", icon: "ℹ", ttl: 2800 },
   error: { bg: "#5A3528", fg: "#F2E0D6", icon: "⚠", ttl: 4500 },
 };
 
