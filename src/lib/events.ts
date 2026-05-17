@@ -191,14 +191,8 @@ function toMs(v: unknown): number | null {
   return null;
 }
 
-let sampleLogged = 0;
-
 /** Firestore doc → AppEvent (design shape). */
 function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
-  if (sampleLogged < 2) {
-    sampleLogged++;
-    console.info("[events] sample doc", id, JSON.stringify(raw));
-  }
   const type = appType(String(raw.type));
   const startMs =
     toMs(raw.startTime) ??
@@ -316,9 +310,16 @@ export function subscribeDay(
       })
       .sort((a, b) => a.start.getTime() - b.start.getTime());
     // Diagnostic — remove once data flow is confirmed.
-    console.info(
-      `[events] total=${all.length} (shared=${sharedDocs.size} user=${userDocs.size}) · pour ${day.toLocaleDateString("fr")}=${events.length}`,
-    );
+    if (all.length) {
+      const times = all.map((e) => e.start.getTime());
+      const min = new Date(Math.min(...times));
+      const max = new Date(Math.max(...times));
+      console.info(
+        `[events] ${all.length} docs · plage ${min.toLocaleString("fr")} → ${max.toLocaleString("fr")} · fenêtre jour ${new Date(from).toLocaleString("fr")}→${new Date(to).toLocaleString("fr")} · dans le jour=${events.length}`,
+      );
+    } else {
+      console.info("[events] 0 doc reçu");
+    }
     cb({ events, activeSleep });
   };
 

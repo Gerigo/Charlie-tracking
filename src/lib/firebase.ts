@@ -31,6 +31,10 @@ try {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager(),
     }),
+    // Safari / content blockers / extensions often break Firestore's
+    // WebChannel streaming ("access control checks"). Let the SDK fall
+    // back to long-polling automatically.
+    experimentalAutoDetectLongPolling: true,
   });
 } catch {
   firestore = getFirestore(firebaseApp);
