@@ -564,9 +564,7 @@ export function Evolution() {
       .filter((x) => x.v > 0.2)
       .sort((a, b) => a.h - b.h)
       .map((x) => `${x.h}h`);
-    const summary =
-      `Dort surtout ${sleepWindow}` +
-      (topFeeds.length ? ` · tète vers ${topFeeds.join(", ")}` : "");
+    const summary = '';
 
     return {
       avg: avgComputed,
