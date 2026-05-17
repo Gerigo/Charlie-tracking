@@ -137,15 +137,15 @@ function DeltaPill({
   const eq = Math.abs(diff) < 0.05;
   const more = diff > 0;
   const color = eq
-    ? "rgba(0,0,0,0.4)"
+    ? "var(--delta-eq-ink)"
     : more
-      ? "#4F6B45"
-      : "#9A6B5D";
+      ? "var(--delta-pos-ink)"
+      : "var(--delta-neg-ink)";
   const bg = eq
     ? "var(--hairline)"
     : more
-      ? "rgba(79,107,69,0.12)"
-      : "rgba(154,107,93,0.12)";
+      ? "var(--delta-pos-bg)"
+      : "var(--delta-neg-bg)";
   return (
     <span
       style={{
@@ -537,7 +537,7 @@ export function Today() {
                 <span
                   style={{
                     fontSize: 11,
-                    color: "rgba(0,0,0,0.4)",
+                    color: "var(--delta-eq-ink)",
                     fontWeight: 600,
                   }}
                 >

@@ -39,6 +39,13 @@
     --hairline-strong: rgba(0, 0, 0, 0.16);
     --chart-ink: rgba(42, 38, 32, 0.55);
 
+    /* deltas "de plus / de moins / comme hier" */
+    --delta-pos-ink: #4f6b45;
+    --delta-pos-bg: rgba(79, 107, 69, 0.12);
+    --delta-neg-ink: #9a6b5d;
+    --delta-neg-bg: rgba(154, 107, 93, 0.12);
+    --delta-eq-ink: rgba(42, 38, 32, 0.5);
+
     /* barre de navigation "liquid glass" */
     --glass-bg: linear-gradient(
       180deg,
@@ -95,13 +102,19 @@
     --p-soft: #2d2a24;
     --p-line: #3b372f;
     --p-mid: #4c473c;
-    --p-olive: #b6ab90;
-    --p-ink: #ece7db;
-    --p-ink-soft: #a59c8b;
+    --p-olive: #c2b698;
+    --p-ink: #f0ebe0;
+    --p-ink-soft: #b5ab97;
 
     --hairline: rgba(255, 255, 255, 0.1);
-    --hairline-strong: rgba(255, 255, 255, 0.2);
-    --chart-ink: rgba(236, 231, 219, 0.5);
+    --hairline-strong: rgba(255, 255, 255, 0.22);
+    --chart-ink: rgba(240, 235, 224, 0.62);
+
+    --delta-pos-ink: #9cc18a;
+    --delta-pos-bg: rgba(156, 193, 138, 0.16);
+    --delta-neg-ink: #e0ae97;
+    --delta-neg-bg: rgba(224, 174, 151, 0.16);
+    --delta-eq-ink: rgba(240, 235, 224, 0.55);
 
     --glass-bg: linear-gradient(
       180deg,
@@ -127,25 +140,27 @@
     --chip-on-tone: rgba(255, 255, 255, 0.07);
     --tile-sheen: rgba(255, 255, 255, 0.04);
 
-    /* tones par type d'événement (sombre) */
-    --t-indigo-bg: #34324a;
-    --t-indigo-ink: #c2bedb;
-    --t-indigo-soft: #292838;
-    --t-sand-bg: #423923;
-    --t-sand-ink: #dccaa3;
-    --t-sand-soft: #322c1e;
-    --t-rose-bg: #43302a;
-    --t-rose-ink: #dcb9a8;
-    --t-rose-soft: #322521;
-    --t-olive-bg: #353c2a;
-    --t-olive-ink: #c3cba6;
-    --t-olive-soft: #282d1f;
-    --t-sky-bg: #28393f;
-    --t-sky-ink: #abc6cd;
-    --t-sky-soft: #1f2b2f;
-    --t-clay-bg: #3e2b22;
-    --t-clay-ink: #dab19c;
-    --t-clay-soft: #2d201a;
+    /* tones par type d'événement (sombre) :
+       fonds TRÈS sombres et peu saturés (vraies cartes sombres),
+       "ink" CLAIR et lumineux (accents/bordures lisibles). */
+    --t-indigo-bg: #272636;
+    --t-indigo-ink: #cdc9e8;
+    --t-indigo-soft: #201f2c;
+    --t-sand-bg: #2c2719;
+    --t-sand-ink: #e8d7ad;
+    --t-sand-soft: #221e13;
+    --t-rose-bg: #2f2420;
+    --t-rose-ink: #ebc3b0;
+    --t-rose-soft: #251c18;
+    --t-olive-bg: #24281b;
+    --t-olive-ink: #cfd8a7;
+    --t-olive-soft: #1d2015;
+    --t-sky-bg: #1f2d31;
+    --t-sky-ink: #abd0d7;
+    --t-sky-soft: #182326;
+    --t-clay-bg: #2f231b;
+    --t-clay-ink: #e6b79c;
+    --t-clay-soft: #251b15;
 
     --background: 45 7% 10%;
     --foreground: 42 27% 89%;

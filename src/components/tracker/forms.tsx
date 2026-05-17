@@ -181,7 +181,7 @@ function FeedForm({
                       alignItems: "baseline",
                       fontSize: 12,
                       fontWeight: 700,
-                      color: over ? "#9A4F3F" : "rgba(42,38,32,0.65)",
+                      color: over ? "#9A4F3F" : "var(--p-ink-soft)",
                     }}
                   >
                     <span>Biberon du jour</span>
@@ -658,7 +658,7 @@ function TempForm({ onDone }: { onDone: () => void }) {
           <div
             style={{
               fontSize: 11,
-              color: "rgba(0,0,0,0.45)",
+              color: "var(--p-ink-soft)",
               textAlign: "center",
               marginTop: 6,
             }}
@@ -822,7 +822,7 @@ function EditForm({
           <div
             style={{
               fontSize: 12,
-              color: "rgba(42,38,32,0.6)",
+              color: "var(--p-ink-soft)",
               fontStyle: "italic",
             }}
           >
