@@ -398,19 +398,6 @@ export function Today() {
                 Aujourd'hui
               </button>
             )}
-            <button
-              onClick={() => setAdd(true)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 999,
-                background: P.ink,
-                color: "#FAF9F5",
-                fontSize: 11.5,
-                fontWeight: 700,
-              }}
-            >
-              + Ajouter
-            </button>
           </div>
         </div>
         <div
@@ -588,6 +575,22 @@ export function Today() {
             {M.dayEvents.length} évén.
           </div>
         </div>
+
+        <button
+          onClick={() => setAdd(true)}
+          style={{
+            width: "100%",
+            height: 46,
+            borderRadius: 14,
+            background: P.ink,
+            color: "#FAF9F5",
+            fontSize: 14,
+            fontWeight: 700,
+            marginBottom: 10,
+          }}
+        >
+          + Ajouter un événement
+        </button>
 
         {M.dayEvents.length === 0 ? (
           <div
