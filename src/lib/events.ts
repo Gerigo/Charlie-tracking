@@ -255,30 +255,69 @@ export function subscribeDay(
   const from = startOfDay(day).getTime();
   const to = from + 86400000;
 
-  let events: AppEvent[] = [];
   let activeSleep: DaySnapshot["activeSleep"] = null;
-  const emit = () => cb({ events, activeSleep });
 
-  const evQuery = query(
-    collection(db, "events"),
-    where("trackerId", "==", SCOPE),
-  );
-  const unsubEvents = onSnapshot(
-    evQuery,
+  // Mirror the legacy reader: events live under either trackerId ==
+  // 'charlie-shared' (shared scope) or userId == <uid> (older docs).
+  // Merge both, dedupe by doc id (prefer the shared-scoped copy).
+  let sharedDocs = new Map<string, Record<string, unknown>>();
+  let userDocs = new Map<string, Record<string, unknown>>();
+
+  const emit = () => {
+    const merged = new Map<string, Record<string, unknown>>();
+    userDocs.forEach((v, k) => merged.set(k, v));
+    sharedDocs.forEach((v, k) => merged.set(k, v)); // shared wins
+    const all = [...merged.entries()].map(([id, raw]) => fromDoc(id, raw));
+    const events = all
+      .filter((e) => {
+        const t = e.start.getTime();
+        const endT = e.end ? e.end.getTime() : t;
+        return endT >= from && t < to;
+      })
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+    // Diagnostic — remove once data flow is confirmed.
+    console.info(
+      `[events] total=${all.length} (shared=${sharedDocs.size} user=${userDocs.size}) · pour ${day.toLocaleDateString("fr")}=${events.length}`,
+    );
+    cb({ events, activeSleep });
+  };
+
+  const handleErr = (label: string) => (err: unknown) => {
+    const code =
+      typeof err === "object" && err && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "";
+    console.warn(`[events] ${label} error: ${code || err}`);
+    onError?.(err as Error);
+  };
+
+  const unsubShared = onSnapshot(
+    query(collection(db, "events"), where("trackerId", "==", SCOPE)),
     (snap) => {
-      events = snap.docs
-        .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
-        .filter((e) => {
-          const t = e.start.getTime();
-          // keep events that touch this day (sleeps can span midnight)
-          const endT = e.end ? e.end.getTime() : t;
-          return endT >= from && t < to;
-        })
-        .sort((a, b) => a.start.getTime() - b.start.getTime());
+      sharedDocs = new Map(
+        snap.docs.map((d) => [d.id, d.data() as Record<string, unknown>]),
+      );
       emit();
     },
-    (err) => onError?.(err),
+    handleErr("trackerId"),
   );
+
+  const myUid = auth.currentUser?.uid;
+  const unsubUser = myUid
+    ? onSnapshot(
+        query(collection(db, "events"), where("userId", "==", myUid)),
+        (snap) => {
+          userDocs = new Map(
+            snap.docs.map((d) => [
+              d.id,
+              d.data() as Record<string, unknown>,
+            ]),
+          );
+          emit();
+        },
+        handleErr("userId"),
+      )
+    : () => {};
 
   const unsubActive = onSnapshot(
     doc(db, "activeSessions", SCOPE),
@@ -295,11 +334,12 @@ export function subscribeDay(
           : null;
       emit();
     },
-    (err) => onError?.(err),
+    handleErr("activeSession"),
   );
 
   return () => {
-    unsubEvents();
+    unsubShared();
+    unsubUser();
     unsubActive();
   };
 }
