@@ -99,7 +99,7 @@ function EventTile({
   badge?: string | null;
   corner?: string;
   live?: boolean;
-  sideBadge?: "G" | "D" | null;
+  sideBadge?: string | null;
   asleep?: boolean;
   footer?: ReactNode;
   onClick: () => void;
@@ -449,16 +449,14 @@ export function Tracker() {
             primary={
               sleeping && sleepStart
                 ? fmtDur(durationMin(sleepStart, new Date()))
-                : stats.lastSleep
-                  ? fmtDur(stats.lastSleep.durMin)
-                  : "—"
+                : undefined
             }
             hint={
               sleeping && sleepStart
                 ? `Depuis ${fmtTime(sleepStart)}`
-                : stats.lastSleep
-                  ? "Dernier sommeil"
-                  : "Rien aujourd'hui"
+                : !stats.lastSleep
+                  ? "Rien aujourd'hui"
+                  : undefined
             }
             meta={
               sleepDayMin
@@ -513,21 +511,11 @@ export function Tracker() {
             }
             corner={lastFeed ? timeAgo(lastFeed.start) : undefined}
             primary={
-              lastFeed
-                ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `Sein ${lastBreast === "G" ? "gauche" : "droit"}`
-                  : `Biberon ${(lastFeed.data as FeedData).ml ?? "?"} ml`
-                : "—"
+              lastFeed && (lastFeed.data as FeedData).kind === "biberon"
+                ? `Biberon ${(lastFeed.data as FeedData).ml ?? "?"} ml`
+                : undefined
             }
-            hint={
-              lastFeed
-                ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `Prochain → sein ${
-                      lastBreast === "G" ? "droit" : "gauche"
-                    }`
-                  : undefined
-                : "Rien aujourd'hui"
-            }
+            hint={lastFeed ? undefined : "Rien aujourd'hui"}
             meta={
               stats.feedCount
                 ? `${stats.feedCount} tétée${
@@ -541,8 +529,16 @@ export function Tracker() {
             kind="pump"
             tone={TONES.rose}
             label="Tirage"
+            sideBadge={
+              lastPump
+                ? (() => {
+                    const b = (lastPump.data as { breast?: string }).breast;
+                    return b === "GD" ? "G+D" : b === "D" ? "D" : "G";
+                  })()
+                : null
+            }
             corner={lastPump ? timeAgo(lastPump.start) : undefined}
-            primary={stats.pumpCount ? `${stats.pumpMl} ml` : "—"}
+            primary={stats.pumpCount ? `${stats.pumpMl} ml` : undefined}
             hint={stats.pumpCount ? undefined : "Rien aujourd'hui"}
             meta={
               stats.pumpCount
