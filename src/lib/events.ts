@@ -3,8 +3,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
   setDoc,
+  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -370,23 +375,118 @@ export function selectTrackerDay(all: AppEvent[]): DaySnapshot {
 }
 
 /** Live subscription to the whole history (sorted asc by start). */
-export function subscribeAllEvents(
+// ─── Scope (current schema, same as the legacy/main app) ───
+// The migration duplicated legacy events into the new schema with
+// familyId + babyId. main reads/writes ONLY that scope, so v2 must too:
+// otherwise we double-count legacy originals + migrated copies, and our
+// writes (without familyId/babyId) are invisible to main.
+export interface Scope {
+  familyId: string;
+  babyId: string;
+  userId: string;
+  role: "manager" | "viewer";
+}
+
+let _scope: Scope | null = null;
+export function setScope(s: Scope | null) {
+  _scope = s;
+}
+function scope(): Scope {
+  if (!_scope) throw new Error("Profil/bébé non chargé.");
+  return _scope;
+}
+
+/** Resolve userProfiles/{uid} → familyId + defaultBabyId (like main). */
+export function subscribeProfile(
+  uid: string,
+  cb: (p: { familyId: string | null; defaultBabyId: string | null }) => void,
+): Unsubscribe {
+  return onSnapshot(doc(db, "userProfiles", uid), (snap) => {
+    const d = (snap.data() as Record<string, unknown>) ?? {};
+    cb({
+      familyId:
+        (typeof d.familyId === "string" && d.familyId) ||
+        (typeof d.defaultFamilyId === "string" && d.defaultFamilyId) ||
+        null,
+      defaultBabyId:
+        typeof d.defaultBabyId === "string" ? d.defaultBabyId : null,
+    });
+  });
+}
+
+export interface Baby {
+  id: string;
+  familyId: string;
+  createdAt: number;
+}
+export function subscribeBabies(
+  familyId: string,
+  cb: (babies: Baby[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, "babies"), where("familyId", "==", familyId)),
+    (snap) => {
+      cb(
+        snap.docs
+          .map((b) => {
+            const d = b.data() as Record<string, unknown>;
+            return {
+              id: b.id,
+              familyId: String(d.familyId ?? familyId),
+              createdAt:
+                typeof d.createdAt === "number" ? d.createdAt : 0,
+            };
+          })
+          .sort((a, b) => a.createdAt - b.createdAt),
+      );
+    },
+  );
+}
+
+/** Live events for the resolved baby — exactly main's listenEvents. */
+export function subscribeScopedEvents(
+  familyId: string,
+  babyId: string,
   cb: (events: AppEvent[]) => void,
   onError?: (e: Error) => void,
 ): Unsubscribe {
   return onSnapshot(
-    collection(db, "events"),
+    query(
+      collection(db, "events"),
+      where("babyId", "==", babyId),
+      where("familyId", "==", familyId),
+    ),
     (snap) => {
-      const all = snap.docs
-        .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
-        .sort((a, b) => a.start.getTime() - b.start.getTime());
-      cb(all);
+      cb(
+        snap.docs
+          .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
+          .sort((a, b) => a.start.getTime() - b.start.getTime()),
+      );
     },
     (err) => onError?.(err as Error),
   );
 }
 
-// ─── Writes — minimal clean docs ───
+export function subscribeActiveSession(
+  babyId: string,
+  cb: (active: { id: string; start: Date } | null) => void,
+): Unsubscribe {
+  return onSnapshot(doc(db, "activeSessions", babyId), (snap) => {
+    const d = snap.data() as Record<string, unknown> | undefined;
+    cb(
+      snap.exists() && d && d.type === "sleep"
+        ? {
+            id: String(d.eventId ?? ""),
+            start: new Date(
+              typeof d.startTime === "number" ? d.startTime : Date.now(),
+            ),
+          }
+        : null,
+    );
+  });
+}
+
+// ─── Writes — current schema (familyId/babyId), mirrors main ───
 function startMsFor(when: TimeOfDay, day: Date): number {
   return new Date(
     day.getFullYear(),
@@ -406,50 +506,83 @@ export async function addInstantEvent(
   note: string,
   day = new Date(),
 ): Promise<void> {
+  const s = scope();
   const ts = startMsFor(when, day);
   await addDoc(collection(db, "events"), {
+    familyId: s.familyId,
+    babyId: s.babyId,
     type: dbType(type),
     startTime: ts,
     endTime: ts,
     details: toDetails(type, data),
     notes: note.trim() || null,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdByUserId: s.userId,
+    createdByRole: s.role,
+    createdAt: ts,
+    updatedAt: ts,
+    serverCreatedAt: serverTimestamp(),
   });
 }
 
 export async function startSleep(): Promise<void> {
+  const s = scope();
   const ts = Date.now();
-  await addDoc(collection(db, "events"), {
-    type: "sleep",
-    startTime: ts,
-    endTime: null,
-    details: {},
-    notes: null,
-    createdAt: ts,
-    updatedAt: ts,
+  const sessionRef = doc(db, "activeSessions", s.babyId);
+  const eventRef = doc(collection(db, "events"));
+  await runTransaction(db, async (tx) => {
+    const active = await tx.get(sessionRef);
+    if (active.exists()) throw new Error("Un sommeil est déjà en cours.");
+    tx.set(eventRef, {
+      familyId: s.familyId,
+      babyId: s.babyId,
+      type: "sleep",
+      startTime: ts,
+      endTime: null,
+      notes: null,
+      details: {},
+      createdByUserId: s.userId,
+      createdByRole: s.role,
+      createdAt: ts,
+      updatedAt: ts,
+      serverCreatedAt: serverTimestamp(),
+    });
+    tx.set(sessionRef, {
+      familyId: s.familyId,
+      babyId: s.babyId,
+      eventId: eventRef.id,
+      type: "sleep",
+      startTime: ts,
+      details: {},
+      createdByUserId: s.userId,
+      createdByRole: s.role,
+      updatedAt: ts,
+    });
   });
 }
 
 export async function stopSleep(id: string): Promise<void> {
-  await setDoc(
-    doc(db, "events", id),
-    { endTime: Date.now(), updatedAt: Date.now() },
-    { merge: true },
-  );
-}
-
-export async function editEvent(
-  id: string,
-  patch: { start?: TimeOfDay; end?: TimeOfDay | null; note?: string },
-  day = new Date(),
-): Promise<void> {
-  const out: Record<string, unknown> = { updatedAt: Date.now() };
-  if (patch.start) out.startTime = startMsFor(patch.start, day);
-  if (patch.end === null) out.endTime = null;
-  else if (patch.end) out.endTime = startMsFor(patch.end, day);
-  if (patch.note !== undefined) out.notes = patch.note.trim() || null;
-  await setDoc(doc(db, "events", id), out, { merge: true });
+  const s = scope();
+  const sessionRef = doc(db, "activeSessions", s.babyId);
+  const ts = Date.now();
+  await runTransaction(db, async (tx) => {
+    const active = await tx.get(sessionRef);
+    if (active.exists()) {
+      const eid = String(active.data()?.eventId ?? id);
+      const evRef = doc(db, "events", eid);
+      const ev = await tx.get(evRef);
+      if (ev.exists()) {
+        tx.update(evRef, { endTime: ts, updatedAt: ts });
+      }
+      tx.delete(sessionRef);
+    } else if (id) {
+      // No active-session doc (e.g. started elsewhere) — just close it.
+      tx.set(
+        doc(db, "events", id),
+        { endTime: ts, updatedAt: ts },
+        { merge: true },
+      );
+    }
+  });
 }
 
 /** Full update of an existing event (times + details + note). */
@@ -478,6 +611,17 @@ export async function updateEvent(
 
 export async function deleteEvent(id: string): Promise<void> {
   await deleteDoc(doc(db, "events", id));
+  // Clear the active-session pointer if it referenced this event (main).
+  try {
+    const s = scope();
+    const sessionRef = doc(db, "activeSessions", s.babyId);
+    const active = await getDoc(sessionRef);
+    if (active.exists() && active.data()?.eventId === id) {
+      await deleteDoc(sessionRef);
+    }
+  } catch {
+    /* scope not ready — nothing to clean */
+  }
 }
 
 // ─── Derived stats for the Tracker tiles ───
