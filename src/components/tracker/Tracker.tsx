@@ -365,7 +365,7 @@ export function Tracker() {
                   : "aucun aujourd'hui"
             }
             onClick={() => {
-              void (sleeping ? stopSleep() : startSleep());
+              void (activeSleep ? stopSleep(activeSleep.id) : startSleep());
             }}
           />
           <EventTile

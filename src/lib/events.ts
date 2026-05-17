@@ -3,20 +3,20 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   onSnapshot,
-  query,
-  runTransaction,
-  serverTimestamp,
   setDoc,
-  where,
   type Unsubscribe,
 } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { durationMin, startOfDay } from "@/lib/dates";
 
-// Legacy single-tracker scope — same data as the original Charlie app.
-const SCOPE = "charlie-shared";
+// ─── Simplified model ────────────────────────────────────────────────
+// Single user, single baby, private DB. We read the whole `events`
+// collection and only keep what we need: type / startTime / endTime /
+// details / notes. Everything else in old docs (familyId, babyId,
+// createdByUserId, createdByLabel, photoUrl, trackerId, …) is ignored.
+// New docs are written minimal & clean. "Sleep in progress" = a sleep
+// event whose endTime is null — no activeSessions collection.
 
 export type EventType =
   | "sleep"
@@ -78,21 +78,41 @@ export interface TimeOfDay {
   m: number;
 }
 
-// ─── Mapping: design type ↔ Firestore `type` (EVENTS_SCHEMA) ───
+// ─── Type mapping (DB `type` ↔ app type) ───
 const TYPE_TO_DB: Record<EventType, string> = {
   sleep: "sleep",
   feed: "feed",
   pump: "pumping",
   diaper: "diaper",
-  care: "care", // new v2 type (legacy app had no dedicated care type)
+  care: "care",
   temp: "temperature",
 };
-const DB_TO_TYPE: Record<string, EventType> = {
-  sleep: "sleep",
-  feed: "feed",
-  diaper: "diaper",
-  care: "care",
-};
+function dbType(t: EventType): string {
+  return TYPE_TO_DB[t];
+}
+function appType(raw: string): EventType {
+  switch (raw) {
+    case "sleep":
+      return "sleep";
+    case "feed":
+      return "feed";
+    case "pumping":
+    case "pump":
+      return "pump";
+    case "diaper":
+      return "diaper";
+    case "temperature":
+    case "temp":
+      return "temp";
+    // legacy data stored "soins"/"visites" as `medication`
+    case "medication":
+    case "visit":
+    case "care":
+      return "care";
+    default:
+      return "care";
+  }
+}
 
 const STOOL_TO_DB: Record<string, string> = {
   jaune: "jaune_or",
@@ -109,16 +129,7 @@ const STOOL_FROM_DB: Record<string, string> = {
   noir: "marron",
 };
 
-function dbType(t: EventType): string {
-  return TYPE_TO_DB[t];
-}
-function appType(raw: string): EventType {
-  if (raw === "pumping") return "pump";
-  if (raw === "temperature") return "temp";
-  return (DB_TO_TYPE[raw] as EventType) ?? "care";
-}
-
-/** design form data → Firestore `details` object (EVENTS_SCHEMA shape). */
+/** design form data → Firestore `details`. */
 function toDetails(type: EventType, data: EventData): Record<string, unknown> {
   switch (type) {
     case "feed": {
@@ -135,8 +146,7 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
     }
     case "diaper": {
       const d = data as DiaperData;
-      const diaperType =
-        d.pipi && d.caca ? "both" : d.caca ? "dirty" : "wet";
+      const diaperType = d.pipi && d.caca ? "both" : d.caca ? "dirty" : "wet";
       const out: Record<string, unknown> = { diaperType };
       if (d.caca && d.color) out.stoolColor = STOOL_TO_DB[d.color] ?? "jaune_or";
       return out;
@@ -144,7 +154,6 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
     case "care": {
       const d = data as CareData;
       return {
-        careCategory: "care",
         careKind: d.kind,
         ...(d.custom ? { careCustom: d.custom } : {}),
       };
@@ -162,17 +171,13 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
 }
 
 /**
- * Robustly read a time field that may be: epoch ms (number), epoch
- * seconds, a Firestore Timestamp ({seconds,nanoseconds} or .toMillis()),
- * an ISO string, or a Date. Returns epoch ms, or null.
+ * Robustly read a time field that may be epoch ms, epoch seconds, a
+ * Firestore Timestamp, an ISO string or a Date. Returns epoch ms or null.
  */
 function toMs(v: unknown): number | null {
   if (v == null) return null;
   if (v instanceof Date) return v.getTime();
-  if (typeof v === "number") {
-    // < 1e12 → looks like seconds, not milliseconds
-    return v > 0 && v < 1e12 ? v * 1000 : v;
-  }
+  if (typeof v === "number") return v > 0 && v < 1e12 ? v * 1000 : v;
   if (typeof v === "string") {
     const t = Date.parse(v);
     return Number.isNaN(t) ? null : t;
@@ -181,7 +186,6 @@ function toMs(v: unknown): number | null {
     const o = v as {
       seconds?: number;
       _seconds?: number;
-      nanoseconds?: number;
       toMillis?: () => number;
     };
     if (typeof o.toMillis === "function") return o.toMillis();
@@ -191,7 +195,7 @@ function toMs(v: unknown): number | null {
   return null;
 }
 
-/** Firestore doc → AppEvent (design shape). */
+/** Firestore doc → AppEvent. Handles both legacy & current shapes. */
 function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
   const type = appType(String(raw.type));
   const startMs =
@@ -239,10 +243,13 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
       break;
     }
     case "care": {
+      const kind =
+        (typeof det.careKind === "string" && det.careKind) ||
+        (typeof det.medicationName === "string" && det.medicationName) ||
+        "custom";
       data = {
-        kind: typeof det.careKind === "string" ? det.careKind : "custom",
-        custom:
-          typeof det.careCustom === "string" ? det.careCustom : null,
+        kind,
+        custom: typeof det.careCustom === "string" ? det.careCustom : null,
         note,
       } satisfies CareData;
       break;
@@ -269,16 +276,9 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
   };
 }
 
-function uid(): string {
-  const u = auth.currentUser;
-  if (!u) throw new Error("Non connecté.");
-  return u.uid;
-}
-
-// ─── Live subscription: latest day's events + active sleep ───
+// ─── Live subscription: whole `events` collection, anchored on the
+//     latest day with data (today if it has events) ───
 export interface DaySnapshot {
-  /** Calendar day the Tracker is showing (today if it has events,
-   *  otherwise the day of the most recent event). */
   day: Date;
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
@@ -288,122 +288,68 @@ export function subscribeTracker(
   cb: (snap: DaySnapshot) => void,
   onError?: (e: Error) => void,
 ): Unsubscribe {
-  let activeSleep: DaySnapshot["activeSleep"] = null;
-
-  // Mirror the legacy reader: events live under either trackerId ==
-  // 'charlie-shared' (shared scope) or userId == <uid> (older docs).
-  // Merge both, dedupe by doc id (prefer the shared-scoped copy).
-  let sharedDocs = new Map<string, Record<string, unknown>>();
-  let userDocs = new Map<string, Record<string, unknown>>();
-
-  const emit = () => {
-    const merged = new Map<string, Record<string, unknown>>();
-    userDocs.forEach((v, k) => merged.set(k, v));
-    sharedDocs.forEach((v, k) => merged.set(k, v)); // shared wins
-    const all = [...merged.entries()]
-      .map(([id, raw]) => fromDoc(id, raw))
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
-
-    // Anchor on today if it has events, else the most recent event's
-    // day — like the legacy app, which always shows the latest state
-    // rather than a strict calendar-today window.
-    const todayFrom = startOfDay(new Date()).getTime();
-    const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
-    const anchor =
-      hasToday || all.length === 0
-        ? new Date()
-        : all[all.length - 1].start;
-    const from = startOfDay(anchor).getTime();
-    const to = from + 86400000;
-
-    const events = all.filter((e) => {
-      const t = e.start.getTime();
-      const endT = e.end ? e.end.getTime() : t;
-      return endT >= from && t < to;
-    });
-
-    if (all.length) {
-      const max = new Date(all[all.length - 1].start);
-      console.info(
-        `[events] ${all.length} docs · dernier ${max.toLocaleString("fr")} · jour affiché ${new Date(from).toLocaleDateString("fr")} · dans le jour=${events.length}`,
-      );
-    } else {
-      console.info("[events] 0 doc reçu");
-    }
-    cb({ day: new Date(from), events, activeSleep });
-  };
-
-  const handleErr = (label: string) => (err: unknown) => {
-    const code =
-      typeof err === "object" && err && "code" in err
-        ? String((err as { code: unknown }).code)
-        : "";
-    console.warn(`[events] ${label} error: ${code || err}`);
-    onError?.(err as Error);
-  };
-
-  const unsubShared = onSnapshot(
-    query(collection(db, "events"), where("trackerId", "==", SCOPE)),
+  return onSnapshot(
+    collection(db, "events"),
     (snap) => {
-      sharedDocs = new Map(
-        snap.docs.map((d) => [d.id, d.data() as Record<string, unknown>]),
-      );
-      emit();
+      const all = snap.docs
+        .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+      // Sleep in progress = a sleep event with no endTime.
+      const openSleep =
+        [...all].reverse().find((e) => e.type === "sleep" && e.end === null) ??
+        null;
+      const activeSleep = openSleep
+        ? { id: openSleep.id, start: openSleep.start }
+        : null;
+
+      // Anchor on today if it has events, otherwise the most recent
+      // event's day (like the legacy app: always show the latest state).
+      const todayFrom = startOfDay(new Date()).getTime();
+      const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
+      const anchor =
+        hasToday || all.length === 0 ? new Date() : all[all.length - 1].start;
+      const from = startOfDay(anchor).getTime();
+      const to = from + 86400000;
+
+      const events = all.filter((e) => {
+        const t = e.start.getTime();
+        const endT = e.end ? e.end.getTime() : t;
+        return endT >= from && t < to;
+      });
+
+      if (all.length) {
+        const max = all[all.length - 1].start;
+        console.info(
+          `[events] ${all.length} docs · dernier ${max.toLocaleString("fr")} · jour affiché ${new Date(from).toLocaleDateString("fr")} · dans le jour=${events.length}`,
+        );
+      } else {
+        console.info("[events] 0 doc dans la collection");
+      }
+      cb({ day: new Date(from), events, activeSleep });
     },
-    handleErr("trackerId"),
-  );
-
-  const myUid = auth.currentUser?.uid;
-  const unsubUser = myUid
-    ? onSnapshot(
-        query(collection(db, "events"), where("userId", "==", myUid)),
-        (snap) => {
-          userDocs = new Map(
-            snap.docs.map((d) => [
-              d.id,
-              d.data() as Record<string, unknown>,
-            ]),
-          );
-          emit();
-        },
-        handleErr("userId"),
-      )
-    : () => {};
-
-  const unsubActive = onSnapshot(
-    doc(db, "activeSessions", SCOPE),
-    (snap) => {
-      const d = snap.data() as Record<string, unknown> | undefined;
-      activeSleep =
-        snap.exists() && d && d.type === "sleep"
-          ? {
-              id: String(d.eventId ?? ""),
-              start: new Date(
-                typeof d.startTime === "number" ? d.startTime : Date.now(),
-              ),
-            }
-          : null;
-      emit();
+    (err) => {
+      const code =
+        typeof err === "object" && err && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
+      console.warn(`[events] snapshot error: ${code || err}`);
+      onError?.(err as Error);
     },
-    handleErr("activeSession"),
   );
-
-  return () => {
-    unsubShared();
-    unsubUser();
-    unsubActive();
-  };
 }
 
-// ─── Writes (legacy `charlie-shared` format) ───
-function baseDoc(type: EventType, note: string) {
-  return {
-    type: dbType(type),
-    userId: uid(),
-    trackerId: SCOPE,
-    actorRole: "manager",
-    notes: note.trim() || null,
-  };
+// ─── Writes — minimal clean docs ───
+function startMsFor(when: TimeOfDay, day: Date): number {
+  return new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    when.h,
+    when.m,
+    0,
+    0,
+  ).getTime();
 }
 
 export async function addInstantEvent(
@@ -413,66 +359,37 @@ export async function addInstantEvent(
   note: string,
   day = new Date(),
 ): Promise<void> {
-  const start = new Date(
-    day.getFullYear(),
-    day.getMonth(),
-    day.getDate(),
-    when.h,
-    when.m,
-    0,
-    0,
-  ).getTime();
+  const ts = startMsFor(when, day);
   await addDoc(collection(db, "events"), {
-    ...baseDoc(type, note),
-    startTime: start,
-    endTime: start,
+    type: dbType(type),
+    startTime: ts,
+    endTime: ts,
     details: toDetails(type, data),
-    serverCreatedAt: serverTimestamp(),
+    notes: note.trim() || null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   });
 }
 
 export async function startSleep(): Promise<void> {
-  const sessionRef = doc(db, "activeSessions", SCOPE);
-  const eventRef = doc(collection(db, "events"));
   const ts = Date.now();
-  await runTransaction(db, async (tx) => {
-    const active = await tx.get(sessionRef);
-    if (active.exists()) throw new Error("Un sommeil est déjà en cours.");
-    tx.set(eventRef, {
-      ...baseDoc("sleep", ""),
-      startTime: ts,
-      endTime: null,
-      details: {},
-    });
-    tx.set(sessionRef, {
-      eventId: eventRef.id,
-      type: "sleep",
-      startTime: ts,
-      userId: uid(),
-      trackerId: SCOPE,
-      actorRole: "manager",
-      details: {},
-      updatedAt: ts,
-    });
+  await addDoc(collection(db, "events"), {
+    type: "sleep",
+    startTime: ts,
+    endTime: null,
+    details: {},
+    notes: null,
+    createdAt: ts,
+    updatedAt: ts,
   });
 }
 
-export async function stopSleep(): Promise<void> {
-  const sessionRef = doc(db, "activeSessions", SCOPE);
-  const ts = Date.now();
-  await runTransaction(db, async (tx) => {
-    const active = await tx.get(sessionRef);
-    if (!active.exists()) throw new Error("Aucun sommeil en cours.");
-    const eventId = String(active.data()?.eventId ?? "");
-    if (eventId) {
-      const eventRef = doc(db, "events", eventId);
-      const ev = await tx.get(eventRef);
-      if (ev.exists() && ev.data()?.endTime == null) {
-        tx.update(eventRef, { endTime: ts });
-      }
-    }
-    tx.delete(sessionRef);
-  });
+export async function stopSleep(id: string): Promise<void> {
+  await setDoc(
+    doc(db, "events", id),
+    { endTime: Date.now(), updatedAt: Date.now() },
+    { merge: true },
+  );
 }
 
 export async function editEvent(
@@ -480,37 +397,16 @@ export async function editEvent(
   patch: { start?: TimeOfDay; end?: TimeOfDay | null; note?: string },
   day = new Date(),
 ): Promise<void> {
-  const out: Record<string, unknown> = { trackerId: SCOPE };
-  if (patch.start) {
-    out.startTime = new Date(
-      day.getFullYear(),
-      day.getMonth(),
-      day.getDate(),
-      patch.start.h,
-      patch.start.m,
-    ).getTime();
-  }
+  const out: Record<string, unknown> = { updatedAt: Date.now() };
+  if (patch.start) out.startTime = startMsFor(patch.start, day);
   if (patch.end === null) out.endTime = null;
-  else if (patch.end) {
-    out.endTime = new Date(
-      day.getFullYear(),
-      day.getMonth(),
-      day.getDate(),
-      patch.end.h,
-      patch.end.m,
-    ).getTime();
-  }
+  else if (patch.end) out.endTime = startMsFor(patch.end, day);
   if (patch.note !== undefined) out.notes = patch.note.trim() || null;
   await setDoc(doc(db, "events", id), out, { merge: true });
 }
 
 export async function deleteEvent(id: string): Promise<void> {
   await deleteDoc(doc(db, "events", id));
-  const sessionRef = doc(db, "activeSessions", SCOPE);
-  const active = await getDoc(sessionRef);
-  if (active.exists() && active.data()?.eventId === id) {
-    await deleteDoc(sessionRef);
-  }
 }
 
 // ─── Derived stats for the Tracker tiles ───
@@ -544,10 +440,7 @@ export function statsFor(events: AppEvent[]): DayStats {
   return {
     sleepMin: sleeps.reduce((s, e) => s + e.durMin, 0),
     feedCount: feeds.length,
-    pumpMl: pumps.reduce(
-      (s, e) => s + ((e.data as PumpData).ml || 0),
-      0,
-    ),
+    pumpMl: pumps.reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
     pumpCount: pumps.length,
     diaperCount: diapers.length,
     pipiCount: diapers.filter((e) => (e.data as DiaperData).pipi).length,
@@ -558,8 +451,7 @@ export function statsFor(events: AppEvent[]): DayStats {
       : null,
     lastFeed,
     lastBreast,
-    lastSleep:
-      [...sleeps].reverse().find((e) => e.end) ?? null,
+    lastSleep: [...sleeps].reverse().find((e) => e.end) ?? null,
   };
 }
 
@@ -581,6 +473,15 @@ export const CARE_OPTIONS: { v: string; l: string }[] = [
   { v: "custom", l: "Autre" },
 ];
 
+const CARE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(CARE_OPTIONS.map((o) => [o.v, o.l])),
+  // legacy medicationName values seen in current-format data
+  vitamin_d: "Vitamine D",
+  bath: "Bain",
+  pediatrician: "Pédiatre / médecin",
+  midwife: "Sage-femme",
+};
+
 export function careLabel(kind: string): string {
-  return CARE_OPTIONS.find((o) => o.v === kind)?.l ?? kind;
+  return CARE_LABELS[kind] ?? kind;
 }
