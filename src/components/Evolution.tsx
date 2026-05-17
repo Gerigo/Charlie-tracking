@@ -792,6 +792,7 @@ export function Evolution() {
           unit=" h"
           tone={TONES.indigo}
           data={sleepS}
+          minY={0}
         />
         <ChartCard
           title="Tétées au sein"
@@ -799,6 +800,7 @@ export function Evolution() {
           unit=""
           tone={TONES.sand}
           data={seinS}
+          minY={0}
         />
         <ChartCard
           title="Biberons"
@@ -806,6 +808,7 @@ export function Evolution() {
           unit=""
           tone={TONES.clay}
           data={bottleS}
+          minY={0}
         />
         <ChartCard
           title="Lait tiré"
@@ -813,6 +816,7 @@ export function Evolution() {
           unit=" ml"
           tone={TONES.rose}
           data={pumpS}
+          minY={0}
         />
         {tempS.length > 1 && (
           <ChartCard
