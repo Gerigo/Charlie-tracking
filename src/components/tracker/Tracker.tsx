@@ -11,14 +11,16 @@ import {
   fmtDur,
   fmtTime,
   durationMin,
+  timeAgo,
 } from "@/lib/dates";
 import {
-  careLabel,
+  careText,
   startSleep,
   statsFor,
   stopSleep,
   subscribeTracker,
   type AppEvent,
+  type CareData,
   type DaySnapshot,
   type FeedData,
 } from "@/lib/events";
@@ -62,7 +64,7 @@ function TileIcon({ kind, asleep }: { kind: string; asleep: boolean }) {
       : EVENT_EMOJI[kind as keyof typeof EVENT_EMOJI];
   return (
     <span
-      style={{ fontSize: 21, lineHeight: 1, filter: "saturate(1.05)" }}
+      style={{ fontSize: 28, lineHeight: 1, filter: "saturate(1.05)" }}
       role="img"
       aria-label={kind}
     >
@@ -77,6 +79,7 @@ function EventTile({
   label,
   primary,
   hint,
+  meta,
   badge,
   live = false,
   sideBadge = null,
@@ -89,6 +92,7 @@ function EventTile({
   label: string;
   primary?: ReactNode;
   hint?: string;
+  meta?: string;
   badge?: string | null;
   live?: boolean;
   sideBadge?: "G" | "D" | null;
@@ -106,7 +110,7 @@ function EventTile({
         textAlign: "left",
         padding: "16px 16px 15px",
         width: "100%",
-        minHeight: 124,
+        minHeight: 150,
         borderRadius: 24,
         background: asleep
           ? "linear-gradient(180deg, #2F3450 0%, #1F2238 100%)"
@@ -131,9 +135,9 @@ function EventTile({
       >
         <div
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 13,
+            width: 50,
+            height: 50,
+            borderRadius: 16,
             background: chipBg,
             display: "grid",
             placeItems: "center",
@@ -217,14 +221,14 @@ function EventTile({
           </span>
         ) : null}
       </div>
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 14 }}>
         <div
           style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            opacity: asleep ? 0.6 : 0.55,
+            fontSize: 20,
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
+            color: ink,
           }}
         >
           {label}
@@ -233,11 +237,12 @@ function EventTile({
           <div
             className="num"
             style={{
-              fontSize: 21,
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              marginTop: 4,
-              lineHeight: 1.1,
+              fontSize: 16,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              marginTop: 5,
+              lineHeight: 1.15,
+              opacity: 0.92,
             }}
           >
             {primary}
@@ -247,12 +252,24 @@ function EventTile({
           <div
             style={{
               fontSize: 12,
-              opacity: asleep ? 0.6 : 0.6,
+              opacity: 0.6,
               marginTop: 3,
               fontWeight: 600,
             }}
           >
             {hint}
+          </div>
+        )}
+        {meta && (
+          <div
+            style={{
+              fontSize: 11.5,
+              opacity: 0.5,
+              marginTop: 2,
+              fontWeight: 700,
+            }}
+          >
+            {meta}
           </div>
         )}
       </div>
@@ -308,6 +325,12 @@ export function Tracker() {
   const sleepStart = activeSleep?.start ?? stats.lastSleep?.start ?? null;
   const lastFeed = stats.lastFeed;
   const lastBreast = stats.lastBreast;
+  const lastOf = (t: AppEvent["type"]) =>
+    [...events].reverse().find((e) => e.type === t) ?? null;
+  const lastPump = lastOf("pump");
+  const lastDiaper = lastOf("diaper");
+  const lastCare = lastOf("care");
+  const lastTempEv = lastOf("temp");
 
   const containerStyle: CSSProperties = {
     position: "absolute",
@@ -413,9 +436,14 @@ export function Tracker() {
             hint={
               sleeping && sleepStart
                 ? `Depuis ${fmtTime(sleepStart)}`
-                : stats.lastSleep
-                  ? `Dernier à ${fmtTime(stats.lastSleep.start)}`
+                : stats.lastSleep?.end
+                  ? `Réveil ${timeAgo(stats.lastSleep.end)}`
                   : "Rien aujourd'hui"
+            }
+            meta={
+              stats.sleepMin
+                ? `Total ${fmtDur(stats.sleepMin)} aujourd'hui`
+                : undefined
             }
             footer={
               activeSleep ? (
@@ -463,13 +491,28 @@ export function Tracker() {
                 ? lastBreast
                 : null
             }
-            primary={lastFeed ? fmtTime(lastFeed.start) : "—"}
+            primary={
+              lastFeed
+                ? (lastFeed.data as FeedData).kind === "sein"
+                  ? `Sein ${lastBreast === "G" ? "gauche" : "droit"}`
+                  : `Biberon ${(lastFeed.data as FeedData).ml ?? "?"} ml`
+                : "—"
+            }
             hint={
               lastFeed
                 ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `Prochain → sein ${lastBreast === "G" ? "droit" : "gauche"}`
-                  : `Biberon · ${(lastFeed.data as FeedData).ml ?? "?"} ml`
+                  ? `${timeAgo(lastFeed.start)} · prochain ${
+                      lastBreast === "G" ? "droit" : "gauche"
+                    }`
+                  : timeAgo(lastFeed.start)
                 : "Rien aujourd'hui"
+            }
+            meta={
+              stats.feedCount
+                ? `${stats.feedCount} tétée${
+                    stats.feedCount > 1 ? "s" : ""
+                  } aujourd'hui`
+                : undefined
             }
             onClick={() => setSheet({ type: "feed" })}
           />
@@ -478,10 +521,13 @@ export function Tracker() {
             tone={TONES.rose}
             label="Tirage"
             primary={stats.pumpCount ? `${stats.pumpMl} ml` : "—"}
-            hint={
+            hint={lastPump ? timeAgo(lastPump.start) : "Rien aujourd'hui"}
+            meta={
               stats.pumpCount
-                ? `${stats.pumpCount} séance${stats.pumpCount > 1 ? "s" : ""}`
-                : "Rien aujourd'hui"
+                ? `${stats.pumpCount} séance${
+                    stats.pumpCount > 1 ? "s" : ""
+                  } aujourd'hui`
+                : undefined
             }
             onClick={() => setSheet({ type: "pump" })}
           />
@@ -489,11 +535,14 @@ export function Tracker() {
             kind="diaper"
             tone={TONES.olive}
             label="Couches"
-            primary={stats.diaperCount ? stats.diaperCount : "—"}
+            primary={stats.diaperCount ? `${stats.diaperCount}` : "—"}
             hint={
+              lastDiaper ? timeAgo(lastDiaper.start) : "Rien aujourd'hui"
+            }
+            meta={
               stats.diaperCount
                 ? `${stats.pipiCount} pipi · ${stats.cacaCount} caca`
-                : "Rien aujourd'hui"
+                : undefined
             }
             onClick={() => setSheet({ type: "diaper" })}
           />
@@ -501,15 +550,15 @@ export function Tracker() {
             kind="care"
             tone={TONES.sky}
             label="Soins"
-            primary={stats.careCount ? stats.careCount : "—"}
-            hint={(() => {
-              const c = events.filter((e) => e.type === "care");
-              if (!c.length) return "Rien aujourd'hui";
-              const last = c[c.length - 1];
-              return `Dernier · ${careLabel(
-                (last.data as { kind: string }).kind,
-              )}`;
-            })()}
+            primary={
+              lastCare ? careText(lastCare.data as CareData) : "—"
+            }
+            hint={lastCare ? timeAgo(lastCare.start) : "Rien aujourd'hui"}
+            meta={
+              stats.careCount
+                ? `${stats.careCount} aujourd'hui`
+                : undefined
+            }
             onClick={() => setSheet({ type: "care" })}
           />
           <EventTile
@@ -517,15 +566,14 @@ export function Tracker() {
             tone={TONES.clay}
             label="Température"
             primary={stats.lastTemp ? `${stats.lastTemp.toFixed(1)}°` : "—"}
-            hint={(() => {
-              const t = events.filter((e) => e.type === "temp");
-              if (!t.length) return "Rien aujourd'hui";
-              const last = t[t.length - 1] as AppEvent;
-              const slot = (last.data as { slot: string }).slot;
-              return `${slot[0].toUpperCase()}${slot.slice(1)} · à ${fmtTime(
-                last.start,
-              )}`;
-            })()}
+            hint={
+              lastTempEv
+                ? `${(() => {
+                    const s = (lastTempEv.data as { slot: string }).slot;
+                    return s[0].toUpperCase() + s.slice(1);
+                  })()} · ${timeAgo(lastTempEv.start)}`
+                : "Rien aujourd'hui"
+            }
             onClick={() => setSheet({ type: "temp" })}
           />
         </div>

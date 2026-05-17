@@ -45,7 +45,8 @@ export interface DiaperData {
   note: string;
 }
 export interface CareData {
-  kind: string;
+  /** One care event can group several soins (multi-select). */
+  kinds: string[];
   custom: string | null;
   note: string;
 }
@@ -176,7 +177,7 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
     case "care": {
       const d = data as CareData;
       return {
-        careKind: d.kind,
+        careKinds: d.kinds,
         ...(d.custom ? { careCustom: d.custom } : {}),
       };
     }
@@ -273,12 +274,16 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
       break;
     }
     case "care": {
-      const kind =
-        (typeof det.careKind === "string" && det.careKind) ||
-        (typeof det.medicationName === "string" && det.medicationName) ||
-        "custom";
+      const arr = det.careKinds;
+      const kinds = Array.isArray(arr)
+        ? arr.filter((x): x is string => typeof x === "string")
+        : typeof det.careKind === "string"
+          ? [det.careKind]
+          : typeof det.medicationName === "string"
+            ? [det.medicationName]
+            : ["custom"];
       data = {
-        kind,
+        kinds: kinds.length ? kinds : ["custom"],
         custom: typeof det.careCustom === "string" ? det.careCustom : null,
         note,
       } satisfies CareData;
@@ -539,4 +544,12 @@ const CARE_LABELS: Record<string, string> = {
 
 export function careLabel(kind: string): string {
   return CARE_LABELS[kind] ?? kind;
+}
+
+/** Human label for a (multi) care event: "Bain, Crème, Tire-lait". */
+export function careText(data: CareData): string {
+  const parts = data.kinds.map((k) =>
+    k === "custom" ? (data.custom?.trim() || "Autre") : careLabel(k),
+  );
+  return parts.join(", ");
 }

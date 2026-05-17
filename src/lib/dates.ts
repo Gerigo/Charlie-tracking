@@ -60,3 +60,14 @@ export function ageInDays(d: Date): number {
 export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+/** "à l'instant", "il y a 25 min", "il y a 2h10". */
+export function timeAgo(d: Date, now = new Date()): string {
+  const min = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h < 24) return `il y a ${h}h${m ? pad2(m) : ""}`;
+  const days = Math.floor(h / 24);
+  return `il y a ${days} j`;
+}

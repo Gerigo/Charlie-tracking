@@ -150,27 +150,72 @@ function FeedForm({
                 />
                 <div
                   style={{
-                    marginTop: 10,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    background: over
-                      ? "rgba(154,79,63,0.1)"
-                      : "rgba(0,0,0,0.04)",
-                    color: over ? "#9A4F3F" : "rgba(42,38,32,0.6)",
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    lineHeight: 1.4,
+                    marginTop: 12,
+                    padding: "12px 14px",
+                    borderRadius: 14,
+                    background: "#fff",
+                    border: "1px solid rgba(0,0,0,0.06)",
                   }}
                 >
-                  {over ? "⚠️ " : "💡 "}
-                  Recommandé : ≤ {BOTTLE_DAILY_MAX} ml de biberon / jour.
-                  <br />
-                  Aujourd'hui :{" "}
-                  <span className="num">
-                    {bottleMlToday} ml
-                  </span>{" "}
-                  · avec ce biberon ≈{" "}
-                  <span className="num">{projected} ml</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: over ? "#9A4F3F" : "rgba(42,38,32,0.65)",
+                    }}
+                  >
+                    <span>Biberon du jour</span>
+                    <span className="num">
+                      {projected} / {BOTTLE_DAILY_MAX} ml
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      position: "relative",
+                      height: 8,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.06)",
+                      marginTop: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: `${Math.min(100, (bottleMlToday / BOTTLE_DAILY_MAX) * 100)}%`,
+                        background: TONES.sand.ink,
+                        opacity: 0.5,
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: `${Math.min(100, (projected / BOTTLE_DAILY_MAX) * 100)}%`,
+                        background: over ? "#B5705C" : TONES.sand.ink,
+                        transition: "width 180ms ease",
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: "rgba(42,38,32,0.55)",
+                      marginTop: 8,
+                    }}
+                  >
+                    {bottleMlToday > 0
+                      ? `Déjà ${bottleMlToday} ml aujourd'hui · `
+                      : ""}
+                    {over
+                      ? `dépasse le repère conseillé de ${BOTTLE_DAILY_MAX} ml/jour`
+                      : `repère conseillé : ${BOTTLE_DAILY_MAX} ml/jour`}
+                  </div>
                 </div>
               </div>
             );
@@ -261,7 +306,7 @@ function PumpForm({ onDone }: { onDone: () => void }) {
 }
 
 function DiaperForm({ onDone }: { onDone: () => void }) {
-  const [pipi, setPipi] = useState(true);
+  const [pipi, setPipi] = useState(false);
   const [caca, setCaca] = useState(false);
   const [color, setColor] = useState<string>("jaune_or");
   const [note, setNote] = useState("");
@@ -359,6 +404,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
       </div>
       <SubmitBar
         onClick={() => {
+          if (!pipi && !caca) return;
           const data: DiaperData = {
             pipi,
             caca,
@@ -492,24 +538,17 @@ function CareForm({ onDone }: { onDone: () => void }) {
         }
         onClick={() => {
           if (!canSave) return;
-          const t = nowTOD();
           const items = [...selected];
+          const data: CareData = {
+            kinds: items,
+            custom: items.includes("custom") ? custom.trim() : null,
+            note,
+          };
+          // A single event groups all selected soins → one entry in
+          // "Aujourd'hui", not N.
           void withToast(
-            async () => {
-              // One event per selected care item (keeps the model
-              // simple and the daily count meaningful).
-              for (const kind of items) {
-                const data: CareData = {
-                  kind,
-                  custom: kind === "custom" ? custom.trim() : null,
-                  note,
-                };
-                await addInstantEvent("care", t, data, note);
-              }
-            },
-            items.length > 1
-              ? `${items.length} soins enregistrés`
-              : "Soin enregistré",
+            () => addInstantEvent("care", nowTOD(), data, note),
+            items.length > 1 ? "Soins enregistrés" : "Soin enregistré",
             onDone,
           );
         }}

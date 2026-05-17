@@ -8,7 +8,7 @@ import {
   startOfDay,
 } from "@/lib/dates";
 import {
-  careLabel,
+  careText,
   subscribeAllEvents,
   type AppEvent,
   type CareData,
@@ -105,7 +105,7 @@ function rowText(e: AppEvent): string {
       return `Couche · ${t}`;
     }
     case "care":
-      return `Soin · ${careLabel((e.data as CareData).kind)}`;
+      return `Soin · ${careText(e.data as CareData)}`;
     case "temp": {
       const d = e.data as TempData;
       return `Température ${d.value.toFixed(1)}° · ${d.slot}`;
