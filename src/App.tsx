@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { BottomNav, type Tab } from "@/components/BottomNav";
+import { Tracker } from "@/components/tracker/Tracker";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { PALETTES } from "@/lib/theme";
 import Login from "@/pages/Login";
@@ -30,7 +33,7 @@ function Loader() {
   );
 }
 
-function Home() {
+function ComingSoon({ title }: { title: string }) {
   return (
     <div
       style={{
@@ -48,12 +51,12 @@ function Home() {
     >
       <div
         className="serif"
-        style={{ fontSize: 40, color: P.ink, fontWeight: 400 }}
+        style={{ fontSize: 38, color: P.ink, fontWeight: 400 }}
       >
-        Bonjour
+        {title}
       </div>
       <div style={{ fontSize: 14, color: P.inkSoft, fontWeight: 500 }}>
-        Connecté. Le Tracker arrive à la prochaine phase.
+        Écran à venir dans une prochaine phase.
       </div>
       <button
         onClick={() => void signOut()}
@@ -75,12 +78,24 @@ function Home() {
   );
 }
 
+function Shell() {
+  const [tab, setTab] = useState<Tab>("tracker");
+  return (
+    <>
+      {tab === "tracker" && <Tracker />}
+      {tab === "today" && <ComingSoon title="Aujourd'hui" />}
+      {tab === "growth" && <ComingSoon title="Croissance" />}
+      {tab === "evolution" && <ComingSoon title="Évolution" />}
+      <BottomNav active={tab} onChange={setTab} />
+    </>
+  );
+}
+
 export default function App() {
   const { user, loading } = useAuth();
-
   return (
     <AppShell>
-      {loading ? <Loader /> : user ? <Home /> : <Login />}
+      {loading ? <Loader /> : user ? <Shell /> : <Login />}
     </AppShell>
   );
 }
