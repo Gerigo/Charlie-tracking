@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { dayKey, fmtDur, startOfDay } from "@/lib/dates";
 import { useEvents } from "@/lib/eventsContext";
-import { Segmented } from "@/components/ui/primitives";
+import { Segmented, Sheet } from "@/components/ui/primitives";
 import { LineChart, type Point } from "@/components/ui/Chart";
 
 const P = PALETTES.sage;
@@ -119,78 +119,194 @@ function ClickableChart({
   );
 }
 
-function HourBars({
+function smooth(v: number[]): number[] {
+  return v.map((_, i) => {
+    const p = v[(i - 1 + v.length) % v.length];
+    const c = v[i];
+    const n = v[(i + 1) % v.length];
+    return p * 0.25 + c * 0.5 + n * 0.25;
+  });
+}
+
+type Scope = "24h" | "jour" | "nuit";
+function scopeHours(scope: Scope): number[] {
+  if (scope === "jour") return Array.from({ length: 12 }, (_, i) => i + 6);
+  if (scope === "nuit") return [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
+  return Array.from({ length: 24 }, (_, i) => i);
+}
+
+const C_SLEEP = TONES.indigo.ink;
+const C_WAKE = "#7C9A6B";
+const C_MEAL = "#B5705C";
+
+function useTrend(sleepHour: number[], feedHour: number[]) {
+  const sleep = smooth(sleepHour);
+  const wake = sleep.map((v) => 1 - v);
+  const meal = smooth(feedHour);
+  return { sleep, wake, meal };
+}
+
+/** Compact view — 3 rows of pills (sommeil / éveil / tétée) × hours. */
+function HourPills({
   sleepHour,
   feedHour,
   scope,
 }: {
   sleepHour: number[];
   feedHour: number[];
-  scope: "24h" | "jour" | "nuit";
+  scope: Scope;
 }) {
-  const hours =
-    scope === "jour"
-      ? Array.from({ length: 16 }, (_, i) => i + 6) // 6h–21h
-      : scope === "nuit"
-        ? [21, 22, 23, 0, 1, 2, 3, 4, 5, 6]
-        : Array.from({ length: 24 }, (_, i) => i);
+  const hours = scopeHours(scope);
+  const { sleep, wake, meal } = useTrend(sleepHour, feedHour);
+  const rows = [
+    { icon: "🌙", color: C_SLEEP, vals: sleep },
+    { icon: "☀️", color: C_WAKE, vals: wake },
+    { icon: "🍼", color: C_MEAL, vals: meal },
+  ];
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          gap: 2,
-          height: 92,
-        }}
-      >
-        {hours.map((h) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map((r) => (
           <div
-            key={h}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "flex-end",
-              height: "100%",
-              position: "relative",
-            }}
-            title={`${h}h`}
+            key={r.icon}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
           >
-            <div
-              style={{
-                height: `${Math.round(feedHour[h] * 100)}%`,
-                background: TONES.sand.ink,
-                borderRadius: 2,
-                opacity: 0.85,
-              }}
-            />
-            <div
-              style={{
-                height: `${Math.round(sleepHour[h] * 100)}%`,
-                background: TONES.indigo.ink,
-                borderRadius: 2,
-                marginTop: 1,
-              }}
-            />
+            <span style={{ width: 18, fontSize: 13 }}>{r.icon}</span>
+            <div style={{ flex: 1, display: "flex", gap: 2 }}>
+              {hours.map((h) => (
+                <div
+                  key={h}
+                  title={`${h}h · ${Math.round(r.vals[h] * 100)}%`}
+                  style={{
+                    flex: 1,
+                    height: 22,
+                    borderRadius: 5,
+                    background: r.color,
+                    opacity: 0.12 + r.vals[h] * 0.88,
+                  }}
+                />
+              ))}
+            </div>
           </div>
         ))}
       </div>
       <div
+        className="num"
         style={{
           display: "flex",
-          justifyContent: "space-between",
-          marginTop: 4,
+          gap: 2,
+          marginLeft: 26,
+          marginTop: 5,
           fontSize: 9,
           color: P.inkSoft,
           opacity: 0.6,
         }}
-        className="num"
       >
-        <span>{hours[0]}h</span>
-        <span>{hours[Math.floor(hours.length / 2)]}h</span>
-        <span>{hours[hours.length - 1]}h</span>
+        {hours.map((h, i) => (
+          <span
+            key={h}
+            style={{ flex: 1, textAlign: "center" }}
+          >
+            {i % 3 === 0 ? `${String(h).padStart(2, "0")}h` : ""}
+          </span>
+        ))}
       </div>
+    </div>
+  );
+}
+
+/** Detailed view — per hour, 3 bars with %, dominant emphasised. */
+function HourDetail({
+  sleepHour,
+  feedHour,
+  scope,
+}: {
+  sleepHour: number[];
+  feedHour: number[];
+  scope: Scope;
+}) {
+  const hours = scopeHours(scope);
+  const { sleep, wake, meal } = useTrend(sleepHour, feedHour);
+  return (
+    <div
+      style={{
+        padding: "0 22px 28px",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "20px 16px",
+      }}
+    >
+      {hours.map((h) => {
+        const lines = [
+          { icon: "🌙", color: C_SLEEP, v: sleep[h] },
+          { icon: "☀️", color: C_WAKE, v: wake[h] },
+          { icon: "🍴", color: C_MEAL, v: meal[h] },
+        ];
+        const dom = Math.max(...lines.map((l) => l.v));
+        return (
+          <div key={h}>
+            <div
+              className="num"
+              style={{
+                fontSize: 17,
+                fontWeight: 800,
+                color: P.ink,
+                marginBottom: 8,
+              }}
+            >
+              {String(h).padStart(2, "0")}h
+            </div>
+            {lines.map((l) => {
+              const isDom = l.v === dom && l.v > 0;
+              const pct = Math.round(l.v * 100);
+              return (
+                <div
+                  key={l.icon}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 6,
+                    opacity: isDom ? 1 : 0.6,
+                  }}
+                >
+                  <span style={{ fontSize: 12, width: 16 }}>{l.icon}</span>
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 9,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.06)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${pct}%`,
+                        height: "100%",
+                        background: l.color,
+                        borderRadius: 999,
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="num"
+                    style={{
+                      width: 34,
+                      textAlign: "right",
+                      fontSize: 11.5,
+                      fontWeight: isDom ? 800 : 600,
+                      color: isDom ? l.color : P.inkSoft,
+                    }}
+                  >
+                    {pct}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -259,9 +375,8 @@ export function Evolution() {
   const { events } = useEvents();
   const [range, setRange] = useState<Range>("7j");
 
-  const [hourScope, setHourScope] = useState<"24h" | "jour" | "nuit">(
-    "24h",
-  );
+  const [hourScope, setHourScope] = useState<Scope>("24h");
+  const [trendDetail, setTrendDetail] = useState(false);
   const {
     avg,
     usageDays,
@@ -567,7 +682,7 @@ export function Evolution() {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 700, color: P.ink }}>
-              Journée type
+              Tendances horaires
             </div>
             <Segmented
               value={hourScope}
@@ -583,13 +698,13 @@ export function Evolution() {
             style={{
               fontSize: 11.5,
               color: P.inkSoft,
-              marginBottom: 10,
+              marginBottom: 12,
               fontWeight: 600,
             }}
           >
             {summary}
           </div>
-          <HourBars
+          <HourPills
             sleepHour={sleepHour}
             feedHour={feedHour}
             scope={hourScope}
@@ -598,35 +713,76 @@ export function Evolution() {
             style={{
               display: "flex",
               gap: 14,
-              marginTop: 10,
+              marginTop: 12,
               fontSize: 11,
               color: P.inkSoft,
+              flexWrap: "wrap",
             }}
           >
-            <span style={{ display: "inline-flex", gap: 5 }}>
+            {(
+              [
+                ["🌙", "sommeil"],
+                ["☀️", "éveil"],
+                ["🍼", "tétée"],
+              ] as const
+            ).map(([e, l]) => (
               <span
-                style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: 2,
-                  background: TONES.indigo.ink,
-                }}
-              />
-              sommeil
-            </span>
-            <span style={{ display: "inline-flex", gap: 5 }}>
-              <span
-                style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: 2,
-                  background: TONES.sand.ink,
-                }}
-              />
-              tétée
-            </span>
+                key={l}
+                style={{ display: "inline-flex", gap: 5, alignItems: "center" }}
+              >
+                {e} {l}
+              </span>
+            ))}
           </div>
+          <button
+            onClick={() => setTrendDetail(true)}
+            style={{
+              marginTop: 14,
+              width: "100%",
+              height: 42,
+              borderRadius: 14,
+              background: "transparent",
+              border: `1px solid ${P.line}`,
+              color: P.ink,
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            Vue détaillée
+          </button>
         </div>
+
+        <Sheet open={trendDetail} onClose={() => setTrendDetail(false)}>
+          <div
+            style={{
+              padding: "6px 22px 14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div
+              className="serif"
+              style={{ fontSize: 27, color: P.ink }}
+            >
+              Tendances horaires
+            </div>
+            <Segmented
+              value={hourScope}
+              onChange={setHourScope}
+              options={[
+                { value: "24h", label: "24 h" },
+                { value: "jour", label: "Jour" },
+                { value: "nuit", label: "Nuit" },
+              ]}
+            />
+          </div>
+          <HourDetail
+            sleepHour={sleepHour}
+            feedHour={feedHour}
+            scope={hourScope}
+          />
+        </Sheet>
 
         <ChartCard
           title="Heures de sommeil"
