@@ -602,6 +602,24 @@ export function Today() {
             }}
           >
             Aucun événement ce jour.
+            <div>
+              <button
+                onClick={() => setOffset((o) => o + 1)}
+                style={{
+                  marginTop: 14,
+                  height: 40,
+                  padding: "0 16px",
+                  borderRadius: 14,
+                  background: "transparent",
+                  border: `1px solid ${P.line}`,
+                  color: P.inkSoft,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                ‹ Voir le jour précédent
+              </button>
+            </div>
           </div>
         ) : (
           (() => {
@@ -636,10 +654,10 @@ export function Today() {
                       >
                         {fmtTime(e.start)}
                       </div>
-                      {/* rail */}
+                      {/* rail + emoji bubble (hors carte) */}
                       <div
                         style={{
-                          width: 26,
+                          width: 44,
                           position: "relative",
                           flexShrink: 0,
                         }}
@@ -647,7 +665,7 @@ export function Today() {
                         <div
                           style={{
                             position: "absolute",
-                            left: 12,
+                            left: 21,
                             top: 0,
                             bottom: 0,
                             width: 2,
@@ -657,21 +675,26 @@ export function Today() {
                         <div
                           style={{
                             position: "absolute",
-                            left: 6,
-                            top: 16,
-                            width: 14,
-                            height: 14,
+                            left: 5,
+                            top: 10,
+                            width: 34,
+                            height: 34,
                             borderRadius: 999,
-                            background: live ? "#2F3450" : tone.bg,
-                            border: `2px solid ${P.bg}`,
-                            boxShadow: live
-                              ? "0 0 0 1px rgba(255,255,255,0.25)"
-                              : `0 0 0 1px ${tone.ink}40`,
+                            display: "grid",
+                            placeItems: "center",
+                            fontSize: 18,
+                            background: live ? "#2F3450" : tone.soft,
+                            border: live
+                              ? "1px solid rgba(255,255,255,0.25)"
+                              : `1px solid ${tone.ink}33`,
+                            boxShadow: `0 0 0 3px ${P.bg}`,
                             animation: live
-                              ? "pulse 1.6s ease-in-out infinite"
+                              ? "pulse 1.8s ease-in-out infinite"
                               : undefined,
                           }}
-                        />
+                        >
+                          {emojiFor(e)}
+                        </div>
                       </div>
                       {/* content */}
                       <button
@@ -692,14 +715,14 @@ export function Today() {
                           border: live
                             ? "0.5px solid rgba(255,255,255,0.12)"
                             : `0.5px solid ${P.line}`,
+                          borderLeft: live
+                            ? "3px solid rgba(255,255,255,0.3)"
+                            : `3px solid ${tone.ink}`,
                           display: "flex",
                           alignItems: "center",
                           gap: 10,
                         }}
                       >
-                        <span style={{ fontSize: 22, flexShrink: 0 }}>
-                          {emojiFor(e)}
-                        </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span
                             style={{
@@ -780,6 +803,23 @@ export function Today() {
                     Voir plus · {ordered.length - limit} restants
                   </button>
                 )}
+                <button
+                  onClick={() => setOffset((o) => o + 1)}
+                  style={{
+                    marginTop: 6,
+                    marginLeft: 56,
+                    height: 42,
+                    padding: "0 16px",
+                    borderRadius: 14,
+                    background: "transparent",
+                    border: `1px solid ${P.line}`,
+                    color: P.inkSoft,
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  ‹ Voir le jour précédent
+                </button>
               </div>
             );
           })()
