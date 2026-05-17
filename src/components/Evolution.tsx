@@ -373,7 +373,7 @@ function ChartCard({
 
 export function Evolution() {
   const { events } = useEvents();
-  const [range, setRange] = useState<Range>("7j");
+  const [range, setRange] = useState<Range>("total");
 
   const [hourScope, setHourScope] = useState<Scope>("24h");
   const [trendDetail, setTrendDetail] = useState(false);

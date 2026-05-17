@@ -9,6 +9,7 @@ import {
 } from "@/lib/dates";
 import {
   careText,
+  sleepMinutesIn,
   type AppEvent,
   type CareData,
   type DiaperData,
@@ -23,7 +24,6 @@ import { Sheet } from "@/components/ui/primitives";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
-const MAX_SLEEP_MS = 20 * 3600000;
 
 const TONE_BY_TYPE: Record<AppEvent["type"], Tone> = {
   sleep: TONES.indigo,
@@ -54,23 +54,6 @@ function minOfDay(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-function sleepMinutes(
-  events: AppEvent[],
-  winStart: number,
-  winEnd: number,
-): number {
-  let total = 0;
-  for (const e of events) {
-    if (e.type !== "sleep") continue;
-    const s = e.start.getTime();
-    const end = e.end ? e.end.getTime() : Date.now();
-    if (end <= s || end - s > MAX_SLEEP_MS) continue;
-    const a = Math.max(s, winStart);
-    const b = Math.min(end, winEnd);
-    if (b > a) total += (b - a) / 60000;
-  }
-  return Math.round(total);
-}
 
 function emojiFor(e: AppEvent): string {
   if (e.type === "sleep")
@@ -314,8 +297,8 @@ export function Today() {
     };
     const cur = agg(dayWin);
     const prev = agg(prevWin);
-    const sleepCur = sleepMinutes(events, dStart, winEnd);
-    const sleepPrev = sleepMinutes(events, prevStart, prevWinEnd);
+    const sleepCur = sleepMinutesIn(events, dStart, winEnd);
+    const sleepPrev = sleepMinutesIn(events, prevStart, prevWinEnd);
     const ongoing =
       isLatest && events.some((e) => e.type === "sleep" && !e.end);
 

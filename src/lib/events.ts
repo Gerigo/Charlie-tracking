@@ -341,6 +341,30 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
   };
 }
 
+/**
+ * Sleep minutes overlapping [fromMs, toMs). Splits at the window edges
+ * (so a night split across midnight counts only its in-window part),
+ * unclosed sleeps run to "now", absurd >20h sessions are ignored.
+ * Shared by Tracker + Aujourd'hui so the two always agree.
+ */
+export function sleepMinutesIn(
+  all: AppEvent[],
+  fromMs: number,
+  toMs: number,
+): number {
+  let total = 0;
+  for (const e of all) {
+    if (e.type !== "sleep") continue;
+    const s = e.start.getTime();
+    const end = e.end ? e.end.getTime() : Date.now();
+    if (end <= s || end - s > 20 * 3600000) continue;
+    const a = Math.max(s, fromMs);
+    const b = Math.min(end, toMs);
+    if (b > a) total += (b - a) / 60000;
+  }
+  return Math.round(total);
+}
+
 // ─── Derive the Tracker's day from the shared events list ───
 export interface DaySnapshot {
   day: Date;

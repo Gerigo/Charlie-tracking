@@ -12,11 +12,13 @@ import {
   fmtDur,
   fmtTime,
   durationMin,
+  startOfDay,
   timeAgo,
 } from "@/lib/dates";
 import {
   careText,
   selectTrackerDay,
+  sleepMinutesIn,
   startSleep,
   statsFor,
   stopSleep,
@@ -328,6 +330,14 @@ export function Tracker() {
 
   const { events, activeSleep } = snap;
   const stats = statsFor(events);
+  // Sleep total for the displayed day — same windowed split as
+  // Aujourd'hui (midnight-split, up to now) so the two screens agree.
+  const dayFrom = startOfDay(today).getTime();
+  const dayTo = Math.min(
+    dayFrom + 86400000,
+    Math.max(Date.now(), dayFrom + 1),
+  );
+  const sleepDayMin = sleepMinutesIn(allEvents, dayFrom, dayTo);
   const sleeping = !!activeSleep;
   const sleepStart = activeSleep?.start ?? stats.lastSleep?.start ?? null;
   const lastFeed = stats.lastFeed;
@@ -451,8 +461,8 @@ export function Tracker() {
                   : "Rien aujourd'hui"
             }
             meta={
-              stats.sleepMin
-                ? `Total ${fmtDur(stats.sleepMin)} aujourd'hui`
+              sleepDayMin
+                ? `Total ${fmtDur(sleepDayMin)} aujourd'hui`
                 : undefined
             }
             footer={
