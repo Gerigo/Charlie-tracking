@@ -81,6 +81,7 @@ function EventTile({
   hint,
   meta,
   badge,
+  corner,
   live = false,
   sideBadge = null,
   asleep = false,
@@ -94,6 +95,7 @@ function EventTile({
   hint?: string;
   meta?: string;
   badge?: string | null;
+  corner?: string;
   live?: boolean;
   sideBadge?: "G" | "D" | null;
   asleep?: boolean;
@@ -147,7 +149,27 @@ function EventTile({
         >
           <TileIcon kind={kind} asleep={asleep} />
         </div>
-        {sideBadge ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 6,
+          }}
+        >
+          {corner && (
+            <span
+              className="num"
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                opacity: asleep ? 0.6 : 0.5,
+              }}
+            >
+              {corner}
+            </span>
+          )}
+          {sideBadge ? (
           <span
             style={{
               display: "inline-flex",
@@ -219,7 +241,8 @@ function EventTile({
             )}
             {badge}
           </span>
-        ) : null}
+          ) : null}
+        </div>
       </div>
       <div style={{ marginTop: 14 }}>
         <div
@@ -408,6 +431,11 @@ export function Tracker() {
             asleep={sleeping}
             live={sleeping}
             badge={sleeping ? "EN COURS" : null}
+            corner={
+              !sleeping && stats.lastSleep?.end
+                ? timeAgo(stats.lastSleep.end)
+                : undefined
+            }
             primary={
               sleeping && sleepStart
                 ? fmtDur(durationMin(sleepStart, new Date()))
@@ -418,8 +446,8 @@ export function Tracker() {
             hint={
               sleeping && sleepStart
                 ? `Depuis ${fmtTime(sleepStart)}`
-                : stats.lastSleep?.end
-                  ? `Réveil ${timeAgo(stats.lastSleep.end)}`
+                : stats.lastSleep
+                  ? "Dernier sommeil"
                   : "Rien aujourd'hui"
             }
             meta={
@@ -473,6 +501,7 @@ export function Tracker() {
                 ? lastBreast
                 : null
             }
+            corner={lastFeed ? timeAgo(lastFeed.start) : undefined}
             primary={
               lastFeed
                 ? (lastFeed.data as FeedData).kind === "sein"
@@ -483,10 +512,10 @@ export function Tracker() {
             hint={
               lastFeed
                 ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `${timeAgo(lastFeed.start)} · prochain ${
+                  ? `Prochain → sein ${
                       lastBreast === "G" ? "droit" : "gauche"
                     }`
-                  : timeAgo(lastFeed.start)
+                  : undefined
                 : "Rien aujourd'hui"
             }
             meta={
@@ -502,8 +531,9 @@ export function Tracker() {
             kind="pump"
             tone={TONES.rose}
             label="Tirage"
+            corner={lastPump ? timeAgo(lastPump.start) : undefined}
             primary={stats.pumpCount ? `${stats.pumpMl} ml` : "—"}
-            hint={lastPump ? timeAgo(lastPump.start) : "Rien aujourd'hui"}
+            hint={stats.pumpCount ? undefined : "Rien aujourd'hui"}
             meta={
               stats.pumpCount
                 ? `${stats.pumpCount} séance${
@@ -517,10 +547,9 @@ export function Tracker() {
             kind="diaper"
             tone={TONES.olive}
             label="Couches"
+            corner={lastDiaper ? timeAgo(lastDiaper.start) : undefined}
             primary={stats.diaperCount ? `${stats.diaperCount}` : "—"}
-            hint={
-              lastDiaper ? timeAgo(lastDiaper.start) : "Rien aujourd'hui"
-            }
+            hint={stats.diaperCount ? undefined : "Rien aujourd'hui"}
             meta={
               stats.diaperCount
                 ? `${stats.pipiCount} pipi · ${stats.cacaCount} caca`
@@ -532,10 +561,11 @@ export function Tracker() {
             kind="care"
             tone={TONES.sky}
             label="Soins"
+            corner={lastCare ? timeAgo(lastCare.start) : undefined}
             primary={
               lastCare ? careText(lastCare.data as CareData) : "—"
             }
-            hint={lastCare ? timeAgo(lastCare.start) : "Rien aujourd'hui"}
+            hint={lastCare ? undefined : "Rien aujourd'hui"}
             meta={
               stats.careCount
                 ? `${stats.careCount} aujourd'hui`
@@ -547,13 +577,14 @@ export function Tracker() {
             kind="temp"
             tone={TONES.clay}
             label="Température"
+            corner={lastTempEv ? timeAgo(lastTempEv.start) : undefined}
             primary={stats.lastTemp ? `${stats.lastTemp.toFixed(1)}°` : "—"}
             hint={
               lastTempEv
-                ? `${(() => {
+                ? (() => {
                     const s = (lastTempEv.data as { slot: string }).slot;
                     return s[0].toUpperCase() + s.slice(1);
-                  })()} · ${timeAgo(lastTempEv.start)}`
+                  })()
                 : "Rien aujourd'hui"
             }
             onClick={() => setSheet({ type: "temp" })}

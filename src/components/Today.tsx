@@ -201,7 +201,7 @@ function StatTile({
         overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 19 }}>
+      <div style={{ fontSize: 28 }}>
         {emoji}
         {dark && (
           <span
@@ -682,7 +682,7 @@ export function Today() {
                           gap: 10,
                         }}
                       >
-                        <span style={{ fontSize: 16, flexShrink: 0 }}>
+                        <span style={{ fontSize: 22, flexShrink: 0 }}>
                           {emojiFor(e)}
                         </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
