@@ -599,109 +599,183 @@ export function Today() {
             Aucun événement ce jour.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {M.dayEvents.slice(0, limit).map((e) => {
-              const tone = TONE_BY_TYPE[e.type];
-              const live = e.type === "sleep" && !e.end;
-              return (
-                <button
-                  key={e.id}
-                  onClick={() => setSheet({ type: "edit", event: e })}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 14px",
-                    borderRadius: 16,
-                    background: live
-                      ? "linear-gradient(180deg, #2F3450 0%, #1F2238 100%)"
-                      : P.surface,
-                    color: live ? "#F0EEE7" : P.ink,
-                    border: live
-                      ? "0.5px solid rgba(255,255,255,0.12)"
-                      : `0.5px solid ${P.line}`,
-                    borderLeft: live
-                      ? "3px solid #8C9BD8"
-                      : `3px solid ${tone.bg}`,
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    className="num"
-                    style={{
-                      width: 46,
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: live ? "#E8E6F3" : P.inkSoft,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {hm(e.start)}
-                  </span>
-                  <span
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 10,
-                      background: live
-                        ? "rgba(255,255,255,0.1)"
-                        : tone.soft,
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 16,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {emojiFor(e)}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+          (() => {
+            // Chronological rail (morning → night). Sleep = proportional
+            // block, instant events = node on the line.
+            const ordered = [...M.dayEvents].reverse();
+            const shown = ordered.slice(0, limit);
+            let lastHour = -1;
+            return (
+              <div>
+                {shown.map((e) => {
+                  const tone = TONE_BY_TYPE[e.type];
+                  const live = e.type === "sleep" && !e.end;
+                  const isSleep = e.type === "sleep";
+                  const blockH = isSleep
+                    ? Math.max(
+                        46,
+                        Math.min(150, 36 + (e.durMin || 30) * 0.5),
+                      )
+                    : 0;
+                  const rowH = isSleep ? blockH + 14 : 52;
+                  const showHour = e.start.getHours() !== lastHour;
+                  lastHour = e.start.getHours();
+                  return (
                     <div
-                      style={{
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
+                      key={e.id}
+                      style={{ display: "flex", minHeight: rowH }}
                     >
-                      {rowText(e)}
-                    </div>
-                    {e.data.note ? (
+                      {/* hour gutter */}
                       <div
+                        className="num"
                         style={{
+                          width: 44,
+                          textAlign: "right",
+                          paddingRight: 10,
+                          paddingTop: 2,
                           fontSize: 12,
-                          opacity: 0.6,
-                          marginTop: 1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          fontWeight: 800,
+                          color: P.inkSoft,
+                          opacity: showHour ? 0.85 : 0,
+                          flexShrink: 0,
                         }}
                       >
-                        {e.data.note}
+                        {hm(e.start)}
                       </div>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-            {M.dayEvents.length > limit && (
-              <button
-                onClick={() => setLimit((l) => l + 10)}
-                style={{
-                  marginTop: 4,
-                  height: 44,
-                  borderRadius: 14,
-                  background: "transparent",
-                  border: `1px solid ${P.line}`,
-                  color: P.inkSoft,
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                Voir plus · {M.dayEvents.length - limit} restants
-              </button>
-            )}
-          </div>
+                      {/* rail */}
+                      <div
+                        style={{
+                          width: 26,
+                          position: "relative",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 12,
+                            top: 0,
+                            bottom: 0,
+                            width: 2,
+                            background: P.line,
+                          }}
+                        />
+                        {isSleep ? (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 6,
+                              top: 6,
+                              width: 14,
+                              height: blockH,
+                              borderRadius: 7,
+                              background: live
+                                ? "linear-gradient(180deg,#3A3F60,#252948)"
+                                : TONES.indigo.bg,
+                              border: live
+                                ? "0.5px solid rgba(255,255,255,0.2)"
+                                : `1px solid ${TONES.indigo.ink}30`,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 7,
+                              top: 8,
+                              width: 12,
+                              height: 12,
+                              borderRadius: 999,
+                              background: tone.bg,
+                              border: `2px solid ${P.bg}`,
+                              boxShadow: `0 0 0 1px ${tone.ink}40`,
+                            }}
+                          />
+                        )}
+                      </div>
+                      {/* content */}
+                      <button
+                        onClick={() =>
+                          setSheet({ type: "edit", event: e })
+                        }
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          margin: "2px 0 10px",
+                          padding: isSleep ? "12px 14px" : "9px 14px",
+                          borderRadius: 14,
+                          textAlign: "left",
+                          background: live
+                            ? "linear-gradient(180deg,#2F3450,#1F2238)"
+                            : isSleep
+                              ? TONES.indigo.soft
+                              : P.surface,
+                          color: live ? "#F0EEE7" : P.ink,
+                          border: live
+                            ? "0.5px solid rgba(255,255,255,0.12)"
+                            : `0.5px solid ${P.line}`,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>
+                          {emojiFor(e)}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: 13.5,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {rowText(e)}
+                          </span>
+                          {e.data.note ? (
+                            <span
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                opacity: 0.6,
+                                marginTop: 1,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {e.data.note}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {ordered.length > limit && (
+                  <button
+                    onClick={() => setLimit((l) => l + 10)}
+                    style={{
+                      marginLeft: 70,
+                      height: 42,
+                      padding: "0 16px",
+                      borderRadius: 14,
+                      background: "transparent",
+                      border: `1px solid ${P.line}`,
+                      color: P.inkSoft,
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    Voir plus · {ordered.length - limit} restants
+                  </button>
+                )}
+              </div>
+            );
+          })()
         )}
       </div>
 
