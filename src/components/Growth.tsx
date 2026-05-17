@@ -11,6 +11,11 @@ import {
   type PumpData,
 } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
+import {
+  percentileFor,
+  valueAtZ,
+  type Metric,
+} from "@/lib/growth/percentile";
 import { Segmented } from "@/components/ui/primitives";
 import { LineChart, type Point } from "@/components/ui/Chart";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
@@ -80,11 +85,13 @@ function GrowthChart({
   unit,
   data,
   tone,
+  metric,
 }: {
   title: string;
   unit: string;
   data: Measure[];
   tone: Tone;
+  metric?: Metric;
 }) {
   const [sel, setSel] = useState<number | null>(null);
   if (!data.length) {
@@ -116,6 +123,15 @@ function GrowthChart({
           : fmtShort(d.date),
   }));
   const s = sel != null ? data[sel] : null;
+  const last = data[data.length - 1];
+  const lastPct = metric ? percentileFor(metric, last.day, last.y) : null;
+  const ref = (z: number) => {
+    if (!metric) return "—";
+    const v = valueAtZ(metric, last.day, z);
+    return v == null ? "—" : v.toFixed(metric === "weight" ? 1 : 0);
+  };
+  const selPct =
+    s && metric ? percentileFor(metric, s.day, s.y) : null;
   return (
     <div
       style={{
@@ -137,14 +153,38 @@ function GrowthChart({
         <div style={{ fontSize: 13, fontWeight: 700, color: P.ink }}>
           {title}
         </div>
+        {lastPct != null && (
+          <div
+            className="num"
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: tone.ink,
+              background: tone.bg,
+              padding: "3px 8px",
+              borderRadius: 999,
+            }}
+          >
+            P{lastPct} OMS
+          </div>
+        )}
+      </div>
+      {metric && (
         <div
           className="num"
-          style={{ fontSize: 11.5, color: P.inkSoft, fontWeight: 500 }}
+          style={{
+            fontSize: 10.5,
+            color: P.inkSoft,
+            opacity: 0.7,
+            marginBottom: 6,
+            fontWeight: 600,
+          }}
         >
-          {data[0].y} → {data[data.length - 1].y}
+          Repères OMS à J{last.day} · P3 {ref(-1.88079)} · P50 {ref(0)} ·
+          P97 {ref(1.88079)}
           {unit}
         </div>
-      </div>
+      )}
       <div
         style={{
           minHeight: 38,
@@ -184,6 +224,7 @@ function GrowthChart({
                 }}
               >
                 Charlie avait {s.day} jours
+                {selPct != null ? ` · P${selPct} OMS` : ""}
               </div>
             </div>
           </>
@@ -400,18 +441,26 @@ export function Growth() {
           + Encoder une mesure
         </button>
 
-        <GrowthChart title="Poids" unit=" kg" data={poids} tone={TONES.sand} />
+        <GrowthChart
+          title="Poids"
+          unit=" kg"
+          data={poids}
+          tone={TONES.sand}
+          metric="weight"
+        />
         <GrowthChart
           title="Taille"
           unit=" cm"
           data={taille}
           tone={TONES.olive}
+          metric="height"
         />
         <GrowthChart
           title="Périmètre crânien"
           unit=" cm"
           data={pc}
           tone={TONES.sky}
+          metric="head"
         />
         {pump.length > 0 && (
           <GrowthChart
@@ -428,6 +477,15 @@ export function Growth() {
         onClose={() => setSheet(null)}
         suggestBreast="G"
         bottleMlToday={0}
+        growthInitial={
+          last
+            ? {
+                weight: last.weight ?? 4.5,
+                height: last.height ?? 56,
+                head: last.head ?? 38,
+              }
+            : undefined
+        }
       />
     </div>
   );

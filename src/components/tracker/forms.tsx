@@ -1188,10 +1188,16 @@ function EditForm({
   );
 }
 
-function GrowthForm({ onDone }: { onDone: () => void }) {
-  const [weight, setWeight] = useState(4.5);
-  const [height, setHeight] = useState(56);
-  const [head, setHead] = useState(38);
+function GrowthForm({
+  initial,
+  onDone,
+}: {
+  initial?: { weight: number; height: number; head: number };
+  onDone: () => void;
+}) {
+  const [weight, setWeight] = useState(initial?.weight ?? 4.5);
+  const [height, setHeight] = useState(initial?.height ?? 56);
+  const [head, setHead] = useState(initial?.head ?? 38);
   const [note, setNote] = useState("");
   const fields = [
     {
@@ -1333,11 +1339,13 @@ export function EncodeSheet({
   onClose,
   suggestBreast,
   bottleMlToday,
+  growthInitial,
 }: {
   sheet: SheetState;
   onClose: () => void;
   suggestBreast: "G" | "D";
   bottleMlToday: number;
+  growthInitial?: { weight: number; height: number; head: number };
 }) {
   return (
     <Sheet open={!!sheet} onClose={onClose}>
@@ -1352,7 +1360,9 @@ export function EncodeSheet({
       {sheet?.type === "diaper" && <DiaperForm onDone={onClose} />}
       {sheet?.type === "care" && <CareForm onDone={onClose} />}
       {sheet?.type === "temp" && <TempForm onDone={onClose} />}
-      {sheet?.type === "growth" && <GrowthForm onDone={onClose} />}
+      {sheet?.type === "growth" && (
+        <GrowthForm initial={growthInitial} onDone={onClose} />
+      )}
       {sheet?.type === "edit" && (
         <EditForm event={sheet.event} onDone={onClose} />
       )}
