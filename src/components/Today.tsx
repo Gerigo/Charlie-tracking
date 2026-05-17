@@ -302,6 +302,9 @@ export function Today() {
         feeds: feeds.length,
         bottles: feeds.filter((e) => (e.data as FeedData).kind === "biberon")
           .length,
+        bottleMl: feeds
+          .filter((e) => (e.data as FeedData).kind === "biberon")
+          .reduce((s, e) => s + ((e.data as FeedData).ml || 0), 0),
         pumpMl: list
           .filter((e) => e.type === "pump")
           .reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
@@ -473,12 +476,12 @@ export function Today() {
             emoji="🍼"
             tone={TONES.sand}
             label="Biberons"
-            value={`${M.cur.bottles}`}
+            value={`${M.cur.bottles} · ${M.cur.bottleMl} ml`}
             delta={
               <DeltaPill
-                diff={M.cur.bottles - M.prev.bottles}
-                fmt={(n) => `${n}`}
-                noun="biberon(s)"
+                diff={M.cur.bottleMl - M.prev.bottleMl}
+                fmt={(n) => `${Math.round(n)} ml`}
+                noun=""
               />
             }
           />
