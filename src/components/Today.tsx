@@ -5,12 +5,10 @@ import {
   dayKey,
   fmtDateFull,
   fmtDur,
-  fmtTime,
   startOfDay,
 } from "@/lib/dates";
 import {
   careLabel,
-  statsFor,
   subscribeAllEvents,
   type AppEvent,
   type CareData,
@@ -25,6 +23,7 @@ import { ScreenLoader } from "@/components/ui/Loader";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
+const MAX_SLEEP_MS = 20 * 3600000;
 
 const TONE_BY_TYPE: Record<AppEvent["type"], Tone> = {
   sleep: TONES.indigo,
@@ -45,86 +44,127 @@ const LABEL_BY_TYPE: Record<AppEvent["type"], string> = {
   growth: "Mesure",
 };
 
+/** "13h" or "13h05". */
+function hm(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`;
+}
+function minOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function sleepMinutes(
+  events: AppEvent[],
+  winStart: number,
+  winEnd: number,
+): number {
+  let total = 0;
+  for (const e of events) {
+    if (e.type !== "sleep") continue;
+    const s = e.start.getTime();
+    const end = e.end ? e.end.getTime() : Date.now();
+    if (end <= s || end - s > MAX_SLEEP_MS) continue;
+    const a = Math.max(s, winStart);
+    const b = Math.min(end, winEnd);
+    if (b > a) total += (b - a) / 60000;
+  }
+  return Math.round(total);
+}
+
 function emojiFor(e: AppEvent): string {
-  if (e.type === "sleep") return e.end ? EVENT_EMOJI.sleep : EVENT_EMOJI.sleepActive;
+  if (e.type === "sleep")
+    return e.end ? EVENT_EMOJI.sleep : EVENT_EMOJI.sleepActive;
   if (e.type === "growth") return "📏";
   return EVENT_EMOJI[e.type as keyof typeof EVENT_EMOJI] ?? "•";
 }
 
-function summarize(e: AppEvent): string {
+function rowText(e: AppEvent): string {
   switch (e.type) {
+    case "sleep":
+      return e.end
+        ? `Sommeil de ${hm(e.start)} à ${hm(e.end)} · ${fmtDur(e.durMin)}`
+        : `Sommeil depuis ${hm(e.start)} · en cours`;
     case "feed": {
       const d = e.data as FeedData;
       return d.kind === "sein"
-        ? `Sein ${d.breast === "D" ? "droit" : "gauche"}`
+        ? `Tétée — sein ${d.breast === "D" ? "droit" : "gauche"}`
         : `Biberon ${d.ml ?? "?"} ml`;
     }
-    case "sleep":
-      return e.end ? `Durée ${fmtDur(e.durMin)}` : "En cours";
     case "pump": {
       const d = e.data as PumpData;
-      return `${d.ml} ml · ${
+      return `Tirage ${d.ml} ml · ${
         d.breast === "GD" ? "2 seins" : d.breast === "D" ? "droit" : "gauche"
       }`;
     }
     case "diaper": {
       const d = e.data as DiaperData;
-      return (
+      const t =
         [d.pipi && "pipi", d.caca && "caca"].filter(Boolean).join(" + ") ||
-        "—"
-      );
+        "—";
+      return `Couche · ${t}`;
     }
     case "care":
-      return careLabel((e.data as CareData).kind);
+      return `Soin · ${careLabel((e.data as CareData).kind)}`;
     case "temp": {
       const d = e.data as TempData;
-      return `${d.value.toFixed(1)}° · ${d.slot}`;
+      return `Température ${d.value.toFixed(1)}° · ${d.slot}`;
     }
     case "growth": {
       const d = e.data as GrowthData;
-      return [
+      return `Mesure · ${[
         d.weight != null && `${d.weight} kg`,
         d.height != null && `${d.height} cm`,
-        d.head != null && `PC ${d.head} cm`,
+        d.head != null && `PC ${d.head}`,
       ]
         .filter(Boolean)
-        .join(" · ");
+        .join(" · ")}`;
     }
     default:
-      return "";
+      return LABEL_BY_TYPE[e.type];
   }
 }
 
-function Chip({ delta, unit }: { delta: number; unit: string }) {
-  if (!isFinite(delta) || Math.round(delta * 10) === 0) {
-    return (
-      <span style={{ fontSize: 11, color: "rgba(0,0,0,0.4)", fontWeight: 600 }}>
-        = hier
-      </span>
-    );
-  }
-  const up = delta > 0;
+function DeltaPill({
+  diff,
+  fmt,
+  noun,
+  suffix,
+}: {
+  diff: number;
+  fmt: (n: number) => string;
+  noun: string;
+  suffix?: string;
+}) {
+  const eq = Math.abs(diff) < 0.05;
+  const more = diff > 0;
+  const color = eq
+    ? "rgba(0,0,0,0.4)"
+    : more
+      ? "#4F6B45"
+      : "#9A6B5D";
+  const bg = eq
+    ? "rgba(0,0,0,0.05)"
+    : more
+      ? "rgba(79,107,69,0.12)"
+      : "rgba(154,107,93,0.12)";
   return (
     <span
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 3,
+        display: "inline-block",
+        padding: "3px 9px",
+        borderRadius: 999,
+        background: bg,
+        color,
         fontSize: 11,
         fontWeight: 700,
-        color: up ? "#5A7A4F" : "#9A6B5D",
       }}
     >
-      {up ? "↑" : "↓"}
-      <span className="num">
-        {Math.abs(delta) % 1 === 0
-          ? Math.abs(delta)
-          : Math.abs(delta).toFixed(1)}
-        {unit}
-      </span>
-      <span style={{ color: "rgba(0,0,0,0.35)", fontWeight: 500 }}>
-        vs hier
-      </span>
+      {eq
+        ? `comme hier${suffix ? ` ${suffix}` : ""}`
+        : `${fmt(Math.abs(diff))} ${noun} ${
+            more ? "de plus" : "de moins"
+          } qu'hier${suffix ? ` ${suffix}` : ""}`}
     </span>
   );
 }
@@ -134,28 +174,61 @@ function StatTile({
   tone,
   label,
   value,
-  chip,
+  delta,
+  dark = false,
 }: {
   emoji: string;
   tone: Tone;
   label: string;
   value: string;
-  chip: React.ReactNode;
+  delta: React.ReactNode;
+  dark?: boolean;
 }) {
+  const ink = dark ? "#F0EEE7" : tone.ink;
   return (
     <div
       style={{
+        position: "relative",
         padding: "14px 16px 15px",
         borderRadius: 22,
-        background: `linear-gradient(165deg, ${tone.bg} 0%, ${tone.soft} 100%)`,
-        color: tone.ink,
-        minHeight: 104,
+        background: dark
+          ? "linear-gradient(180deg, #2F3450 0%, #1F2238 100%)"
+          : `linear-gradient(165deg, ${tone.bg} 0%, ${tone.soft} 100%)`,
+        color: ink,
+        minHeight: 116,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
+        overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 19 }}>{emoji}</div>
+      <div style={{ fontSize: 19 }}>
+        {emoji}
+        {dark && (
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              opacity: 0.8,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                background: "#FFF6D8",
+                marginRight: 5,
+                animation: "pulse 1.6s ease-in-out infinite",
+              }}
+            />
+            EN COURS
+          </span>
+        )}
+      </div>
       <div>
         <div
           style={{
@@ -170,11 +243,11 @@ function StatTile({
         </div>
         <div
           className="num"
-          style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}
+          style={{ fontSize: 21, fontWeight: 800, marginTop: 2 }}
         >
           {value}
         </div>
-        <div style={{ marginTop: 3 }}>{chip}</div>
+        <div style={{ marginTop: 5 }}>{delta}</div>
       </div>
     </div>
   );
@@ -183,7 +256,7 @@ function StatTile({
 export function Today() {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [offset, setOffset] = useState(0); // days back from the latest
+  const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(10);
   const [sheet, setSheet] = useState<SheetState>(null);
 
@@ -196,28 +269,75 @@ export function Today() {
     [],
   );
 
-  const { day, dayEvents, stats, prevStats, isLatest } = useMemo(() => {
+  const M = useMemo(() => {
     const latest = events.length
       ? startOfDay(events[events.length - 1].start)
       : startOfDay(new Date());
     const d = new Date(latest.getTime() - offset * 86400000);
-    const prev = new Date(d.getTime() - 86400000);
-    const byDay = new Map<string, AppEvent[]>();
-    events.forEach((e) => {
-      const k = dayKey(e.start);
-      const a = byDay.get(k) ?? [];
-      a.push(e);
-      byDay.set(k, a);
-    });
-    const de = (byDay.get(dayKey(d)) ?? [])
+    const dStart = startOfDay(d).getTime();
+    const prevStart = dStart - 86400000;
+    const isLatest = offset === 0;
+
+    const dayEvents = events
+      .filter((e) => dayKey(e.start) === dayKey(d))
       .slice()
       .sort((a, b) => b.start.getTime() - a.start.getTime());
+
+    // "Same hour" reference = the day's last activity (or now if latest).
+    const lastActivityMin = dayEvents.length
+      ? Math.max(...dayEvents.map((e) => minOfDay(e.start)))
+      : 0;
+    const cutoffMin = isLatest
+      ? Math.max(lastActivityMin, minOfDay(new Date()))
+      : dayEvents.length
+        ? 1440
+        : 1440;
+    const cutoffHourLabel = `${Math.floor(
+      Math.min(cutoffMin, 1439) / 60,
+    )}h`;
+
+    const winEnd = dStart + cutoffMin * 60000;
+    const prevWinEnd = prevStart + cutoffMin * 60000;
+
+    const inWin = (e: AppEvent, s: number, end: number) =>
+      e.start.getTime() >= s && e.start.getTime() < end;
+    const dayWin = events.filter((e) => inWin(e, dStart, winEnd));
+    const prevWin = events.filter((e) => inWin(e, prevStart, prevWinEnd));
+
+    const agg = (list: AppEvent[]) => {
+      const feeds = list.filter((e) => e.type === "feed");
+      const temps = list.filter((e) => e.type === "temp");
+      return {
+        feeds: feeds.length,
+        bottles: feeds.filter((e) => (e.data as FeedData).kind === "biberon")
+          .length,
+        pumpMl: list
+          .filter((e) => e.type === "pump")
+          .reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
+        diapers: list.filter((e) => e.type === "diaper").length,
+        cares: list.filter((e) => e.type === "care").length,
+        lastTemp: temps.length
+          ? (temps[temps.length - 1].data as TempData).value
+          : null,
+      };
+    };
+    const cur = agg(dayWin);
+    const prev = agg(prevWin);
+    const sleepCur = sleepMinutes(events, dStart, winEnd);
+    const sleepPrev = sleepMinutes(events, prevStart, prevWinEnd);
+    const ongoing =
+      isLatest && events.some((e) => e.type === "sleep" && !e.end);
+
     return {
-      day: d,
-      dayEvents: de,
-      stats: statsFor(de),
-      prevStats: statsFor(byDay.get(dayKey(prev)) ?? []),
-      isLatest: offset === 0,
+      d,
+      isLatest,
+      dayEvents,
+      cutoffHourLabel,
+      cur,
+      prev,
+      sleepCur,
+      sleepPrev,
+      ongoing,
     };
   }, [events, offset]);
 
@@ -255,22 +375,45 @@ export function Today() {
       <div style={{ padding: "22px 22px 10px" }}>
         <div
           style={{
-            fontSize: 11.5,
-            fontWeight: 700,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-            color: P.inkSoft,
-            opacity: 0.7,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          Aujourd'hui
+          <div
+            style={{
+              fontSize: 11.5,
+              fontWeight: 700,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: P.inkSoft,
+              opacity: 0.7,
+            }}
+          >
+            Aujourd'hui
+          </div>
+          {!M.isLatest && (
+            <button
+              onClick={() => setOffset(0)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                background: P.ink,
+                color: "#FAF9F5",
+                fontSize: 11.5,
+                fontWeight: 700,
+              }}
+            >
+              Revenir à aujourd'hui
+            </button>
+          )}
         </div>
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginTop: 6,
+            marginTop: 8,
           }}
         >
           {navBtn(-1, false)}
@@ -279,17 +422,15 @@ export function Today() {
               className="serif"
               style={{ fontSize: 26, lineHeight: 1.1, color: P.ink }}
             >
-              {isLatest
+              {M.isLatest
                 ? "Dernier jour"
-                : fmtDateFull(day).replace(/^./, (c) => c.toUpperCase())}
+                : fmtDateFull(M.d).replace(/^./, (c) => c.toUpperCase())}
             </div>
-            <div
-              style={{ fontSize: 11.5, color: P.inkSoft, marginTop: 2 }}
-            >
-              {fmtDateFull(day)} · {ageLabel(day)}
+            <div style={{ fontSize: 11.5, color: P.inkSoft, marginTop: 2 }}>
+              {fmtDateFull(M.d)} · {ageLabel(M.d)}
             </div>
           </div>
-          {navBtn(1, isLatest)}
+          {navBtn(1, M.isLatest)}
         </div>
       </div>
 
@@ -309,18 +450,17 @@ export function Today() {
           }}
         >
           <StatTile
-            emoji={EVENT_EMOJI.sleep}
+            emoji={M.ongoing ? EVENT_EMOJI.sleepActive : EVENT_EMOJI.sleep}
             tone={TONES.indigo}
             label="Sommeil"
-            value={fmtDur(stats.sleepMin)}
-            chip={
-              <Chip
-                delta={
-                  Math.round(
-                    ((stats.sleepMin - prevStats.sleepMin) / 60) * 10,
-                  ) / 10
-                }
-                unit="h"
+            dark={M.ongoing}
+            value={fmtDur(M.sleepCur)}
+            delta={
+              <DeltaPill
+                diff={(M.sleepCur - M.sleepPrev) / 60}
+                fmt={(n) => fmtDur(Math.round(n * 60))}
+                noun=""
+                suffix={`à ${M.cutoffHourLabel}`}
               />
             }
           />
@@ -328,28 +468,90 @@ export function Today() {
             emoji={EVENT_EMOJI.feed}
             tone={TONES.sand}
             label="Tétées"
-            value={`${stats.feedCount}`}
-            chip={
-              <Chip delta={stats.feedCount - prevStats.feedCount} unit="" />
+            value={`${M.cur.feeds}`}
+            delta={
+              <DeltaPill
+                diff={M.cur.feeds - M.prev.feeds}
+                fmt={(n) => `${n}`}
+                noun="tétée(s)"
+              />
+            }
+          />
+          <StatTile
+            emoji="🍼"
+            tone={TONES.sand}
+            label="Biberons"
+            value={`${M.cur.bottles}`}
+            delta={
+              <DeltaPill
+                diff={M.cur.bottles - M.prev.bottles}
+                fmt={(n) => `${n}`}
+                noun="biberon(s)"
+              />
             }
           />
           <StatTile
             emoji={EVENT_EMOJI.pump}
             tone={TONES.rose}
             label="Lait tiré"
-            value={`${stats.pumpMl} ml`}
-            chip={<Chip delta={stats.pumpMl - prevStats.pumpMl} unit="ml" />}
+            value={`${M.cur.pumpMl} ml`}
+            delta={
+              <DeltaPill
+                diff={M.cur.pumpMl - M.prev.pumpMl}
+                fmt={(n) => `${Math.round(n)} ml`}
+                noun=""
+              />
+            }
           />
           <StatTile
             emoji={EVENT_EMOJI.diaper}
             tone={TONES.olive}
             label="Couches"
-            value={`${stats.diaperCount}`}
-            chip={
-              <Chip
-                delta={stats.diaperCount - prevStats.diaperCount}
-                unit=""
+            value={`${M.cur.diapers}`}
+            delta={
+              <DeltaPill
+                diff={M.cur.diapers - M.prev.diapers}
+                fmt={(n) => `${n}`}
+                noun="couche(s)"
               />
+            }
+          />
+          <StatTile
+            emoji={EVENT_EMOJI.care}
+            tone={TONES.sky}
+            label="Soins"
+            value={`${M.cur.cares}`}
+            delta={
+              <DeltaPill
+                diff={M.cur.cares - M.prev.cares}
+                fmt={(n) => `${n}`}
+                noun="soin(s)"
+              />
+            }
+          />
+          <StatTile
+            emoji={EVENT_EMOJI.temp}
+            tone={TONES.clay}
+            label="Température"
+            value={M.cur.lastTemp ? `${M.cur.lastTemp.toFixed(1)}°` : "—"}
+            delta={
+              M.cur.lastTemp != null && M.prev.lastTemp != null ? (
+                <DeltaPill
+                  diff={M.cur.lastTemp - M.prev.lastTemp}
+                  fmt={(n) => `${n.toFixed(1)}°`}
+                  noun=""
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(0,0,0,0.4)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {M.cur.lastTemp ? "1ʳᵉ mesure" : "non prise"}
+                </span>
+              )
             }
           />
         </div>
@@ -378,11 +580,11 @@ export function Today() {
             className="num"
             style={{ fontSize: 11.5, color: P.inkSoft, opacity: 0.6 }}
           >
-            {dayEvents.length} évén.
+            {M.dayEvents.length} évén.
           </div>
         </div>
 
-        {dayEvents.length === 0 ? (
+        {M.dayEvents.length === 0 ? (
           <div
             style={{
               padding: 24,
@@ -398,8 +600,9 @@ export function Today() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {dayEvents.slice(0, limit).map((e) => {
+            {M.dayEvents.slice(0, limit).map((e) => {
               const tone = TONE_BY_TYPE[e.type];
+              const live = e.type === "sleep" && !e.end;
               return (
                 <button
                   key={e.id}
@@ -410,20 +613,42 @@ export function Today() {
                     gap: 12,
                     padding: "12px 14px",
                     borderRadius: 16,
-                    background: P.surface,
-                    border: `0.5px solid ${P.line}`,
+                    background: live
+                      ? "linear-gradient(180deg, #2F3450 0%, #1F2238 100%)"
+                      : P.surface,
+                    color: live ? "#F0EEE7" : P.ink,
+                    border: live
+                      ? "0.5px solid rgba(255,255,255,0.12)"
+                      : `0.5px solid ${P.line}`,
+                    borderLeft: live
+                      ? "3px solid #8C9BD8"
+                      : `3px solid ${tone.bg}`,
                     textAlign: "left",
                   }}
                 >
                   <span
+                    className="num"
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 11,
-                      background: tone.soft,
+                      width: 46,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: live ? "#E8E6F3" : P.inkSoft,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {hm(e.start)}
+                  </span>
+                  <span
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      background: live
+                        ? "rgba(255,255,255,0.1)"
+                        : tone.soft,
                       display: "grid",
                       placeItems: "center",
-                      fontSize: 17,
+                      fontSize: 16,
                       flexShrink: 0,
                     }}
                   >
@@ -434,37 +659,32 @@ export function Today() {
                       style={{
                         fontSize: 13.5,
                         fontWeight: 700,
-                        color: P.ink,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                       }}
                     >
-                      {LABEL_BY_TYPE[e.type]}
+                      {rowText(e)}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: P.inkSoft,
-                        marginTop: 1,
-                      }}
-                    >
-                      {summarize(e)}
-                      {e.data.note ? ` · ${e.data.note}` : ""}
-                    </div>
+                    {e.data.note ? (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          opacity: 0.6,
+                          marginTop: 1,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {e.data.note}
+                      </div>
+                    ) : null}
                   </div>
-                  <span
-                    className="num"
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      color: P.inkSoft,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {fmtTime(e.start)}
-                  </span>
                 </button>
               );
             })}
-            {dayEvents.length > limit && (
+            {M.dayEvents.length > limit && (
               <button
                 onClick={() => setLimit((l) => l + 10)}
                 style={{
@@ -478,7 +698,7 @@ export function Today() {
                   fontWeight: 700,
                 }}
               >
-                Voir plus · {dayEvents.length - limit} restants
+                Voir plus · {M.dayEvents.length - limit} restants
               </button>
             )}
           </div>

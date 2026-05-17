@@ -81,6 +81,7 @@ function EventTile({
   live = false,
   sideBadge = null,
   asleep = false,
+  footer = null,
   onClick,
 }: {
   kind: string;
@@ -92,6 +93,7 @@ function EventTile({
   live?: boolean;
   sideBadge?: "G" | "D" | null;
   asleep?: boolean;
+  footer?: ReactNode;
   onClick: () => void;
 }) {
   const ink = asleep ? "#F0EEE7" : tone.ink;
@@ -254,6 +256,17 @@ function EventTile({
           </div>
         )}
       </div>
+      {footer && (
+        <div
+          style={{
+            position: "absolute",
+            right: 12,
+            bottom: 12,
+          }}
+        >
+          {footer}
+        </div>
+      )}
     </button>
   );
 }
@@ -403,6 +416,34 @@ export function Tracker() {
                 : stats.lastSleep
                   ? `Dernier à ${fmtTime(stats.lastSleep.start)}`
                   : "Rien aujourd'hui"
+            }
+            footer={
+              activeSleep ? (
+                <span
+                  role="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    void withToast(
+                      () => stopSleep(activeSleep.id),
+                      "Réveil enregistré",
+                    );
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "7px 13px",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.16)",
+                    color: "#F0EEE7",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: "0.5px solid rgba(255,255,255,0.25)",
+                  }}
+                >
+                  <span style={{ fontSize: 9 }}>■</span> Arrêter
+                </span>
+              ) : null
             }
             onClick={() => {
               void (activeSleep
