@@ -1,4 +1,4 @@
-import { PhoneFrame } from "@/components/PhoneFrame";
+import { AppShell } from "@/components/AppShell";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { PALETTES } from "@/lib/theme";
 import Login from "@/pages/Login";
@@ -79,8 +79,8 @@ export default function App() {
   const { user, loading } = useAuth();
 
   return (
-    <PhoneFrame>
+    <AppShell>
       {loading ? <Loader /> : user ? <Home /> : <Login />}
-    </PhoneFrame>
+    </AppShell>
   );
 }
