@@ -641,6 +641,24 @@ export async function updateEvent(
     },
     { merge: true },
   );
+  // Sommeil en cours édité (endTime resté null) : refléter le nouveau
+  // startTime sur activeSessions pour que le chrono (et main) suivent.
+  if (patch.type === "sleep" && patch.endMs === null) {
+    try {
+      const s = scope();
+      const sessionRef = doc(db, "activeSessions", s.babyId);
+      const active = await getDoc(sessionRef);
+      if (active.exists() && active.data()?.eventId === id) {
+        await setDoc(
+          sessionRef,
+          { startTime: patch.startMs, updatedAt: Date.now() },
+          { merge: true },
+        );
+      }
+    } catch {
+      /* scope absent — rien à synchroniser */
+    }
+  }
 }
 
 export async function deleteEvent(id: string): Promise<void> {

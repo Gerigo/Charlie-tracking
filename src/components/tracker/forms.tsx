@@ -52,10 +52,22 @@ function FeedForm({
   bottleMlToday: number;
   onDone: () => void;
 }) {
-  const [kind, setKind] = useState<"sein" | "biberon">("sein");
+  const [seinOn, setSeinOn] = useState(true);
+  const [bibOn, setBibOn] = useState(false);
   const [breast, setBreast] = useState<"G" | "D">(suggestBreast);
   const [ml, setMl] = useState(120);
   const [note, setNote] = useState("");
+  const canSave = seinOn || bibOn;
+  const toggleStyle = (on: boolean) => ({
+    flex: 1,
+    padding: "14px 12px",
+    borderRadius: 14,
+    background: on ? TONES.sand.bg : "#fff",
+    border: `1px solid ${on ? TONES.sand.ink + "55" : "rgba(0,0,0,0.08)"}`,
+    color: on ? TONES.sand.ink : "#2A2620",
+    fontWeight: 700,
+    fontSize: 14,
+  });
   return (
     <div>
       <FormHeader title="Nouvelle tétée" />
@@ -68,17 +80,23 @@ function FeedForm({
         }}
       >
         <div>
-          <FieldLabel>Type</FieldLabel>
-          <Segmented
-            value={kind}
-            onChange={setKind}
-            options={[
-              { value: "sein", label: "Sein" },
-              { value: "biberon", label: "Biberon" },
-            ]}
-          />
+          <FieldLabel>Type · les deux possibles</FieldLabel>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setSeinOn((v) => !v)}
+              style={toggleStyle(seinOn)}
+            >
+              🤱 Sein
+            </button>
+            <button
+              onClick={() => setBibOn((v) => !v)}
+              style={toggleStyle(bibOn)}
+            >
+              🍼 Biberon
+            </button>
+          </div>
         </div>
-        {kind === "sein" && (
+        {seinOn && (
           <div>
             <FieldLabel>Sein</FieldLabel>
             <div style={{ display: "flex", gap: 10 }}>
@@ -130,13 +148,15 @@ function FeedForm({
             </div>
           </div>
         )}
-        {kind === "biberon" &&
+        {bibOn &&
           (() => {
             const projected = bottleMlToday + ml;
             const over = projected > BOTTLE_DAILY_MAX;
             return (
               <div>
-                <FieldLabel>Quantité</FieldLabel>
+                <FieldLabel>
+                  {seinOn ? "Complément biberon" : "Quantité"}
+                </FieldLabel>
                 <Stepper
                   value={ml}
                   onChange={setMl}
@@ -224,12 +244,24 @@ function FeedForm({
       </div>
       <SubmitBar
         onClick={() => {
-          const data: FeedData = {
-            kind,
-            breast: kind === "sein" ? breast : null,
-            ml: kind === "biberon" ? ml : null,
-            note,
-          };
+          if (!canSave) return;
+          // sein + biberon → tétée avec complément (bottleSupplement) ;
+          // biberon seul → biberon ; sein seul → tétée.
+          const data: FeedData = seinOn
+            ? {
+                kind: "sein",
+                breast,
+                ml: null,
+                supp: bibOn ? ml : null,
+                note,
+              }
+            : {
+                kind: "biberon",
+                breast: null,
+                ml,
+                supp: null,
+                note,
+              };
           void withToast(
             () => addInstantEvent("feed", nowTOD(), data, note),
             "Tétée enregistrée",
@@ -677,6 +709,7 @@ function EditForm({
   onDone: () => void;
 }) {
   const t = event.type;
+  const inProgress = t === "sleep" && event.end == null;
   const fd = event.data as unknown as Record<string, unknown>;
   const str = (k: string) =>
     typeof fd[k] === "string" ? (fd[k] as string) : undefined;
@@ -785,7 +818,19 @@ function EditForm({
           <FieldLabel>{t === "sleep" ? "Début" : "Date et heure"}</FieldLabel>
           <DateTimeField value={time} onChange={setTime} />
         </div>
-        {t === "sleep" && (
+        {t === "sleep" && inProgress && (
+          <div
+            style={{
+              fontSize: 12,
+              color: "rgba(42,38,32,0.6)",
+              fontStyle: "italic",
+            }}
+          >
+            Sommeil en cours — modifie juste l'heure de début, il
+            continue de tourner.
+          </div>
+        )}
+        {t === "sleep" && !inProgress && (
           <div>
             <FieldLabel>Fin</FieldLabel>
             <DateTimeField value={endTime} onChange={setEndTime} />
@@ -1178,7 +1223,9 @@ function EditForm({
           };
           const startMs = mk(time);
           let endMs: number | null;
-          if (t === "sleep") {
+          if (inProgress) {
+            endMs = null; // sommeil en cours : il continue
+          } else if (t === "sleep") {
             endMs = mk(endTime);
             if (endMs <= startMs) endMs = startMs + 60000; // pad like main
           } else {
