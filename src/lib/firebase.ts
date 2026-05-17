@@ -1,80 +1,52 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import {
-  browserLocalPersistence,
-  getAuth,
-  indexedDBLocalPersistence,
-  initializeAuth,
-} from 'firebase/auth';
+import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
-  setLogLevel,
-} from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { canUseDevTools, env, isFirebaseConfigured } from './env';
+  type Firestore,
+} from "firebase/firestore";
 
+// Firebase web config (apiKey & co ne sont PAS secrets — la sécurité
+// passe par les règles Firestore + restrictions de clé API). Lu depuis
+// les variables Vercel (VITE_FIREBASE_*) si présentes, sinon repli sur
+// les valeurs du projet (l'app marche dans tous les cas).
+const env = import.meta.env;
 const firebaseConfig = {
-  apiKey: env.firebaseApiKey,
-  authDomain: env.firebaseAuthDomain,
-  projectId: env.firebaseProjectId,
-  storageBucket: env.firebaseStorageBucket,
-  messagingSenderId: env.firebaseMessagingSenderId,
-  appId: env.firebaseAppId,
+  apiKey: env.VITE_FIREBASE_API_KEY ?? "AIzaSyDXOKB3GCmKq_Y4NR-1PaMPqYbSP0aWU_M",
+  authDomain:
+    env.VITE_FIREBASE_AUTH_DOMAIN ?? "sleeptracker-71e30.firebaseapp.com",
+  projectId: env.VITE_FIREBASE_PROJECT_ID ?? "sleeptracker-71e30",
+  storageBucket:
+    env.VITE_FIREBASE_STORAGE_BUCKET ??
+    "sleeptracker-71e30.firebasestorage.app",
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "621914073040",
+  appId:
+    env.VITE_FIREBASE_APP_ID ??
+    "1:621914073040:web:37a4fa561275e9137abbd5",
 };
 
-export const firebaseApp = isFirebaseConfigured
-  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
-  : null;
 
-export const firebaseAuth = firebaseApp
-  ? (() => {
-      // Use initializeAuth so the persistence chain is set BEFORE any auth
-      // operation runs — async setPersistence after getAuth() races with
-      // the first signIn and was leaving sessions in-memory only on iOS PWA.
-      //
-      // Fallback order:
-      //   1. IndexedDB — survives Safari's ITP best (kept across the
-      //      7-day inactivity window if the user opens the PWA regularly)
-      //   2. localStorage — for browsers without IndexedDB or in private
-      //      mode
-      //
-      // initializeAuth throws if called twice on the same app, so guard
-      // against the IIFE re-running (HMR, fast refresh) by falling back
-      // to getAuth in that case.
-      try {
-        return initializeAuth(firebaseApp, {
-          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-        });
-      } catch {
-        return getAuth(firebaseApp);
-      }
-    })()
-  : null;
+// Reuse the app across Vite HMR reloads (initializeApp twice throws).
+export const firebaseApp = getApps().length
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
-export const firestore = firebaseApp
-  ? (() => {
-      try {
-        if (canUseDevTools) {
-          setLogLevel('debug');
-        }
-        return initializeFirestore(firebaseApp, {
-          experimentalAutoDetectLongPolling: true,
-          // IndexedDB-backed cache so events fetched once stay available
-          // offline and across reloads — critical for the on-demand
-          // full-history fetches on Evolution/Croissance/Historique/Data.
-          localCache: persistentLocalCache({
-            tabManager: persistentMultipleTabManager(),
-          }),
-        });
-      } catch {
-        if (canUseDevTools) {
-          setLogLevel('debug');
-        }
-        return getFirestore(firebaseApp);
-      }
-    })()
-  : null;
+export const auth = getAuth(firebaseApp);
 
-export const storage = firebaseApp ? getStorage(firebaseApp) : null;
+let firestore: Firestore;
+try {
+  firestore = initializeFirestore(firebaseApp, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+    // Safari / content blockers / extensions often break Firestore's
+    // WebChannel streaming ("access control checks"). Let the SDK fall
+    // back to long-polling automatically.
+    experimentalAutoDetectLongPolling: true,
+  });
+} catch {
+  firestore = getFirestore(firebaseApp);
+}
+export const db = firestore;
