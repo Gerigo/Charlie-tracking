@@ -24,7 +24,8 @@ export type EventType =
   | "pump"
   | "diaper"
   | "care"
-  | "temp";
+  | "temp"
+  | "growth";
 
 export interface FeedData {
   kind: "sein" | "biberon";
@@ -56,12 +57,19 @@ export interface TempData {
 export interface SleepData {
   note: string;
 }
+export interface GrowthData {
+  weight: number | null; // kg
+  height: number | null; // cm
+  head: number | null; // cm
+  note: string;
+}
 export type EventData =
   | FeedData
   | PumpData
   | DiaperData
   | CareData
   | TempData
+  | GrowthData
   | SleepData;
 
 export interface AppEvent {
@@ -86,6 +94,7 @@ const TYPE_TO_DB: Record<EventType, string> = {
   diaper: "diaper",
   care: "care",
   temp: "temperature",
+  growth: "growth",
 };
 function dbType(t: EventType): string {
   return TYPE_TO_DB[t];
@@ -104,6 +113,8 @@ function appType(raw: string): EventType {
     case "temperature":
     case "temp":
       return "temp";
+    case "growth":
+      return "growth";
     // legacy data stored "soins"/"visites" as `medication`
     case "medication":
     case "visit":
@@ -175,6 +186,14 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
         temperature: d.value,
         temperaturePeriod: d.slot === "soir" ? "evening" : "morning",
       };
+    }
+    case "growth": {
+      const d = data as GrowthData;
+      const out: Record<string, unknown> = {};
+      if (d.weight != null) out.weight = d.weight;
+      if (d.height != null) out.height = d.height;
+      if (d.head != null) out.head = d.head;
+      return out;
     }
     default:
       return {};
@@ -273,6 +292,15 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
       } satisfies TempData;
       break;
     }
+    case "growth": {
+      data = {
+        weight: typeof det.weight === "number" ? det.weight : null,
+        height: typeof det.height === "number" ? det.height : null,
+        head: typeof det.head === "number" ? det.head : null,
+        note,
+      } satisfies GrowthData;
+      break;
+    }
     default:
       data = { note } satisfies SleepData;
   }
@@ -347,6 +375,23 @@ export function subscribeTracker(
       console.warn(`[events] snapshot error: ${code || err}`);
       onError?.(err as Error);
     },
+  );
+}
+
+/** Live subscription to the whole history (sorted asc by start). */
+export function subscribeAllEvents(
+  cb: (events: AppEvent[]) => void,
+  onError?: (e: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, "events"),
+    (snap) => {
+      const all = snap.docs
+        .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+      cb(all);
+    },
+    (err) => onError?.(err as Error),
   );
 }
 

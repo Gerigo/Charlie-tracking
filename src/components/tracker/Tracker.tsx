@@ -357,7 +357,11 @@ export function Tracker() {
 
       <div
         className="scroll"
-        style={{ flex: 1, overflowY: "auto", padding: "14px 16px 110px" }}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "14px 16px calc(120px + env(safe-area-inset-bottom))",
+        }}
       >
         <div
           style={{

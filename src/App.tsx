@@ -2,6 +2,8 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { BottomNav, type Tab } from "@/components/BottomNav";
 import { Tracker } from "@/components/tracker/Tracker";
+import { Growth } from "@/components/Growth";
+import { Evolution } from "@/components/Evolution";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { PALETTES } from "@/lib/theme";
 import Login from "@/pages/Login";
@@ -84,8 +86,8 @@ function Shell() {
     <>
       {tab === "tracker" && <Tracker />}
       {tab === "today" && <ComingSoon title="Aujourd'hui" />}
-      {tab === "growth" && <ComingSoon title="Croissance" />}
-      {tab === "evolution" && <ComingSoon title="Évolution" />}
+      {tab === "growth" && <Growth />}
+      {tab === "evolution" && <Evolution />}
       <BottomNav active={tab} onChange={setTab} />
     </>
   );

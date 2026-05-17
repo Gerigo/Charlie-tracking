@@ -54,3 +54,9 @@ export function durationMin(start: Date, end: Date): number {
 export function dateAtTime(base: Date, h: number, m: number): Date {
   return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
 }
+export function ageInDays(d: Date): number {
+  return Math.floor((startOfDay(d).getTime() - startOfDay(BIRTH).getTime()) / 86400000);
+}
+export function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}

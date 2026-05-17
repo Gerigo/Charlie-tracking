@@ -256,7 +256,7 @@ export function TimeField({
           background: "transparent",
           border: "none",
           padding: 0,
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 600,
           fontFamily: "inherit",
           color: "#2A2620",
@@ -348,7 +348,7 @@ export function NoteField({
         background: "#fff",
         resize: "none",
         fontFamily: "inherit",
-        fontSize: 14,
+        fontSize: 16,
       }}
     />
   );

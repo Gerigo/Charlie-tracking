@@ -22,13 +22,14 @@ import {
   type CareData,
   type DiaperData,
   type FeedData,
+  type GrowthData,
   type PumpData,
   type TempData,
   type TimeOfDay,
 } from "@/lib/events";
 
 export type SheetState =
-  | { type: "feed" | "pump" | "diaper" | "care" | "temp" }
+  | { type: "feed" | "pump" | "diaper" | "care" | "temp" | "growth" }
   | { type: "edit"; event: AppEvent }
   | null;
 
@@ -478,7 +479,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
                 border: "1px solid rgba(0,0,0,0.08)",
                 background: "#fff",
                 fontFamily: "inherit",
-                fontSize: 14,
+                fontSize: 16,
               }}
             />
           </div>
@@ -648,6 +649,7 @@ function EditForm({
     diaper: "Couche",
     care: "Soins",
     temp: "Température",
+    growth: "Mesure",
   };
   return (
     <div>
@@ -697,6 +699,141 @@ function EditForm({
   );
 }
 
+function GrowthForm({ onDone }: { onDone: () => void }) {
+  const [weight, setWeight] = useState(4.5);
+  const [height, setHeight] = useState(56);
+  const [head, setHead] = useState(38);
+  const [time, setTime] = useState(nowHM());
+  const [note, setNote] = useState("");
+  const fields = [
+    {
+      key: "w",
+      label: "Poids",
+      v: weight,
+      set: setWeight,
+      step: 0.05,
+      min: 1,
+      max: 20,
+      unit: "kg",
+      dec: 2,
+    },
+    {
+      key: "h",
+      label: "Taille",
+      v: height,
+      set: setHeight,
+      step: 0.5,
+      min: 30,
+      max: 120,
+      unit: "cm",
+      dec: 1,
+    },
+    {
+      key: "p",
+      label: "Périmètre crânien",
+      v: head,
+      set: setHead,
+      step: 0.1,
+      min: 25,
+      max: 60,
+      unit: "cm",
+      dec: 1,
+    },
+  ];
+  return (
+    <div>
+      <FormHeader title="Nouvelle mesure" />
+      <div
+        style={{
+          padding: "0 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+        }}
+      >
+        {fields.map((f) => (
+          <div
+            key={f.key}
+            style={{
+              padding: 14,
+              background: "#fff",
+              borderRadius: 14,
+              border: "1px solid rgba(0,0,0,0.06)",
+            }}
+          >
+            <FieldLabel>{f.label}</FieldLabel>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <button
+                onClick={() =>
+                  f.set(Math.max(f.min, +(f.v - f.step).toFixed(2)))
+                }
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  background: "rgba(0,0,0,0.05)",
+                  fontSize: 20,
+                }}
+              >
+                −
+              </button>
+              <div
+                className="num serif"
+                style={{ flex: 1, textAlign: "center", fontSize: 34 }}
+              >
+                {f.v.toFixed(f.dec)}
+                <span style={{ fontSize: 15, opacity: 0.5, marginLeft: 4 }}>
+                  {f.unit}
+                </span>
+              </div>
+              <button
+                onClick={() =>
+                  f.set(Math.min(f.max, +(f.v + f.step).toFixed(2)))
+                }
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  background: "rgba(0,0,0,0.05)",
+                  fontSize: 20,
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ))}
+        <div>
+          <FieldLabel>Heure</FieldLabel>
+          <TimeField value={time} onChange={setTime} />
+        </div>
+        <div>
+          <FieldLabel>Note</FieldLabel>
+          <NoteField value={note} onChange={setNote} />
+        </div>
+      </div>
+      <SubmitBar
+        onClick={async () => {
+          const data: GrowthData = {
+            weight,
+            height,
+            head,
+            note,
+          };
+          await addInstantEvent("growth", parseHM(time), data, note);
+          onDone();
+        }}
+      />
+    </div>
+  );
+}
+
 export function EncodeSheet({
   sheet,
   onClose,
@@ -721,6 +858,7 @@ export function EncodeSheet({
       {sheet?.type === "diaper" && <DiaperForm onDone={onClose} />}
       {sheet?.type === "care" && <CareForm onDone={onClose} />}
       {sheet?.type === "temp" && <TempForm onDone={onClose} />}
+      {sheet?.type === "growth" && <GrowthForm onDone={onClose} />}
       {sheet?.type === "edit" && (
         <EditForm event={sheet.event} onDone={onClose} />
       )}

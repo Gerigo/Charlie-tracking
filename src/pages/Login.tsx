@@ -51,7 +51,7 @@ function Field({
     border: `1px solid ${focused ? P.olive : P.line}`,
     boxShadow: focused ? `0 0 0 3px ${P.olive}22` : "none",
     color: P.ink,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 500,
     outline: "none",
     transition: "border 160ms ease, box-shadow 160ms ease",
