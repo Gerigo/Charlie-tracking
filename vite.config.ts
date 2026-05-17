@@ -11,7 +11,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon-16.png", "favicon-32.png", "icons/*.png"],
+      includeAssets: [
+        "favicon.svg",
+        "favicon-16.png",
+        "favicon-32.png",
+        "icons/*.png",
+      ],
       manifest: {
         name: "Charlie's Tracker",
         short_name: "Charlie",
