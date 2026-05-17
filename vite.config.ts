@@ -15,6 +15,7 @@ export default defineConfig({
         "favicon.svg",
         "favicon-16.png",
         "favicon-32.png",
+        "favicon-48.png",
         "icons/*.png",
       ],
       manifest: {
