@@ -320,67 +320,37 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
   };
 }
 
-// ─── Live subscription: whole `events` collection, anchored on the
-//     latest day with data (today if it has events) ───
+// ─── Derive the Tracker's day from the shared events list ───
 export interface DaySnapshot {
   day: Date;
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
 }
 
-export function subscribeTracker(
-  cb: (snap: DaySnapshot) => void,
-  onError?: (e: Error) => void,
-): Unsubscribe {
-  return onSnapshot(
-    collection(db, "events"),
-    (snap) => {
-      const all = snap.docs
-        .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
-        .sort((a, b) => a.start.getTime() - b.start.getTime());
+/** Pure selector — anchors on today if it has events, else the most
+ *  recent event's day (like the legacy app: always show latest state). */
+export function selectTrackerDay(all: AppEvent[]): DaySnapshot {
+  const openSleep =
+    [...all].reverse().find((e) => e.type === "sleep" && e.end === null) ??
+    null;
+  const activeSleep = openSleep
+    ? { id: openSleep.id, start: openSleep.start }
+    : null;
 
-      // Sleep in progress = a sleep event with no endTime.
-      const openSleep =
-        [...all].reverse().find((e) => e.type === "sleep" && e.end === null) ??
-        null;
-      const activeSleep = openSleep
-        ? { id: openSleep.id, start: openSleep.start }
-        : null;
+  const todayFrom = startOfDay(new Date()).getTime();
+  const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
+  const anchor =
+    hasToday || all.length === 0 ? new Date() : all[all.length - 1].start;
+  const from = startOfDay(anchor).getTime();
+  const to = from + 86400000;
 
-      // Anchor on today if it has events, otherwise the most recent
-      // event's day (like the legacy app: always show the latest state).
-      const todayFrom = startOfDay(new Date()).getTime();
-      const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
-      const anchor =
-        hasToday || all.length === 0 ? new Date() : all[all.length - 1].start;
-      const from = startOfDay(anchor).getTime();
-      const to = from + 86400000;
+  const events = all.filter((e) => {
+    const t = e.start.getTime();
+    const endT = e.end ? e.end.getTime() : t;
+    return endT >= from && t < to;
+  });
 
-      const events = all.filter((e) => {
-        const t = e.start.getTime();
-        const endT = e.end ? e.end.getTime() : t;
-        return endT >= from && t < to;
-      });
-
-      if (all.length) {
-        const max = all[all.length - 1].start;
-        console.info(
-          `[events] ${all.length} docs · dernier ${max.toLocaleString("fr")} · jour affiché ${new Date(from).toLocaleDateString("fr")} · dans le jour=${events.length}`,
-        );
-      } else {
-        console.info("[events] 0 doc dans la collection");
-      }
-      cb({ day: new Date(from), events, activeSleep });
-    },
-    (err) => {
-      const code =
-        typeof err === "object" && err && "code" in err
-          ? String((err as { code: unknown }).code)
-          : "";
-      console.warn(`[events] snapshot error: ${code || err}`);
-      onError?.(err as Error);
-    },
-  );
+  return { day: new Date(from), events, activeSleep };
 }
 
 /** Live subscription to the whole history (sorted asc by start). */

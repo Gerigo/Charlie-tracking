@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import {
   ageLabel,
@@ -9,7 +9,6 @@ import {
 } from "@/lib/dates";
 import {
   careText,
-  subscribeAllEvents,
   type AppEvent,
   type CareData,
   type DiaperData,
@@ -18,8 +17,8 @@ import {
   type PumpData,
   type TempData,
 } from "@/lib/events";
+import { useEvents } from "@/lib/eventsContext";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
-import { ScreenLoader } from "@/components/ui/Loader";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
@@ -254,20 +253,10 @@ function StatTile({
 }
 
 export function Today() {
-  const [events, setEvents] = useState<AppEvent[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { events } = useEvents();
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(10);
   const [sheet, setSheet] = useState<SheetState>(null);
-
-  useEffect(
-    () =>
-      subscribeAllEvents((e) => {
-        setEvents(e);
-        setLoaded(true);
-      }),
-    [],
-  );
 
   const M = useMemo(() => {
     const latest = events.length
@@ -340,8 +329,6 @@ export function Today() {
       ongoing,
     };
   }, [events, offset]);
-
-  if (!loaded) return <ScreenLoader label="Chargement…" />;
 
   const navBtn = (dir: -1 | 1, disabled: boolean) => (
     <button

@@ -6,7 +6,9 @@ import { Today } from "@/components/Today";
 import { Growth } from "@/components/Growth";
 import { Evolution } from "@/components/Evolution";
 import { Toaster } from "@/components/ui/Toaster";
+import { ScreenLoader } from "@/components/ui/Loader";
 import { useAuth } from "@/hooks/useAuth";
+import { EventsProvider, useEvents } from "@/lib/eventsContext";
 import { PALETTES } from "@/lib/theme";
 import Login from "@/pages/Login";
 
@@ -37,14 +39,24 @@ function Loader() {
   );
 }
 
-function Shell() {
+function Tabs() {
+  const { loaded } = useEvents();
   const [tab, setTab] = useState<Tab>("tracker");
+  if (!loaded) return <ScreenLoader label="Chargement de Charlie…" />;
   return (
     <>
-      {tab === "tracker" && <Tracker />}
-      {tab === "today" && <Today />}
-      {tab === "growth" && <Growth />}
-      {tab === "evolution" && <Evolution />}
+      <div style={{ display: tab === "tracker" ? "contents" : "none" }}>
+        <Tracker />
+      </div>
+      <div style={{ display: tab === "today" ? "contents" : "none" }}>
+        <Today />
+      </div>
+      <div style={{ display: tab === "growth" ? "contents" : "none" }}>
+        <Growth />
+      </div>
+      <div style={{ display: tab === "evolution" ? "contents" : "none" }}>
+        <Evolution />
+      </div>
       <BottomNav active={tab} onChange={setTab} />
     </>
   );
@@ -54,7 +66,15 @@ export default function App() {
   const { user, loading } = useAuth();
   return (
     <AppShell>
-      {loading ? <Loader /> : user ? <Shell /> : <Login />}
+      {loading ? (
+        <Loader />
+      ) : user ? (
+        <EventsProvider>
+          <Tabs />
+        </EventsProvider>
+      ) : (
+        <Login />
+      )}
       <Toaster />
     </AppShell>
   );

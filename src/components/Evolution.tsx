@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { dayKey, fmtDur, startOfDay } from "@/lib/dates";
-import { subscribeAllEvents, type AppEvent } from "@/lib/events";
+import { useEvents } from "@/lib/eventsContext";
 import { Segmented } from "@/components/ui/primitives";
-import { ScreenLoader } from "@/components/ui/Loader";
 import { LineChart, type Point } from "@/components/ui/Chart";
 
 const P = PALETTES.sage;
@@ -117,18 +116,8 @@ function ChartCard({
 }
 
 export function Evolution() {
-  const [events, setEvents] = useState<AppEvent[]>([]);
+  const { events } = useEvents();
   const [range, setRange] = useState<Range>("7j");
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(
-    () =>
-      subscribeAllEvents((e) => {
-        setEvents(e);
-        setLoaded(true);
-      }),
-    [],
-  );
 
   const { avg, usageDays, sleepS, feedS, pumpS, tempS } = useMemo(() => {
     const empty = {
@@ -252,8 +241,6 @@ export function Evolution() {
       tempS,
     };
   }, [events, range]);
-
-  if (!loaded) return <ScreenLoader label="Chargement…" />;
 
   return (
     <div
