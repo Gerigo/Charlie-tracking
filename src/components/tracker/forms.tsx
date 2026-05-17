@@ -41,7 +41,7 @@ function nowTOD(): TimeOfDay {
   return { h: d.getHours(), m: d.getMinutes() };
 }
 
-const BOTTLE_DAILY_MAX = 160;
+const BOTTLE_REF = 160;
 
 function FeedForm({
   suggestBreast,
@@ -150,8 +150,7 @@ function FeedForm({
         )}
         {bibOn &&
           (() => {
-            const projected = bottleMlToday + ml;
-            const over = projected > BOTTLE_DAILY_MAX;
+            const over = ml > BOTTLE_REF;
             return (
               <div>
                 <FieldLabel>
@@ -184,9 +183,9 @@ function FeedForm({
                       color: over ? "#9A4F3F" : "var(--p-ink-soft)",
                     }}
                   >
-                    <span>Biberon du jour</span>
+                    <span>Ce biberon</span>
                     <span className="num">
-                      {projected} / {BOTTLE_DAILY_MAX} ml
+                      {ml} / {BOTTLE_REF} ml
                     </span>
                   </div>
                   <div
@@ -203,16 +202,7 @@ function FeedForm({
                       style={{
                         position: "absolute",
                         inset: 0,
-                        width: `${Math.min(100, (bottleMlToday / BOTTLE_DAILY_MAX) * 100)}%`,
-                        background: TONES.sand.ink,
-                        opacity: 0.5,
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        width: `${Math.min(100, (projected / BOTTLE_DAILY_MAX) * 100)}%`,
+                        width: `${Math.min(100, (ml / BOTTLE_REF) * 100)}%`,
                         background: over ? "#B5705C" : TONES.sand.ink,
                         transition: "width 180ms ease",
                       }}
@@ -230,8 +220,8 @@ function FeedForm({
                       ? `Déjà ${bottleMlToday} ml aujourd'hui · `
                       : ""}
                     {over
-                      ? `dépasse le repère conseillé de ${BOTTLE_DAILY_MAX} ml/jour`
-                      : `repère conseillé : ${BOTTLE_DAILY_MAX} ml/jour`}
+                      ? `dépasse le repère conseillé de ${BOTTLE_REF} ml/biberon`
+                      : `repère conseillé : ${BOTTLE_REF} ml/biberon`}
                   </div>
                 </div>
               </div>
