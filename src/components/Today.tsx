@@ -600,9 +600,9 @@ export function Today() {
           </div>
         ) : (
           (() => {
-            // Chronological rail (morning → night). Sleep = proportional
-            // block, instant events = node on the line.
-            const ordered = [...M.dayEvents].reverse();
+            // Chronological rail, most recent first. Uniform fixed-height
+            // rows; one node per event (no proportional sleep block).
+            const ordered = M.dayEvents; // already desc (recent → old)
             const shown = ordered.slice(0, limit);
             let lastHour = -1;
             return (
@@ -610,20 +610,12 @@ export function Today() {
                 {shown.map((e) => {
                   const tone = TONE_BY_TYPE[e.type];
                   const live = e.type === "sleep" && !e.end;
-                  const isSleep = e.type === "sleep";
-                  const blockH = isSleep
-                    ? Math.max(
-                        46,
-                        Math.min(150, 36 + (e.durMin || 30) * 0.5),
-                      )
-                    : 0;
-                  const rowH = isSleep ? blockH + 14 : 52;
                   const showHour = e.start.getHours() !== lastHour;
                   lastHour = e.start.getHours();
                   return (
                     <div
                       key={e.id}
-                      style={{ display: "flex", minHeight: rowH }}
+                      style={{ display: "flex", minHeight: 56 }}
                     >
                       {/* hour gutter */}
                       <div
@@ -632,7 +624,7 @@ export function Today() {
                           width: 44,
                           textAlign: "right",
                           paddingRight: 10,
-                          paddingTop: 2,
+                          paddingTop: 14,
                           fontSize: 12,
                           fontWeight: 800,
                           color: P.inkSoft,
@@ -660,38 +652,24 @@ export function Today() {
                             background: P.line,
                           }}
                         />
-                        {isSleep ? (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: 6,
-                              top: 6,
-                              width: 14,
-                              height: blockH,
-                              borderRadius: 7,
-                              background: live
-                                ? "linear-gradient(180deg,#3A3F60,#252948)"
-                                : TONES.indigo.bg,
-                              border: live
-                                ? "0.5px solid rgba(255,255,255,0.2)"
-                                : `1px solid ${TONES.indigo.ink}30`,
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: 7,
-                              top: 8,
-                              width: 12,
-                              height: 12,
-                              borderRadius: 999,
-                              background: tone.bg,
-                              border: `2px solid ${P.bg}`,
-                              boxShadow: `0 0 0 1px ${tone.ink}40`,
-                            }}
-                          />
-                        )}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 6,
+                            top: 16,
+                            width: 14,
+                            height: 14,
+                            borderRadius: 999,
+                            background: live ? "#2F3450" : tone.bg,
+                            border: `2px solid ${P.bg}`,
+                            boxShadow: live
+                              ? "0 0 0 1px rgba(255,255,255,0.25)"
+                              : `0 0 0 1px ${tone.ink}40`,
+                            animation: live
+                              ? "pulse 1.6s ease-in-out infinite"
+                              : undefined,
+                          }}
+                        />
                       </div>
                       {/* content */}
                       <button
@@ -701,15 +679,13 @@ export function Today() {
                         style={{
                           flex: 1,
                           minWidth: 0,
-                          margin: "2px 0 10px",
-                          padding: isSleep ? "12px 14px" : "9px 14px",
+                          margin: "8px 0 8px",
+                          padding: "10px 14px",
                           borderRadius: 14,
                           textAlign: "left",
                           background: live
                             ? "linear-gradient(180deg,#2F3450,#1F2238)"
-                            : isSleep
-                              ? TONES.indigo.soft
-                              : P.surface,
+                            : P.surface,
                           color: live ? "#F0EEE7" : P.ink,
                           border: live
                             ? "0.5px solid rgba(255,255,255,0.12)"
