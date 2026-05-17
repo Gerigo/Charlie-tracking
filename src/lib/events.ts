@@ -161,12 +161,52 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
   }
 }
 
+/**
+ * Robustly read a time field that may be: epoch ms (number), epoch
+ * seconds, a Firestore Timestamp ({seconds,nanoseconds} or .toMillis()),
+ * an ISO string, or a Date. Returns epoch ms, or null.
+ */
+function toMs(v: unknown): number | null {
+  if (v == null) return null;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") {
+    // < 1e12 → looks like seconds, not milliseconds
+    return v > 0 && v < 1e12 ? v * 1000 : v;
+  }
+  if (typeof v === "string") {
+    const t = Date.parse(v);
+    return Number.isNaN(t) ? null : t;
+  }
+  if (typeof v === "object") {
+    const o = v as {
+      seconds?: number;
+      _seconds?: number;
+      nanoseconds?: number;
+      toMillis?: () => number;
+    };
+    if (typeof o.toMillis === "function") return o.toMillis();
+    const s = o.seconds ?? o._seconds;
+    if (typeof s === "number") return s * 1000;
+  }
+  return null;
+}
+
+let sampleLogged = 0;
+
 /** Firestore doc → AppEvent (design shape). */
 function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
+  if (sampleLogged < 2) {
+    sampleLogged++;
+    console.info("[events] sample doc", id, JSON.stringify(raw));
+  }
   const type = appType(String(raw.type));
   const startMs =
-    typeof raw.startTime === "number" ? raw.startTime : Date.now();
-  const endMs = typeof raw.endTime === "number" ? raw.endTime : null;
+    toMs(raw.startTime) ??
+    toMs(raw.start) ??
+    toMs(raw.time) ??
+    toMs(raw.createdAt) ??
+    Date.now();
+  const endMs = toMs(raw.endTime) ?? toMs(raw.end);
   const start = new Date(startMs);
   const end = endMs != null ? new Date(endMs) : null;
   const det = (raw.details ?? {}) as Record<string, unknown>;
