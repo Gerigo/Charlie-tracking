@@ -407,6 +407,13 @@ export function Evolution() {
     const lastDay = startOfDay(events[events.length - 1].start);
     const spanDays =
       Math.round((lastDay.getTime() - firstDay.getTime()) / 86400000) + 1;
+    // Like main: usageDays = jours calendaires du 1er event à AUJOURD'HUI.
+    const usageDays = Math.max(
+      1,
+      Math.round(
+        (startOfDay(new Date()).getTime() - firstDay.getTime()) / 86400000,
+      ) + 1,
+    );
 
     // Per-calendar-day accumulators (sleep split across midnight, like main).
     const sleepMin = new Map<string, number>();
@@ -425,14 +432,13 @@ export function Evolution() {
     let totalPump = 0;
     let totalDiaper = 0;
 
-    // A single sleep longer than 20h is almost certainly a session that
-    // was never closed (stale data) — ignore it so it can't inflate the
-    // average to impossible values like 37h/day.
-    const MAX_SLEEP_MS = 20 * 3600000;
+    // Mirrors main's buildDashboardData: observedEnd = endTime ?? now,
+    // no duration cap, unclosed sleeps included. Per-day split for the
+    // chart; hourly grid capped to 16h just for the typical-day viz.
     const addSleep = (start: Date, end: Date) => {
       const e = end.getTime();
       let cur = start.getTime();
-      if (e <= cur || e - cur > MAX_SLEEP_MS) return;
+      if (e <= cur) return;
       totalSleepMin += (e - cur) / 60000;
       while (cur < e) {
         const dayEnd = startOfDay(new Date(cur)).getTime() + 86400000;
@@ -441,27 +447,20 @@ export function Evolution() {
         sleepMin.set(k, (sleepMin.get(k) ?? 0) + (segEnd - cur) / 60000);
         cur = segEnd;
       }
+      let hc = start.getTime();
+      const hEnd = Math.min(e, start.getTime() + 16 * 3600000);
+      while (hc < hEnd) {
+        const dt = new Date(hc);
+        sleepDayHour.add(`${dayKey(dt)}|${dt.getHours()}`);
+        hc += 3600000;
+      }
     };
 
     for (const ev of events) {
       const k = dayKey(ev.start);
       daysWithData.add(k);
       if (ev.type === "sleep") {
-        // Only completed sleeps count — an open (unclosed) sleep has no
-        // reliable duration.
-        if (ev.end) {
-          addSleep(ev.start, ev.end);
-          // mark covered hours for the typical-day profile
-          let c = ev.start.getTime();
-          const e = ev.end.getTime();
-          if (e > c && e - c <= MAX_SLEEP_MS) {
-            while (c < e) {
-              const dt = new Date(c);
-              sleepDayHour.add(`${dayKey(dt)}|${dt.getHours()}`);
-              c += 3600000;
-            }
-          }
-        }
+        addSleep(ev.start, ev.end ?? new Date());
       } else if (ev.type === "feed") {
         totalFeed += 1;
         const isBottle = (ev.data as { kind?: string }).kind === "biberon";
@@ -485,12 +484,11 @@ export function Evolution() {
       }
     }
 
-    const days = Math.max(1, spanDays);
     const avgComputed = {
-      sleepMin: Math.round(totalSleepMin / days),
-      feeds: +(totalFeed / days).toFixed(1),
-      pumpMl: Math.round(totalPump / days),
-      diaper: +(totalDiaper / days).toFixed(1),
+      sleepMin: Math.round(totalSleepMin / usageDays),
+      feeds: +(totalFeed / usageDays).toFixed(1),
+      pumpMl: Math.round(totalPump / usageDays),
+      diaper: +(totalDiaper / usageDays).toFixed(1),
     };
 
     // Buckets across the whole span; the range only limits visibility.
@@ -568,7 +566,7 @@ export function Evolution() {
 
     return {
       avg: avgComputed,
-      usageDays: spanDays,
+      usageDays,
       sleepS,
       seinS,
       bottleS,

@@ -20,20 +20,23 @@ interface EventsCtx {
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
   loaded: boolean;
+  /** Set when the profile has no linked baby (wrong account, etc.). */
+  noScope: boolean;
 }
 
 const Ctx = createContext<EventsCtx>({
   events: [],
   activeSleep: null,
   loaded: false,
+  noScope: false,
 });
 
 /**
  * Resolves the same scope as main (userProfiles → familyId →
  * babies → baby), then keeps ONE live listener on that baby's events
- * (+ active sleep session). Reading/writing the exact main scope keeps
- * both apps perfectly in sync (no legacy double-count, writes visible
- * on main).
+ * (+ active sleep session). `loaded` only turns true once the scope is
+ * resolved AND the first events snapshot arrived, so the UI never lets
+ * you encode before writes can be scoped.
  */
 export function EventsProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<AppEvent[]>([]);
@@ -41,6 +44,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [loaded, setLoaded] = useState(false);
+  const [noScope, setNoScope] = useState(false);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -51,10 +55,22 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     let unsubActive: (() => void) | null = null;
     let familyId: string | null = null;
     let defaultBabyId: string | null = null;
+    let scopeOpened = false;
     let first = true;
 
+    // If nothing resolved after a while, surface a clear message
+    // instead of a broken-but-usable screen.
+    const noScopeTimer = setTimeout(() => {
+      if (!scopeOpened) setNoScope(true);
+    }, 9000);
+
     const openForBaby = (babyId: string, fam: string) => {
+      scopeOpened = true;
+      setNoScope(false);
       setScope({ familyId: fam, babyId, userId: uid, role: "manager" });
+      console.info(
+        `[scope] famille=${fam} bébé=${babyId} (uid=${uid})`,
+      );
       unsubEvents?.();
       unsubActive?.();
       unsubEvents = subscribeScopedEvents(
@@ -79,31 +95,32 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       unsubBabies = subscribeBabies(familyId, (babies) => {
         if (!familyId) return;
         const baby =
-          (defaultBabyId &&
-            babies.find((b) => b.id === defaultBabyId)) ||
+          (defaultBabyId && babies.find((b) => b.id === defaultBabyId)) ||
           babies[0];
-        if (baby) {
-          openForBaby(baby.id, familyId);
-        } else {
-          // Profil sans bébé — rien à afficher mais on ne bloque pas.
-          setLoaded(true);
-        }
+        console.info(
+          `[scope] babies=${babies.length} defaultBabyId=${defaultBabyId ?? "—"}`,
+        );
+        if (baby) openForBaby(baby.id, familyId);
       });
     };
 
     const unsubProfile = subscribeProfile(uid, (p) => {
+      console.info(
+        `[scope] profil familyId=${p.familyId ?? "—"} defaultBabyId=${p.defaultBabyId ?? "—"}`,
+      );
       defaultBabyId = p.defaultBabyId;
       if (p.familyId && p.familyId !== familyId) {
         familyId = p.familyId;
         resolveBaby();
-      } else if (!p.familyId) {
-        setLoaded(true);
-      } else {
+      } else if (p.familyId) {
         resolveBaby();
       }
+      // No familyId yet → keep waiting (could be the first cache
+      // snapshot); the timeout handles the truly-unlinked case.
     });
 
     return () => {
+      clearTimeout(noScopeTimer);
       unsubProfile();
       unsubBabies?.();
       unsubEvents?.();
@@ -113,7 +130,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ events, activeSleep, loaded }}>
+    <Ctx.Provider value={{ events, activeSleep, loaded, noScope }}>
       {children}
     </Ctx.Provider>
   );
