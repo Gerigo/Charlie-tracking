@@ -1,26 +1,15 @@
-import type { ReactElement } from "react";
 import { PALETTES } from "@/lib/theme";
-import {
-  IconCalendar,
-  IconEvolution,
-  IconGrowth,
-  IconHome,
-  type IconProps,
-} from "@/components/ui/icons";
+import { NAV_EMOJI } from "@/components/ui/emoji";
 
 const P = PALETTES.sage;
 
 export type Tab = "tracker" | "today" | "growth" | "evolution";
 
-const TABS: {
-  id: Tab;
-  label: string;
-  Icon: (p: IconProps) => ReactElement;
-}[] = [
-  { id: "tracker", label: "Tracker", Icon: IconHome },
-  { id: "today", label: "Aujourd'hui", Icon: IconCalendar },
-  { id: "growth", label: "Croissance", Icon: IconGrowth },
-  { id: "evolution", label: "Évolution", Icon: IconEvolution },
+const TABS: { id: Tab; label: string; emoji: string }[] = [
+  { id: "tracker", label: "Tracker", emoji: NAV_EMOJI.tracker },
+  { id: "today", label: "Aujourd'hui", emoji: NAV_EMOJI.today },
+  { id: "growth", label: "Croissance", emoji: NAV_EMOJI.growth },
+  { id: "evolution", label: "Évolution", emoji: NAV_EMOJI.evolution },
 ];
 
 export function BottomNav({
@@ -81,7 +70,7 @@ export function BottomNav({
               onClick={() => onChange(t.id)}
               style={{
                 position: "relative",
-                padding: "9px 4px 7px",
+                padding: "8px 4px 6px",
                 borderRadius: 18,
                 background: isActive
                   ? "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)"
@@ -93,15 +82,23 @@ export function BottomNav({
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 3,
+                gap: 2,
                 transition: "all 220ms cubic-bezier(0.32,0.72,0.25,1)",
               }}
             >
-              <t.Icon
-                size={22}
-                sw={isActive ? 2 : 1.7}
-                filled={isActive && (t.id === "tracker" || t.id === "evolution")}
-              />
+              <span
+                role="img"
+                aria-label={t.label}
+                style={{
+                  fontSize: 22,
+                  lineHeight: 1,
+                  opacity: isActive ? 1 : 0.65,
+                  filter: isActive ? "none" : "grayscale(0.35)",
+                  transition: "all 220ms ease",
+                }}
+              >
+                {t.emoji}
+              </span>
               <div
                 style={{
                   fontSize: 10,

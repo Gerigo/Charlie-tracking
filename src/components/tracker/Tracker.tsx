@@ -22,15 +22,7 @@ import {
   type DaySnapshot,
   type FeedData,
 } from "@/lib/events";
-import {
-  IconCare,
-  IconDiaper,
-  IconFeed,
-  IconMoonFilled,
-  IconPump,
-  IconSleep,
-  IconTemp,
-} from "@/components/ui/icons";
+import { EVENT_EMOJI } from "@/components/ui/emoji";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
 const P = PALETTES.sage;
@@ -59,21 +51,22 @@ function Avatar({ size = 50 }: { size?: number }) {
   );
 }
 
-function TileIcon({
-  kind,
-  asleep,
-}: {
-  kind: string;
-  asleep: boolean;
-}) {
-  const s = 20;
-  if (kind === "sleep")
-    return asleep ? <IconMoonFilled size={s} /> : <IconSleep size={s} />;
-  if (kind === "feed") return <IconFeed size={s} />;
-  if (kind === "pump") return <IconPump size={s} />;
-  if (kind === "diaper") return <IconDiaper size={s} />;
-  if (kind === "care") return <IconCare size={s} />;
-  return <IconTemp size={s} />;
+function TileIcon({ kind, asleep }: { kind: string; asleep: boolean }) {
+  const emoji =
+    kind === "sleep"
+      ? asleep
+        ? EVENT_EMOJI.sleepActive
+        : EVENT_EMOJI.sleep
+      : EVENT_EMOJI[kind as keyof typeof EVENT_EMOJI];
+  return (
+    <span
+      style={{ fontSize: 21, lineHeight: 1, filter: "saturate(1.05)" }}
+      role="img"
+      aria-label={kind}
+    >
+      {emoji}
+    </span>
+  );
 }
 
 function EventTile({
@@ -331,7 +324,10 @@ export function Tracker() {
                 boxShadow: "0 6px 18px rgba(58,54,80,0.3)",
               }}
             >
-              <IconMoonFilled size={12} /> dort
+              <span role="img" aria-label="sommeil">
+                {EVENT_EMOJI.sleepActive}
+              </span>{" "}
+              dort
             </div>
           )}
         </div>
