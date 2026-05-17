@@ -18,7 +18,10 @@ const firebaseConfig = {
 };
 
 
-export const firebaseApp = initializeApp(firebaseConfig);
+// Reuse the app across Vite HMR reloads (initializeApp twice throws).
+export const firebaseApp = getApps().length
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
 export const auth = getAuth(firebaseApp);
 
