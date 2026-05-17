@@ -34,13 +34,14 @@ export type SheetState =
   | { type: "edit"; event: AppEvent }
   | null;
 
-function nowHM(): string {
-  const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
 function parseHM(s: string): TimeOfDay {
   const [h, m] = s.split(":").map(Number);
   return { h, m };
+}
+/** Current time as {h,m} — events are timestamped to "now" by default. */
+function nowTOD(): TimeOfDay {
+  const d = new Date();
+  return { h: d.getHours(), m: d.getMinutes() };
 }
 
 const BOTTLE_DAILY_MAX = 160;
@@ -57,7 +58,6 @@ function FeedForm({
   const [kind, setKind] = useState<"sein" | "biberon">("sein");
   const [breast, setBreast] = useState<"G" | "D">(suggestBreast);
   const [ml, setMl] = useState(120);
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
   return (
     <div>
@@ -176,10 +176,6 @@ function FeedForm({
             );
           })()}
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
         </div>
@@ -193,7 +189,7 @@ function FeedForm({
             note,
           };
           void withToast(
-            () => addInstantEvent("feed", parseHM(time), data, note),
+            () => addInstantEvent("feed", nowTOD(), data, note),
             "Tétée enregistrée",
             onDone,
           );
@@ -206,7 +202,6 @@ function FeedForm({
 function PumpForm({ onDone }: { onDone: () => void }) {
   const [breast, setBreast] = useState<"G" | "D" | "GD">("G");
   const [ml, setMl] = useState(110);
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
   return (
     <div>
@@ -243,10 +238,6 @@ function PumpForm({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField
             value={note}
@@ -259,7 +250,7 @@ function PumpForm({ onDone }: { onDone: () => void }) {
         onClick={() => {
           const data: PumpData = { breast, ml, note };
           void withToast(
-            () => addInstantEvent("pump", parseHM(time), data, note),
+            () => addInstantEvent("pump", nowTOD(), data, note),
             "Tirage enregistré",
             onDone,
           );
@@ -273,7 +264,6 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
   const [pipi, setPipi] = useState(true);
   const [caca, setCaca] = useState(false);
   const [color, setColor] = useState<string>("jaune_or");
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
   const pill = (active: boolean) => ({
     flex: 1,
@@ -363,10 +353,6 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
           </div>
         )}
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
         </div>
@@ -380,7 +366,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
             note,
           };
           void withToast(
-            () => addInstantEvent("diaper", parseHM(time), data, note),
+            () => addInstantEvent("diaper", nowTOD(), data, note),
             "Couche enregistrée",
             onDone,
           );
@@ -393,7 +379,6 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
 function CareForm({ onDone }: { onDone: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
 
   const toggle = (v: string) =>
@@ -495,10 +480,6 @@ function CareForm({ onDone }: { onDone: () => void }) {
           </div>
         )}
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
         </div>
@@ -511,7 +492,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
         }
         onClick={() => {
           if (!canSave) return;
-          const t = parseHM(time);
+          const t = nowTOD();
           const items = [...selected];
           void withToast(
             async () => {
@@ -540,7 +521,6 @@ function CareForm({ onDone }: { onDone: () => void }) {
 function TempForm({ onDone }: { onDone: () => void }) {
   const [value, setValue] = useState(36.8);
   const [slot, setSlot] = useState<"matin" | "soir">("matin");
-  const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
   const round = (n: number) => +n.toFixed(1);
   return (
@@ -624,10 +604,6 @@ function TempForm({ onDone }: { onDone: () => void }) {
           </div>
         </div>
         <div>
-          <FieldLabel>Heure</FieldLabel>
-          <TimeField value={time} onChange={setTime} />
-        </div>
-        <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
         </div>
@@ -636,7 +612,7 @@ function TempForm({ onDone }: { onDone: () => void }) {
         onClick={() => {
           const data: TempData = { value, slot, note };
           void withToast(
-            () => addInstantEvent("temp", parseHM(time), data, note),
+            () => addInstantEvent("temp", nowTOD(), data, note),
             "Température enregistrée",
             onDone,
           );

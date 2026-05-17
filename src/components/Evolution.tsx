@@ -157,10 +157,15 @@ export function Evolution() {
     let totalPump = 0;
     let totalDiaper = 0;
 
+    // A single sleep longer than 20h is almost certainly a session that
+    // was never closed (stale data) — ignore it so it can't inflate the
+    // average to impossible values like 37h/day.
+    const MAX_SLEEP_MS = 20 * 3600000;
     const addSleep = (start: Date, end: Date) => {
-      let cur = start.getTime();
       const e = end.getTime();
-      totalSleepMin += Math.max(0, (e - cur) / 60000);
+      let cur = start.getTime();
+      if (e <= cur || e - cur > MAX_SLEEP_MS) return;
+      totalSleepMin += (e - cur) / 60000;
       while (cur < e) {
         const dayEnd = startOfDay(new Date(cur)).getTime() + 86400000;
         const segEnd = Math.min(dayEnd, e);
@@ -173,7 +178,9 @@ export function Evolution() {
     for (const ev of events) {
       const k = dayKey(ev.start);
       if (ev.type === "sleep") {
-        addSleep(ev.start, ev.end ?? new Date());
+        // Only completed sleeps count — an open (unclosed) sleep has no
+        // reliable duration.
+        if (ev.end) addSleep(ev.start, ev.end);
       } else if (ev.type === "feed") {
         totalFeed += 1;
         feedCount.set(k, (feedCount.get(k) ?? 0) + 1);
