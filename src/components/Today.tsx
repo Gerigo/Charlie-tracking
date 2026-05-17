@@ -5,6 +5,7 @@ import {
   dayKey,
   fmtDateFull,
   fmtDur,
+  fmtTime,
   startOfDay,
 } from "@/lib/dates";
 import {
@@ -68,6 +69,19 @@ function rowDur(e: AppEvent): string {
   return "";
 }
 
+/** Side badge G / D / G+D for feeds & pumps (visual, like Tracker). */
+function rowSide(e: AppEvent): string | null {
+  if (e.type === "feed") {
+    const d = e.data as FeedData;
+    return d.kind === "sein" ? (d.breast === "D" ? "D" : "G") : null;
+  }
+  if (e.type === "pump") {
+    const b = (e.data as PumpData).breast;
+    return b === "GD" ? "G+D" : b === "D" ? "D" : "G";
+  }
+  return null;
+}
+
 function rowText(e: AppEvent): string {
   switch (e.type) {
     case "sleep":
@@ -76,16 +90,10 @@ function rowText(e: AppEvent): string {
         : `Sommeil depuis ${hm(e.start)}`;
     case "feed": {
       const d = e.data as FeedData;
-      return d.kind === "sein"
-        ? `Tétée — sein ${d.breast === "D" ? "droit" : "gauche"}`
-        : `Biberon ${d.ml ?? "?"} ml`;
+      return d.kind === "sein" ? "Tétée" : `Biberon ${d.ml ?? "?"} ml`;
     }
-    case "pump": {
-      const d = e.data as PumpData;
-      return `Tirage ${d.ml} ml · ${
-        d.breast === "GD" ? "2 seins" : d.breast === "D" ? "droit" : "gauche"
-      }`;
-    }
+    case "pump":
+      return `Tirage ${(e.data as PumpData).ml} ml`;
     case "diaper": {
       const d = e.data as DiaperData;
       const t =
@@ -601,35 +609,32 @@ export function Today() {
             // rows; one node per event (no proportional sleep block).
             const ordered = M.dayEvents; // already desc (recent → old)
             const shown = ordered.slice(0, limit);
-            let lastHour = -1;
             return (
               <div>
                 {shown.map((e) => {
                   const tone = TONE_BY_TYPE[e.type];
                   const live = e.type === "sleep" && !e.end;
-                  const showHour = e.start.getHours() !== lastHour;
-                  lastHour = e.start.getHours();
                   return (
                     <div
                       key={e.id}
                       style={{ display: "flex", minHeight: 56 }}
                     >
-                      {/* hour gutter */}
+                      {/* hour gutter — heure de CHAQUE event */}
                       <div
                         className="num"
                         style={{
-                          width: 44,
+                          width: 46,
                           textAlign: "right",
                           paddingRight: 10,
                           paddingTop: 14,
                           fontSize: 12,
                           fontWeight: 800,
                           color: P.inkSoft,
-                          opacity: showHour ? 0.85 : 0,
+                          opacity: 0.85,
                           flexShrink: 0,
                         }}
                       >
-                        {hm(e.start)}
+                        {fmtTime(e.start)}
                       </div>
                       {/* rail */}
                       <div
@@ -706,6 +711,25 @@ export function Today() {
                             <span style={{ fontWeight: 700 }}>
                               {rowText(e)}
                             </span>
+                            {rowSide(e) && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  marginLeft: 7,
+                                  padding: "1px 7px",
+                                  borderRadius: 999,
+                                  background: live
+                                    ? "rgba(255,255,255,0.16)"
+                                    : tone.ink,
+                                  color: live ? "#F0EEE7" : tone.soft,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  verticalAlign: "1px",
+                                }}
+                              >
+                                {rowSide(e)}
+                              </span>
+                            )}
                             {rowDur(e) && (
                               <span
                                 style={{

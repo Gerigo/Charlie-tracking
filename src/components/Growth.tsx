@@ -278,7 +278,7 @@ function GrowthChart({
 
 export function Growth() {
   const { events } = useEvents();
-  const [range, setRange] = useState<Range>("7j");
+  const [range, setRange] = useState<Range>("total");
   const [sheet, setSheet] = useState<SheetState>(null);
 
   const { poids, taille, pc, pump, last, first } = useMemo(() => {
