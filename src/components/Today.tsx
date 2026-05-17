@@ -20,6 +20,7 @@ import {
   type TempData,
 } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
+import { useThemeMode } from "@/lib/themeMode";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
 import { Sheet } from "@/components/ui/primitives";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
@@ -181,7 +182,8 @@ function StatTile({
   delta: React.ReactNode;
   dark?: boolean;
 }) {
-  const ink = dark ? "#F0EEE7" : tone.ink;
+  const themeDark = useThemeMode() === "dark";
+  const ink = dark ? "#F0EEE7" : themeDark ? P.ink : tone.ink;
   return (
     <div
       style={{
@@ -252,6 +254,7 @@ function StatTile({
 
 export function Today() {
   const { events } = useEvents();
+  const themeDark = useThemeMode() === "dark";
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(10);
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -706,10 +709,16 @@ export function Today() {
                             display: "grid",
                             placeItems: "center",
                             fontSize: 18,
-                            background: live ? "#2F3450" : tone.soft,
+                            background: live
+                              ? "#2F3450"
+                              : themeDark
+                                ? tone.bg
+                                : tone.soft,
                             border: live
                               ? "1px solid rgba(255,255,255,0.25)"
-                              : `1px solid color-mix(in srgb, ${tone.ink} 20%, transparent)`,
+                              : `1px solid color-mix(in srgb, ${tone.ink} ${
+                                  themeDark ? 45 : 20
+                                }%, transparent)`,
                             boxShadow: `0 0 0 3px ${P.bg}`,
                             animation: live
                               ? "pulse 1.8s ease-in-out infinite"
@@ -733,11 +742,19 @@ export function Today() {
                           textAlign: "left",
                           background: live
                             ? "linear-gradient(180deg,#2F3450,#1F2238)"
-                            : tone.soft,
-                          color: live ? "#F0EEE7" : tone.ink,
+                            : themeDark
+                              ? tone.bg
+                              : tone.soft,
+                          color: live
+                            ? "#F0EEE7"
+                            : themeDark
+                              ? P.ink
+                              : tone.ink,
                           border: live
                             ? "0.5px solid rgba(255,255,255,0.12)"
-                            : `0.5px solid color-mix(in srgb, ${tone.ink} 14%, transparent)`,
+                            : `0.5px solid color-mix(in srgb, ${tone.ink} ${
+                                themeDark ? 35 : 14
+                              }%, transparent)`,
                           borderLeft: live
                             ? "3px solid rgba(255,255,255,0.3)"
                             : `3px solid ${tone.ink}`,

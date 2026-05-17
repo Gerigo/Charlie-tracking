@@ -380,6 +380,7 @@ export function Evolution() {
   const {
     avg,
     usageDays,
+    pumpDays,
     sleepS,
     seinS,
     bottleS,
@@ -392,6 +393,7 @@ export function Evolution() {
     const empty = {
       avg: { sleepMin: 0, feeds: 0, pumpMl: 0, diaper: 0 },
       usageDays: 0,
+      pumpDays: 0,
       sleepS: [] as Point[],
       seinS: [] as Point[],
       bottleS: [] as Point[],
@@ -418,6 +420,19 @@ export function Evolution() {
         (startOfDay(new Date()).getTime() - firstDay.getTime()) / 86400000,
       ) + 1,
     );
+    // Le lait tiré a commencé bien après l'app : on moyenne à partir du
+    // 1er tirage (sinon les jours sans tirage écrasent la moyenne).
+    const firstPump = events.find((e) => e.type === "pump");
+    const pumpDays = firstPump
+      ? Math.max(
+          1,
+          Math.round(
+            (startOfDay(new Date()).getTime() -
+              startOfDay(firstPump.start).getTime()) /
+              86400000,
+          ) + 1,
+        )
+      : 1;
 
     // Per-calendar-day accumulators (sleep split across midnight, like main).
     const sleepMin = new Map<string, number>();
@@ -491,7 +506,7 @@ export function Evolution() {
     const avgComputed = {
       sleepMin: Math.round(totalSleepMin / usageDays),
       feeds: +(totalFeed / usageDays).toFixed(1),
-      pumpMl: Math.round(totalPump / usageDays),
+      pumpMl: Math.round(totalPump / pumpDays),
       diaper: +(totalDiaper / usageDays).toFixed(1),
     };
 
@@ -551,6 +566,7 @@ export function Evolution() {
     return {
       avg: avgComputed,
       usageDays,
+      pumpDays,
       sleepS,
       seinS,
       bottleS,
@@ -636,7 +652,7 @@ export function Evolution() {
             tone={TONES.rose}
             label="Lait tiré / jour"
             value={`${avg.pumpMl} ml`}
-            sub={`moyenne · ${usageDays} j`}
+            sub={`moyenne · ${pumpDays} j`}
           />
           <AvgCard
             tone={TONES.olive}
