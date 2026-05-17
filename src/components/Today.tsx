@@ -563,13 +563,13 @@ export function Today() {
               opacity: 0.65,
             }}
           >
-            Le fil de la journée
+            Le fil
           </div>
           <div
             className="num"
             style={{ fontSize: 11.5, color: P.inkSoft, opacity: 0.6 }}
           >
-            {M.dayEvents.length} évén.
+            {events.length} évén.
           </div>
         </div>
 
@@ -589,7 +589,7 @@ export function Today() {
           + Ajouter un événement
         </button>
 
-        {M.dayEvents.length === 0 ? (
+        {events.length === 0 ? (
           <div
             style={{
               padding: 24,
@@ -601,40 +601,63 @@ export function Today() {
               border: `0.5px solid ${P.line}`,
             }}
           >
-            Aucun événement ce jour.
-            <div>
-              <button
-                onClick={() => setOffset((o) => o + 1)}
-                style={{
-                  marginTop: 14,
-                  height: 40,
-                  padding: "0 16px",
-                  borderRadius: 14,
-                  background: "transparent",
-                  border: `1px solid ${P.line}`,
-                  color: P.inkSoft,
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                ‹ Voir le jour précédent
-              </button>
-            </div>
+            Aucun événement.
           </div>
         ) : (
           (() => {
-            // Chronological rail, most recent first. Uniform fixed-height
-            // rows; one node per event (no proportional sleep block).
-            const ordered = M.dayEvents; // already desc (recent → old)
+            // Fil CONTINU, le plus récent en haut. "Voir plus" remonte
+            // dans le temps (sur plusieurs jours) sans changer la date.
+            const ordered = [...events].reverse();
             const shown = ordered.slice(0, limit);
+            const tKey = dayKey(new Date());
+            const yKey = dayKey(new Date(Date.now() - 86400000));
+            const dLabel = (d: Date) => {
+              const k = dayKey(d);
+              if (k === tKey) return "Aujourd'hui";
+              if (k === yKey) return "Hier";
+              return fmtDateFull(d).replace(/^./, (c) => c.toUpperCase());
+            };
+            let prevKey = "";
             return (
               <div>
                 {shown.map((e) => {
                   const tone = TONE_BY_TYPE[e.type];
                   const live = e.type === "sleep" && !e.end;
+                  const k = dayKey(e.start);
+                  const showDay = k !== prevKey;
+                  prevKey = k;
                   return (
+                    <div key={e.id}>
+                      {showDay && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            margin: "10px 0 6px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              letterSpacing: "0.1em",
+                              textTransform: "uppercase",
+                              color: P.inkSoft,
+                            }}
+                          >
+                            {dLabel(e.start)}
+                          </span>
+                          <span
+                            style={{
+                              flex: 1,
+                              height: 1,
+                              background: P.line,
+                            }}
+                          />
+                        </div>
+                      )}
                     <div
-                      key={e.id}
                       style={{ display: "flex", minHeight: 56 }}
                     >
                       {/* hour gutter — heure de CHAQUE event */}
@@ -710,11 +733,11 @@ export function Today() {
                           textAlign: "left",
                           background: live
                             ? "linear-gradient(180deg,#2F3450,#1F2238)"
-                            : P.surface,
-                          color: live ? "#F0EEE7" : P.ink,
+                            : tone.soft,
+                          color: live ? "#F0EEE7" : tone.ink,
                           border: live
                             ? "0.5px solid rgba(255,255,255,0.12)"
-                            : `0.5px solid ${P.line}`,
+                            : `0.5px solid ${tone.ink}22`,
                           borderLeft: live
                             ? "3px solid rgba(255,255,255,0.3)"
                             : `3px solid ${tone.ink}`,
@@ -783,13 +806,15 @@ export function Today() {
                         </span>
                       </button>
                     </div>
+                    </div>
                   );
                 })}
                 {ordered.length > limit && (
                   <button
-                    onClick={() => setLimit((l) => l + 10)}
+                    onClick={() => setLimit((l) => l + 20)}
                     style={{
-                      marginLeft: 70,
+                      marginLeft: 56,
+                      marginTop: 8,
                       height: 42,
                       padding: "0 16px",
                       borderRadius: 14,
@@ -803,23 +828,6 @@ export function Today() {
                     Voir plus · {ordered.length - limit} restants
                   </button>
                 )}
-                <button
-                  onClick={() => setOffset((o) => o + 1)}
-                  style={{
-                    marginTop: 6,
-                    marginLeft: 56,
-                    height: 42,
-                    padding: "0 16px",
-                    borderRadius: 14,
-                    background: "transparent",
-                    border: `1px solid ${P.line}`,
-                    color: P.inkSoft,
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
-                  ‹ Voir le jour précédent
-                </button>
               </div>
             );
           })()
