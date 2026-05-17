@@ -17,6 +17,13 @@ function smoothPath(pts: [number, number][]): string {
   return p;
 }
 
+export interface RefLine {
+  color: string;
+  label: string;
+  /** Aligned 1:1 with `series` indices; null = no value. */
+  values: (number | null)[];
+}
+
 export function LineChart({
   series,
   tone,
@@ -27,6 +34,7 @@ export function LineChart({
   maxY,
   selectedIndex = null,
   onSelectPoint,
+  refs = [],
 }: {
   series: Point[];
   tone: Tone;
@@ -37,8 +45,9 @@ export function LineChart({
   maxY?: number;
   selectedIndex?: number | null;
   onSelectPoint?: (i: number) => void;
+  refs?: RefLine[];
 }) {
-  const pad = { t: 16, r: 14, b: 26, l: 36 };
+  const pad = { t: 16, r: 30, b: 26, l: 36 };
   if (!series.length) {
     return (
       <div
@@ -56,14 +65,18 @@ export function LineChart({
   }
   const w = width - pad.l - pad.r;
   const h = height - pad.t - pad.b;
+  const refVals = refs.flatMap((r) =>
+    r.values.filter((v): v is number => typeof v === "number"),
+  );
   const ys = series.map((d) => d.y);
-  const yMin = minY != null ? minY : Math.min(...ys);
-  const yMaxRaw = maxY != null ? maxY : Math.max(...ys);
+  const yMin = minY != null ? minY : Math.min(...ys, ...refVals);
+  const yMaxRaw = maxY != null ? maxY : Math.max(...ys, ...refVals);
   const yMax = yMaxRaw === yMin ? yMin + 1 : yMaxRaw;
   const stepX = series.length > 1 ? w / (series.length - 1) : w;
+  const yOf = (v: number) => pad.t + h - ((v - yMin) / (yMax - yMin)) * h;
   const pts: [number, number][] = series.map((d, i) => [
     pad.l + i * stepX,
-    pad.t + h - ((d.y - yMin) / (yMax - yMin)) * h,
+    yOf(d.y),
   ]);
   const path = smoothPath(pts);
   const area = `${path} L ${pts[pts.length - 1][0]} ${pad.t + h} L ${pts[0][0]} ${pad.t + h} Z`;
@@ -104,6 +117,36 @@ export function LineChart({
           </text>
         </g>
       ))}
+      {refs.map((rf, ri) => {
+        const rp: [number, number][] = [];
+        rf.values.forEach((v, i) => {
+          if (typeof v === "number") rp.push([pad.l + i * stepX, yOf(v)]);
+        });
+        if (rp.length < 2) return null;
+        const last = rp[rp.length - 1];
+        return (
+          <g key={`ref${ri}`}>
+            <path
+              d={smoothPath(rp)}
+              fill="none"
+              stroke={rf.color}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              opacity={0.7}
+            />
+            <text
+              x={Math.min(last[0] + 3, width - 2)}
+              y={last[1] + 3}
+              fontSize="8.5"
+              fontWeight="700"
+              fill={rf.color}
+              opacity={0.85}
+            >
+              {rf.label}
+            </text>
+          </g>
+        );
+      })}
       <path d={area} fill={tone.bg} fillOpacity={0.18} />
       <path
         d={path}

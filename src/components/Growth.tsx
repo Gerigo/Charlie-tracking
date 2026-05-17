@@ -250,6 +250,27 @@ function GrowthChart({
         height={150}
         selectedIndex={sel}
         onSelectPoint={(i) => setSel((c) => (c === i ? null : i))}
+        refs={
+          metric
+            ? [
+                {
+                  label: "P3",
+                  color: "#B5705C",
+                  values: data.map((d) => valueAtZ(metric, d.day, -1.88079)),
+                },
+                {
+                  label: "P50",
+                  color: "#7C9A6B",
+                  values: data.map((d) => valueAtZ(metric, d.day, 0)),
+                },
+                {
+                  label: "P97",
+                  color: "#B5705C",
+                  values: data.map((d) => valueAtZ(metric, d.day, 1.88079)),
+                },
+              ]
+            : []
+        }
       />
     </div>
   );
