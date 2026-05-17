@@ -55,7 +55,7 @@ export function LineChart({
           height,
           display: "grid",
           placeItems: "center",
-          color: "rgba(0,0,0,0.4)",
+          color: "var(--chart-ink)",
           fontSize: 12,
         }}
       >
@@ -101,7 +101,7 @@ export function LineChart({
             y1={t.y}
             x2={width - pad.r}
             y2={t.y}
-            stroke="rgba(0,0,0,0.06)"
+            style={{ stroke: "var(--hairline)" }}
             strokeWidth={0.6}
             strokeDasharray={i === 0 ? "0" : "2 3"}
           />
@@ -111,7 +111,7 @@ export function LineChart({
             textAnchor="end"
             fontSize="9.5"
             fontWeight="500"
-            fill="rgba(0,0,0,0.4)"
+            style={{ fill: "var(--chart-ink)" }}
           >
             {t.v.toFixed(t.v % 1 === 0 ? 0 : 1)}
           </text>
@@ -147,11 +147,11 @@ export function LineChart({
           </g>
         );
       })}
-      <path d={area} fill={tone.bg} fillOpacity={0.18} />
+      <path d={area} style={{ fill: tone.bg }} fillOpacity={0.18} />
       <path
         d={path}
         fill="none"
-        stroke={tone.ink}
+        style={{ stroke: tone.ink }}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -162,7 +162,7 @@ export function LineChart({
           y1={pad.t}
           x2={pts[selectedIndex][0]}
           y2={pad.t + h}
-          stroke={tone.ink}
+          style={{ stroke: tone.ink }}
           strokeWidth={0.8}
           strokeDasharray="3 2"
           opacity={0.5}
@@ -188,10 +188,12 @@ export function LineChart({
               cx={x}
               cy={y}
               r={r}
-              fill={isSel ? tone.ink : "#fff"}
-              stroke={tone.ink}
               strokeWidth={isSel ? 2 : 1.5}
-              style={{ pointerEvents: "none" }}
+              style={{
+                fill: isSel ? tone.ink : "var(--p-surface)",
+                stroke: tone.ink,
+                pointerEvents: "none",
+              }}
             />
           </g>
         );
@@ -205,7 +207,7 @@ export function LineChart({
             textAnchor="middle"
             fontSize="9.5"
             fontWeight="500"
-            fill="rgba(0,0,0,0.5)"
+            style={{ fill: "var(--chart-ink)" }}
           >
             {d.label}
           </text>
@@ -218,7 +220,7 @@ export function LineChart({
           textAnchor="end"
           fontSize="9.5"
           fontWeight="600"
-          fill="rgba(0,0,0,0.35)"
+          style={{ fill: "var(--chart-ink)" }}
         >
           {unit.trim()}
         </text>

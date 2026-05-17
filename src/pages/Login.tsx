@@ -19,7 +19,7 @@ function CharlieAvatar({ size = 76 }: { size?: number }) {
         fontSize: size * 0.36,
         fontFamily: FONT_SERIF,
         boxShadow:
-          "inset 0 0 0 2px rgba(255,255,255,0.5), 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.04)",
+          "inset 0 0 0 2px rgba(255,255,255,0.5), 0 1px 3px var(--hairline), 0 0 0 0.5px var(--hairline)",
       }}
     >
       C
@@ -49,7 +49,9 @@ function Field({
     borderRadius: 14,
     background: P.soft,
     border: `1px solid ${focused ? P.olive : P.line}`,
-    boxShadow: focused ? `0 0 0 3px ${P.olive}22` : "none",
+    boxShadow: focused
+      ? `0 0 0 3px color-mix(in srgb, ${P.olive} 14%, transparent)`
+      : "none",
     color: P.ink,
     fontSize: 16,
     fontWeight: 500,
@@ -154,7 +156,7 @@ export default function Login() {
         style={{
           background: P.surface,
           borderRadius: 22,
-          border: "0.5px solid rgba(0,0,0,0.05)",
+          border: "0.5px solid var(--hairline)",
           boxShadow:
             "0 1px 0 rgba(255,255,255,0.7) inset, 0 2px 10px rgba(40,38,32,0.05)",
           padding: 20,

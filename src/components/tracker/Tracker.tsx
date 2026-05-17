@@ -28,6 +28,7 @@ import {
 } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { withToast } from "@/lib/toast";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 
@@ -48,7 +49,7 @@ function Avatar({ size = 50 }: { size?: number }) {
         fontSize: size * 0.36,
         fontFamily: FONT_SERIF,
         boxShadow:
-          "inset 0 0 0 2px rgba(255,255,255,0.5), 0 1px 3px rgba(0,0,0,0.06)",
+          "inset 0 0 0 2px rgba(255,255,255,0.5), 0 1px 3px var(--hairline)",
         flexShrink: 0,
       }}
     >
@@ -105,7 +106,7 @@ function EventTile({
   onClick: () => void;
 }) {
   const ink = asleep ? "#F0EEE7" : tone.ink;
-  const chipBg = asleep ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.6)";
+  const chipBg = asleep ? "rgba(255,255,255,0.08)" : "var(--chip-on-tone)";
   return (
     <button
       onClick={onClick}
@@ -126,7 +127,7 @@ function EventTile({
         overflow: "hidden",
         boxShadow: asleep
           ? "0 10px 26px rgba(20,20,40,0.24)"
-          : "0 1px 0 rgba(255,255,255,0.6) inset, 0 3px 10px rgba(40,38,32,0.05)",
+          : "0 1px 0 var(--tile-sheen) inset, 0 3px 10px rgba(40,38,32,0.05)",
         cursor: "pointer",
       }}
     >
@@ -146,7 +147,7 @@ function EventTile({
             display: "grid",
             placeItems: "center",
             color: ink,
-            boxShadow: asleep ? "none" : "0 1px 2px rgba(0,0,0,0.05)",
+            boxShadow: asleep ? "none" : "0 1px 2px var(--hairline)",
           }}
         >
           <TileIcon kind={kind} asleep={asleep} />
@@ -226,7 +227,7 @@ function EventTile({
               borderRadius: 999,
               background: asleep
                 ? "rgba(255,255,255,0.16)"
-                : "rgba(255,255,255,0.55)",
+                : "var(--chip-on-tone)",
               color: ink,
             }}
           >
@@ -395,27 +396,32 @@ export function Tracker() {
               </div>
             </div>
           </div>
-          {sleeping && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "7px 12px",
-                borderRadius: 999,
-                background: "#3A3650",
-                color: "#E8E6F3",
-                fontSize: 11.5,
-                fontWeight: 600,
-                boxShadow: "0 6px 18px rgba(58,54,80,0.3)",
-              }}
-            >
-              <span role="img" aria-label="sommeil">
-                {EVENT_EMOJI.sleepActive}
-              </span>{" "}
-              dort
-            </div>
-          )}
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
+            {sleeping && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 12px",
+                  borderRadius: 999,
+                  background: "#3A3650",
+                  color: "#E8E6F3",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  boxShadow: "0 6px 18px rgba(58,54,80,0.3)",
+                }}
+              >
+                <span role="img" aria-label="sommeil">
+                  {EVENT_EMOJI.sleepActive}
+                </span>{" "}
+                dort
+              </div>
+            )}
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
@@ -478,13 +484,14 @@ export function Tracker() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    padding: "7px 13px",
+                    padding: "8px 14px",
                     borderRadius: 999,
-                    background: "rgba(255,255,255,0.16)",
-                    color: "#F0EEE7",
+                    background: "#F0EEE7",
+                    color: "#1F2238",
                     fontSize: 12,
-                    fontWeight: 700,
-                    border: "0.5px solid rgba(255,255,255,0.25)",
+                    fontWeight: 800,
+                    border: "none",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
                   }}
                 >
                   <span style={{ fontSize: 9 }}>■</span> Arrêter

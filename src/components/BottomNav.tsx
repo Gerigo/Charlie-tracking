@@ -44,11 +44,9 @@ export function BottomNav({
           // liquid glass
           backdropFilter: "blur(22px) saturate(180%)",
           WebkitBackdropFilter: "blur(22px) saturate(180%)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.62) 100%)",
-          boxShadow:
-            "0 8px 30px rgba(40,38,32,0.16), 0 1px 0 rgba(255,255,255,0.9) inset, 0 0 0 0.5px rgba(255,255,255,0.6) inset",
-          border: "0.5px solid rgba(255,255,255,0.55)",
+          background: "var(--glass-bg)",
+          boxShadow: "var(--glass-shadow)",
+          border: "0.5px solid var(--glass-border)",
         }}
       >
         {/* top sheen */}
@@ -57,8 +55,7 @@ export function BottomNav({
             position: "absolute",
             inset: 0,
             borderRadius: 26,
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 38%)",
+            background: "var(--glass-sheen)",
             pointerEvents: "none",
           }}
         />
@@ -72,12 +69,8 @@ export function BottomNav({
                 position: "relative",
                 padding: "8px 4px 6px",
                 borderRadius: 18,
-                background: isActive
-                  ? "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)"
-                  : "transparent",
-                boxShadow: isActive
-                  ? "0 2px 8px rgba(40,38,32,0.12), 0 0 0 0.5px rgba(255,255,255,0.7) inset"
-                  : "none",
+                background: isActive ? "var(--glass-active)" : "transparent",
+                boxShadow: isActive ? "var(--glass-active-shadow)" : "none",
                 color: isActive ? P.ink : P.inkSoft,
                 display: "flex",
                 flexDirection: "column",

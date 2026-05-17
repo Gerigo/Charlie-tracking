@@ -141,7 +141,7 @@ function DeltaPill({
       ? "#4F6B45"
       : "#9A6B5D";
   const bg = eq
-    ? "rgba(0,0,0,0.05)"
+    ? "var(--hairline)"
     : more
       ? "rgba(79,107,69,0.12)"
       : "rgba(154,107,93,0.12)";
@@ -338,8 +338,8 @@ export function Today() {
         height: 38,
         borderRadius: 999,
         background: disabled ? "transparent" : P.surface,
-        color: disabled ? "rgba(0,0,0,0.2)" : P.ink,
-        boxShadow: disabled ? "none" : "0 1px 3px rgba(0,0,0,0.06)",
+        color: disabled ? "var(--hairline-strong)" : P.ink,
+        boxShadow: disabled ? "none" : "0 1px 3px var(--hairline)",
         fontSize: 18,
         fontWeight: 700,
       }}
@@ -580,7 +580,7 @@ export function Today() {
             height: 46,
             borderRadius: 14,
             background: P.ink,
-            color: "#FAF9F5",
+            color: "var(--p-surface)",
             fontSize: 14,
             fontWeight: 700,
             marginBottom: 10,
@@ -709,7 +709,7 @@ export function Today() {
                             background: live ? "#2F3450" : tone.soft,
                             border: live
                               ? "1px solid rgba(255,255,255,0.25)"
-                              : `1px solid ${tone.ink}33`,
+                              : `1px solid color-mix(in srgb, ${tone.ink} 20%, transparent)`,
                             boxShadow: `0 0 0 3px ${P.bg}`,
                             animation: live
                               ? "pulse 1.8s ease-in-out infinite"
@@ -737,7 +737,7 @@ export function Today() {
                           color: live ? "#F0EEE7" : tone.ink,
                           border: live
                             ? "0.5px solid rgba(255,255,255,0.12)"
-                            : `0.5px solid ${tone.ink}22`,
+                            : `0.5px solid color-mix(in srgb, ${tone.ink} 14%, transparent)`,
                           borderLeft: live
                             ? "3px solid rgba(255,255,255,0.3)"
                             : `3px solid ${tone.ink}`,
@@ -871,8 +871,8 @@ export function Today() {
                   gap: 10,
                   padding: "16px 14px",
                   borderRadius: 16,
-                  background: "#fff",
-                  border: "1px solid rgba(0,0,0,0.08)",
+                  background: "var(--p-surface)",
+                  border: "1px solid var(--hairline)",
                   fontWeight: 700,
                   fontSize: 14,
                   textAlign: "left",

@@ -51,11 +51,11 @@ export function Sheet({
       <div
         style={{
           position: "relative",
-          background: "#FAF9F5",
-          color: "#2A2620",
+          background: "var(--p-surface)",
+          color: "var(--p-ink)",
           borderTopLeftRadius: 28,
           borderTopRightRadius: 28,
-          boxShadow: "0 -10px 40px rgba(0,0,0,0.18)",
+          boxShadow: "0 -10px 40px var(--hairline-strong)",
           maxHeight: "88%",
           transform: open ? "translateY(0)" : "translateY(100%)",
           transition: "transform 280ms cubic-bezier(0.32,0.72,0.25,1)",
@@ -76,7 +76,7 @@ export function Sheet({
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "rgba(0,0,0,0.18)",
+              background: "var(--hairline-strong)",
             }}
           />
         </div>
@@ -102,7 +102,7 @@ export function Segmented<T extends string>({
       style={{
         display: "inline-flex",
         padding: 3,
-        background: "rgba(0,0,0,0.05)",
+        background: "var(--hairline)",
         borderRadius: 999,
       }}
     >
@@ -117,9 +117,9 @@ export function Segmented<T extends string>({
               borderRadius: 999,
               fontSize: 13,
               fontWeight: 600,
-              background: active ? "#fff" : "transparent",
-              color: active ? "#2A2620" : "rgba(42,38,32,0.55)",
-              boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+              background: active ? "var(--p-surface)" : "transparent",
+              color: active ? "var(--p-ink)" : "var(--p-ink-soft)",
+              boxShadow: active ? "0 1px 3px var(--hairline)" : "none",
               transition: "all 180ms ease",
               letterSpacing: "-0.005em",
             }}
@@ -151,20 +151,20 @@ export function Stepper({
     width: 32,
     height: 32,
     borderRadius: 999,
-    background: "#fff",
+    background: "var(--p-surface)",
     display: "grid",
     placeItems: "center",
     fontSize: 18,
     fontWeight: 500,
-    color: "#2A2620",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    color: "var(--p-ink)",
+    boxShadow: "0 1px 2px var(--hairline)",
   };
   return (
     <div
       style={{
         display: "inline-flex",
         alignItems: "center",
-        background: "rgba(0,0,0,0.05)",
+        background: "var(--hairline)",
         borderRadius: 999,
         padding: 3,
       }}
@@ -205,7 +205,7 @@ export function FieldLabel({ children }: { children: ReactNode }) {
         fontWeight: 700,
         letterSpacing: "0.12em",
         textTransform: "uppercase",
-        color: "rgba(42,38,32,0.5)",
+        color: "var(--p-ink-soft)",
         marginBottom: 10,
       }}
     >
@@ -219,7 +219,7 @@ export function FormHeader({ title }: { title: string }) {
     <div style={{ padding: "6px 24px 18px" }}>
       <div
         className="serif"
-        style={{ fontSize: 27, lineHeight: 1.1, color: "#2A2620" }}
+        style={{ fontSize: 27, lineHeight: 1.1, color: "var(--p-ink)" }}
       >
         {title}
       </div>
@@ -240,13 +240,13 @@ export function TimeField({
         display: "flex",
         alignItems: "center",
         gap: 10,
-        background: "#fff",
-        border: "1px solid rgba(0,0,0,0.08)",
+        background: "var(--p-surface)",
+        border: "1px solid var(--hairline)",
         padding: "12px 14px",
         borderRadius: 12,
       }}
     >
-      <IconClock size={17} stroke="rgba(42,38,32,0.45)" />
+      <IconClock size={17} stroke="currentColor" />
       <input
         type="time"
         value={value}
@@ -259,7 +259,7 @@ export function TimeField({
           fontSize: 16,
           fontWeight: 600,
           fontFamily: "inherit",
-          color: "#2A2620",
+          color: "var(--p-ink)",
         }}
       />
     </div>
@@ -279,13 +279,13 @@ export function DateTimeField({
         display: "flex",
         alignItems: "center",
         gap: 10,
-        background: "#fff",
-        border: "1px solid rgba(0,0,0,0.08)",
+        background: "var(--p-surface)",
+        border: "1px solid var(--hairline)",
         padding: "12px 14px",
         borderRadius: 12,
       }}
     >
-      <IconClock size={17} stroke="rgba(42,38,32,0.45)" />
+      <IconClock size={17} stroke="currentColor" />
       <input
         type="datetime-local"
         value={value}
@@ -298,7 +298,7 @@ export function DateTimeField({
           fontSize: 16,
           fontWeight: 600,
           fontFamily: "inherit",
-          color: "#2A2620",
+          color: "var(--p-ink)",
         }}
       />
     </div>
@@ -320,9 +320,9 @@ export function SubmitBar({
         padding: "14px 24px calc(16px + env(safe-area-inset-bottom))",
         display: "flex",
         gap: 10,
-        borderTop: "0.5px solid rgba(0,0,0,0.07)",
+        borderTop: "0.5px solid var(--hairline)",
         marginTop: 14,
-        background: "#FAF9F5",
+        background: "var(--p-surface)",
         boxShadow: "0 -6px 18px rgba(40,38,32,0.05)",
         position: "sticky",
         bottom: 0,
@@ -351,8 +351,8 @@ export function SubmitBar({
           flex: 1,
           height: 52,
           borderRadius: 16,
-          background: "#2A2620",
-          color: "#FAF9F5",
+          background: "var(--p-ink)",
+          color: "var(--p-surface)",
           fontWeight: 700,
           fontSize: 15,
           letterSpacing: "-0.005em",
@@ -383,8 +383,8 @@ export function NoteField({
         minHeight: 56,
         padding: 12,
         borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.08)",
-        background: "#fff",
+        border: "1px solid var(--hairline)",
+        background: "var(--p-surface)",
         resize: "none",
         fontFamily: "inherit",
         fontSize: 16,

@@ -13,16 +13,18 @@ export interface Palette {
   name: string;
 }
 
+// "sage" pointe sur les variables CSS (voir index.css : :root / .dark) pour
+// que le toggle clair/sombre s'applique partout sans toucher aux composants.
 export const PALETTES: Record<"sage" | "cream" | "mist", Palette> = {
   sage: {
-    bg: "#EFEDE8",
-    surface: "#FFFFFF",
-    soft: "#F6F4EE",
-    line: "#DAD4C8",
-    mid: "#C6BFAE",
-    olive: "#928774",
-    ink: "#2A2620",
-    inkSoft: "#6B6358",
+    bg: "var(--p-bg)",
+    surface: "var(--p-surface)",
+    soft: "var(--p-soft)",
+    line: "var(--p-line)",
+    mid: "var(--p-mid)",
+    olive: "var(--p-olive)",
+    ink: "var(--p-ink)",
+    inkSoft: "var(--p-ink-soft)",
     name: "Sauge",
   },
   cream: {
@@ -60,13 +62,42 @@ export const TONES: Record<
   "indigo" | "sand" | "rose" | "olive" | "sky" | "clay",
   Tone
 > = {
-  indigo: { bg: "#D8D6E2", ink: "#3A3650", soft: "#EBEAF1" }, // sommeil
-  sand: { bg: "#E8DCC4", ink: "#5A4A2E", soft: "#F2EADA" }, // tétée
-  rose: { bg: "#E8CFC2", ink: "#5C3E33", soft: "#F2E0D6" }, // tirage
-  olive: { bg: "#CFD4BE", ink: "#3F4830", soft: "#E2E5D5" }, // couche
-  sky: { bg: "#C8D6DB", ink: "#2E454D", soft: "#DDE6EA" }, // soins
-  clay: { bg: "#DEC2B5", ink: "#5A3528", soft: "#EBD4C8" }, // température
+  indigo: {
+    bg: "var(--t-indigo-bg)",
+    ink: "var(--t-indigo-ink)",
+    soft: "var(--t-indigo-soft)",
+  }, // sommeil
+  sand: {
+    bg: "var(--t-sand-bg)",
+    ink: "var(--t-sand-ink)",
+    soft: "var(--t-sand-soft)",
+  }, // tétée
+  rose: {
+    bg: "var(--t-rose-bg)",
+    ink: "var(--t-rose-ink)",
+    soft: "var(--t-rose-soft)",
+  }, // tirage
+  olive: {
+    bg: "var(--t-olive-bg)",
+    ink: "var(--t-olive-ink)",
+    soft: "var(--t-olive-soft)",
+  }, // couche
+  sky: {
+    bg: "var(--t-sky-bg)",
+    ink: "var(--t-sky-ink)",
+    soft: "var(--t-sky-soft)",
+  }, // soins
+  clay: {
+    bg: "var(--t-clay-bg)",
+    ink: "var(--t-clay-ink)",
+    soft: "var(--t-clay-soft)",
+  }, // température
 };
+
+/** Translucent variant of any color (works with CSS vars). */
+export function alpha(color: string, percent: number): string {
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+}
 
 export const FONT_SANS =
   "'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif";
