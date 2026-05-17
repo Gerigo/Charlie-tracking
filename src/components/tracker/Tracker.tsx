@@ -27,6 +27,7 @@ import {
   type FeedData,
 } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
+import { useThemeMode } from "@/lib/themeMode";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { withToast } from "@/lib/toast";
@@ -105,7 +106,12 @@ function EventTile({
   footer?: ReactNode;
   onClick: () => void;
 }) {
-  const ink = asleep ? "#F0EEE7" : tone.ink;
+  const themeDark = useThemeMode() === "dark";
+  const ink = asleep
+    ? "#F0EEE7"
+    : themeDark
+      ? "var(--p-ink)"
+      : tone.ink;
   const chipBg = asleep ? "rgba(255,255,255,0.08)" : "var(--chip-on-tone)";
   return (
     <button
