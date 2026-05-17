@@ -12,7 +12,7 @@ import {
   where,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { durationMin, startOfDay } from "@/lib/dates";
 
 // ─── Simplified model ────────────────────────────────────────────────
@@ -415,9 +415,19 @@ let _scope: Scope | null = null;
 export function setScope(s: Scope | null) {
   _scope = s;
 }
+/**
+ * Toujours une adresse valide : si le provider ne l'a pas (encore)
+ * posée — démontage, HMR, StrictMode… — on retombe sur l'adresse fixe
+ * de Charlie (DB privée, un seul bébé). Plus jamais "profil non chargé".
+ */
 function scope(): Scope {
-  if (!_scope) throw new Error("Profil/bébé non chargé.");
-  return _scope;
+  if (_scope) return _scope;
+  return {
+    familyId: CHARLIE_SCOPE.familyId,
+    babyId: CHARLIE_SCOPE.babyId,
+    userId: auth.currentUser?.uid ?? "unknown",
+    role: "manager",
+  };
 }
 
 /**
