@@ -1,80 +1,26 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import {
-  browserLocalPersistence,
-  getAuth,
-  indexedDBLocalPersistence,
-  initializeAuth,
-} from 'firebase/auth';
-import {
-  getFirestore,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
-  setLogLevel,
-} from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { canUseDevTools, env, isFirebaseConfigured } from './env';
+} from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: env.firebaseApiKey,
-  authDomain: env.firebaseAuthDomain,
-  projectId: env.firebaseProjectId,
-  storageBucket: env.firebaseStorageBucket,
-  messagingSenderId: env.firebaseMessagingSenderId,
-  appId: env.firebaseAppId,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = isFirebaseConfigured
-  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
-  : null;
+export const firebaseApp = initializeApp(firebaseConfig);
 
-export const firebaseAuth = firebaseApp
-  ? (() => {
-      // Use initializeAuth so the persistence chain is set BEFORE any auth
-      // operation runs — async setPersistence after getAuth() races with
-      // the first signIn and was leaving sessions in-memory only on iOS PWA.
-      //
-      // Fallback order:
-      //   1. IndexedDB — survives Safari's ITP best (kept across the
-      //      7-day inactivity window if the user opens the PWA regularly)
-      //   2. localStorage — for browsers without IndexedDB or in private
-      //      mode
-      //
-      // initializeAuth throws if called twice on the same app, so guard
-      // against the IIFE re-running (HMR, fast refresh) by falling back
-      // to getAuth in that case.
-      try {
-        return initializeAuth(firebaseApp, {
-          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-        });
-      } catch {
-        return getAuth(firebaseApp);
-      }
-    })()
-  : null;
+export const auth = getAuth(firebaseApp);
 
-export const firestore = firebaseApp
-  ? (() => {
-      try {
-        if (canUseDevTools) {
-          setLogLevel('debug');
-        }
-        return initializeFirestore(firebaseApp, {
-          experimentalAutoDetectLongPolling: true,
-          // IndexedDB-backed cache so events fetched once stay available
-          // offline and across reloads — critical for the on-demand
-          // full-history fetches on Evolution/Croissance/Historique/Data.
-          localCache: persistentLocalCache({
-            tabManager: persistentMultipleTabManager(),
-          }),
-        });
-      } catch {
-        if (canUseDevTools) {
-          setLogLevel('debug');
-        }
-        return getFirestore(firebaseApp);
-      }
-    })()
-  : null;
-
-export const storage = firebaseApp ? getStorage(firebaseApp) : null;
+export const db = initializeFirestore(firebaseApp, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});

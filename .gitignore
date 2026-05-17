@@ -1,33 +1,11 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
-node_modules/
-.npm-cache/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+node_modules
+dist
+dist-ssr
+.env
+.env.local
+.env.*.local
+*.log
 .DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
+.vite
+dev-dist
 *.tsbuildinfo
-
-# firebase emulator runtime
-firebase/_logs/
-firebase/_update-notifier-last-checked

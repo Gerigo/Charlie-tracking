@@ -1,54 +1,52 @@
-# Charlie Web
+# Charlie v2
 
-Base Expo / React Native Web pour la version Web de l'app Charlie.
+Reconstruction propre de l'app de suivi quotidien — React (web) + PWA.
 
-## Objectif
+## Stack
 
-- réutiliser intégralement la logique métier de la version mobile
-- compiler vers une SPA Web statique (pas de natif iOS / Android)
-- garder Firebase, Expo Router, react-native-web
+- Vite 6 + React 19 + TypeScript
+- Tailwind CSS v3 + shadcn/ui (style "new-york", base color stone)
+- Firebase Web SDK (Auth + Firestore avec persistance locale)
+- `vite-plugin-pwa` (manifest + service worker auto)
+- React Router v7
 
-## Démarrage
+## Setup local
 
 ```bash
+cd charlie-v2
+cp .env.example .env
+# Renseigne tes clés Firebase dans .env (mêmes valeurs que l'ancienne app)
 npm install
-npm run start          # dev server (http://localhost:8081)
-npm run build          # export statique → dist/
-npm run serve          # sert dist/ via npx serve
-npm run lint           # tsc --noEmit
-npm test               # jest
+npm run dev
 ```
 
-Variables attendues dans `.env.local` :
+## Scripts
 
-- `EXPO_PUBLIC_FIREBASE_API_KEY`
-- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
-- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- `EXPO_PUBLIC_FIREBASE_APP_ID`
-- `EXPO_PUBLIC_APP_ENV`
+| Script | Effet |
+|--------|-------|
+| `npm run dev` | Serveur de dev Vite (HMR) |
+| `npm run build` | Build prod (typecheck + bundle dans `dist/`) |
+| `npm run preview` | Sert le bundle prod localement |
+| `npm run lint` | Typecheck seul (`tsc --noEmit`) |
 
-Exemple complet : [`.env.example`](.env.example).
+## Structure
 
-## Différences avec la version mobile
+```
+charlie-v2/
+├── public/         # Assets statiques (favicons, icons PWA)
+├── src/
+│   ├── components/ # Composants UI (shadcn dans ./ui/)
+│   ├── lib/        # firebase.ts, utils.ts
+│   ├── pages/      # Écrans
+│   ├── App.tsx     # Routing
+│   ├── main.tsx    # Entry point
+│   └── index.css   # Tailwind + variables shadcn
+├── index.html
+├── vite.config.ts
+└── tailwind.config.js
+```
 
-- pas de dossier `ios/` / `android/`, pas d'EAS Build
-- `expo-dev-client`, `expo-device`, `expo-notifications`, `@sentry/react-native` retirés
-- `notifications.ts` réécrit pour utiliser l'API Notification du navigateur
-- `app.json` : seul le bloc `web` est conservé, `output: "single"` (SPA)
-- scripts `npm run ios` / `npm run android` retirés
+## Statut
 
-## Périmètre fonctionnel
-
-Identique à la base mobile :
-
-- Auth email / mot de passe
-- Onboarding famille + bébé
-- Tracker quotidien, historique, croissance, évolution, social
-- Mode invité anonyme via code famille
-
-## Collections Firestore
-
-- `userProfiles`, `families`, `babies`, `events`, `activeSessions`
-- `guestSessions`, `inviteCodes`
+- **Phase 0** — scaffold ✅
+- Phases 1–7 — à venir
