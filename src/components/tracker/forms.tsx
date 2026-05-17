@@ -17,6 +17,7 @@ import {
   CARE_OPTIONS,
   deleteEvent,
   editEvent,
+  STOOL_COLORS,
   type AppEvent,
   type CareData,
   type DiaperData,
@@ -40,11 +41,15 @@ function parseHM(s: string): TimeOfDay {
   return { h, m };
 }
 
+const BOTTLE_DAILY_MAX = 160;
+
 function FeedForm({
   suggestBreast,
+  bottleMlToday,
   onDone,
 }: {
   suggestBreast: "G" | "D";
+  bottleMlToday: number;
   onDone: () => void;
 }) {
   const [kind, setKind] = useState<"sein" | "biberon">("sein");
@@ -126,19 +131,48 @@ function FeedForm({
             </div>
           </div>
         )}
-        {kind === "biberon" && (
-          <div>
-            <FieldLabel>Quantité</FieldLabel>
-            <Stepper
-              value={ml}
-              onChange={setMl}
-              min={10}
-              max={300}
-              step={10}
-              unit=" ml"
-            />
-          </div>
-        )}
+        {kind === "biberon" &&
+          (() => {
+            const projected = bottleMlToday + ml;
+            const over = projected > BOTTLE_DAILY_MAX;
+            return (
+              <div>
+                <FieldLabel>Quantité</FieldLabel>
+                <Stepper
+                  value={ml}
+                  onChange={setMl}
+                  min={10}
+                  max={300}
+                  step={10}
+                  unit=" ml"
+                />
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    background: over
+                      ? "rgba(154,79,63,0.1)"
+                      : "rgba(0,0,0,0.04)",
+                    color: over ? "#9A4F3F" : "rgba(42,38,32,0.6)",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {over ? "⚠️ " : "💡 "}
+                  Recommandé : ≤ {BOTTLE_DAILY_MAX} ml de biberon / jour.
+                  <br />
+                  Aujourd'hui :{" "}
+                  <span className="num">
+                    {bottleMlToday} ml
+                  </span>{" "}
+                  · avec ce biberon ≈{" "}
+                  <span className="num">{projected} ml</span>
+                </div>
+              </div>
+            );
+          })()}
         <div>
           <FieldLabel>Heure</FieldLabel>
           <TimeField value={time} onChange={setTime} />
@@ -230,15 +264,9 @@ function PumpForm({ onDone }: { onDone: () => void }) {
 function DiaperForm({ onDone }: { onDone: () => void }) {
   const [pipi, setPipi] = useState(true);
   const [caca, setCaca] = useState(false);
-  const [color, setColor] = useState("jaune");
+  const [color, setColor] = useState<string>("jaune_or");
   const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
-  const colors = [
-    { v: "jaune", l: "Jaune", sw: "#E8C76A" },
-    { v: "moutarde", l: "Moutarde", sw: "#B98A2E" },
-    { v: "vert", l: "Verdâtre", sw: "#8AA070" },
-    { v: "marron", l: "Marron", sw: "#7A5238" },
-  ];
   const pill = (active: boolean) => ({
     flex: 1,
     padding: "16px 12px",
@@ -277,39 +305,53 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
           </div>
         </div>
         {caca && (
-          <div>
-            <FieldLabel>Couleur</FieldLabel>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {colors.map((c) => (
-                <button
-                  key={c.v}
-                  onClick={() => setColor(c.v)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    background: color === c.v ? "#2A2620" : "#fff",
-                    color: color === c.v ? "#FAF9F5" : "#2A2620",
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    fontSize: 13,
-                    fontWeight: 600,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      background: c.sw,
-                      border: "1px solid rgba(0,0,0,0.1)",
-                    }}
-                  />
-                  {c.l}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {(
+              [
+                { label: "À surveiller", items: STOOL_COLORS.surveiller },
+                { label: "Selles habituelles", items: STOOL_COLORS.habituelles },
+              ] as const
+            ).map((group) => (
+              <div key={group.label}>
+                <FieldLabel>{group.label}</FieldLabel>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {group.items.map((c) => {
+                    const on = color === c.v;
+                    return (
+                      <button
+                        key={c.v}
+                        onClick={() => setColor(c.v)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "9px 13px",
+                          borderRadius: 999,
+                          background: on ? "#2A2620" : "#fff",
+                          color: on ? "#FAF9F5" : "#2A2620",
+                          border: on
+                            ? "1px solid #2A2620"
+                            : "1px solid rgba(0,0,0,0.08)",
+                          fontSize: 13,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 15,
+                            height: 15,
+                            borderRadius: "50%",
+                            background: c.sw,
+                            border: "1px solid rgba(0,0,0,0.15)",
+                          }}
+                        />
+                        {c.l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         <div>
@@ -338,10 +380,20 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
 }
 
 function CareForm({ onDone }: { onDone: () => void }) {
-  const [kind, setKind] = useState("vitamine_d");
+  const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [time, setTime] = useState(nowHM());
   const [note, setNote] = useState("");
+
+  const toggle = (v: string) =>
+    setSelected((s) =>
+      s.includes(v) ? s.filter((x) => x !== v) : [...s, v],
+    );
+
+  const canSave =
+    selected.length > 0 &&
+    (!selected.includes("custom") || custom.trim().length > 0);
+
   return (
     <div>
       <FormHeader title="Soins" />
@@ -354,7 +406,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
         }}
       >
         <div>
-          <FieldLabel>Type</FieldLabel>
+          <FieldLabel>Type · plusieurs possibles</FieldLabel>
           <div
             style={{
               display: "grid",
@@ -362,32 +414,59 @@ function CareForm({ onDone }: { onDone: () => void }) {
               gap: 8,
             }}
           >
-            {CARE_OPTIONS.map((o) => (
-              <button
-                key={o.v}
-                onClick={() => setKind(o.v)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 14,
-                  textAlign: "left",
-                  background: kind === o.v ? TONES.sky.bg : "#fff",
-                  border: `1px solid ${
-                    kind === o.v ? TONES.sky.ink + "40" : "rgba(0,0,0,0.08)"
-                  }`,
-                  color: kind === o.v ? TONES.sky.ink : "#2A2620",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  letterSpacing: "-0.005em",
-                }}
-              >
-                {o.l}
-              </button>
-            ))}
+            {CARE_OPTIONS.map((o) => {
+              const on = selected.includes(o.v);
+              return (
+                <button
+                  key={o.v}
+                  onClick={() => toggle(o.v)}
+                  style={{
+                    position: "relative",
+                    padding: "12px 14px",
+                    borderRadius: 14,
+                    textAlign: "left",
+                    background: on ? TONES.sky.bg : "#fff",
+                    border: `1px solid ${
+                      on ? TONES.sky.ink + "55" : "rgba(0,0,0,0.08)"
+                    }`,
+                    color: on ? TONES.sky.ink : "#2A2620",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    letterSpacing: "-0.005em",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <span>{o.l}</span>
+                  <span
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 6,
+                      flexShrink: 0,
+                      border: on
+                        ? "none"
+                        : "1.5px solid rgba(0,0,0,0.18)",
+                      background: on ? TONES.sky.ink : "transparent",
+                      color: TONES.sky.soft,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    {on ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
-        {kind === "custom" && (
+        {selected.includes("custom") && (
           <div>
-            <FieldLabel>Détail</FieldLabel>
+            <FieldLabel>Détail (autre)</FieldLabel>
             <input
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
@@ -414,13 +493,24 @@ function CareForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <SubmitBar
+        label={
+          selected.length > 1
+            ? `Enregistrer (${selected.length})`
+            : "Enregistrer"
+        }
         onClick={async () => {
-          const data: CareData = {
-            kind,
-            custom: kind === "custom" ? custom : null,
-            note,
-          };
-          await addInstantEvent("care", parseHM(time), data, note);
+          if (!canSave) return;
+          const t = parseHM(time);
+          // One event per selected care item (keeps the model simple
+          // and the daily count meaningful).
+          for (const kind of selected) {
+            const data: CareData = {
+              kind,
+              custom: kind === "custom" ? custom.trim() : null,
+              note,
+            };
+            await addInstantEvent("care", t, data, note);
+          }
           onDone();
         }}
       />
@@ -611,15 +701,21 @@ export function EncodeSheet({
   sheet,
   onClose,
   suggestBreast,
+  bottleMlToday,
 }: {
   sheet: SheetState;
   onClose: () => void;
   suggestBreast: "G" | "D";
+  bottleMlToday: number;
 }) {
   return (
     <Sheet open={!!sheet} onClose={onClose}>
       {sheet?.type === "feed" && (
-        <FeedForm suggestBreast={suggestBreast} onDone={onClose} />
+        <FeedForm
+          suggestBreast={suggestBreast}
+          bottleMlToday={bottleMlToday}
+          onDone={onClose}
+        />
       )}
       {sheet?.type === "pump" && <PumpForm onDone={onClose} />}
       {sheet?.type === "diaper" && <DiaperForm onDone={onClose} />}

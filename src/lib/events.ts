@@ -114,19 +114,30 @@ function appType(raw: string): EventType {
   }
 }
 
-const STOOL_TO_DB: Record<string, string> = {
+// Stool color values ARE the schema enum (no translation). Legacy
+// values (old English / pre-v2 keys) are normalised to the new set.
+export const STOOL_COLORS = {
+  surveiller: [
+    { v: "jaune_pale", l: "Jaune pâle", sw: "#EFE0A8" },
+    { v: "beige", l: "Beige", sw: "#DECBA0" },
+    { v: "blanc_mastic", l: "Blanc mastic", sw: "#E7E0CE" },
+  ],
+  habituelles: [
+    { v: "jaune_or", l: "Jaune d'or", sw: "#E0A82E" },
+    { v: "ocre_bronze", l: "Ocre bronze", sw: "#B0793A" },
+    { v: "vert", l: "Vert", sw: "#6E8B4A" },
+  ],
+} as const;
+
+const STOOL_NORMALIZE: Record<string, string> = {
   jaune: "jaune_or",
+  yellow: "jaune_or",
   moutarde: "ocre_bronze",
-  vert: "vert",
-  marron: "marron",
-};
-const STOOL_FROM_DB: Record<string, string> = {
-  jaune_or: "jaune",
-  jaune_pale: "jaune",
-  ocre_bronze: "moutarde",
-  vert: "vert",
-  marron: "marron",
-  noir: "marron",
+  mustard: "ocre_bronze",
+  green: "vert",
+  marron: "ocre_bronze",
+  brown: "ocre_bronze",
+  noir: "ocre_bronze",
 };
 
 /** design form data → Firestore `details`. */
@@ -148,7 +159,7 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
       const d = data as DiaperData;
       const diaperType = d.pipi && d.caca ? "both" : d.caca ? "dirty" : "wet";
       const out: Record<string, unknown> = { diaperType };
-      if (d.caca && d.color) out.stoolColor = STOOL_TO_DB[d.color] ?? "jaune_or";
+      if (d.caca && d.color) out.stoolColor = d.color;
       return out;
     }
     case "care": {
@@ -237,7 +248,7 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
       data = {
         pipi: dt === "wet" || dt === "both",
         caca: dt === "dirty" || dt === "both",
-        color: sc ? (STOOL_FROM_DB[sc] ?? "jaune") : null,
+        color: sc ? (STOOL_NORMALIZE[sc] ?? sc) : null,
         note,
       } satisfies DiaperData;
       break;
@@ -413,6 +424,7 @@ export async function deleteEvent(id: string): Promise<void> {
 export interface DayStats {
   sleepMin: number;
   feedCount: number;
+  bottleMl: number;
   pumpMl: number;
   pumpCount: number;
   diaperCount: number;
@@ -440,6 +452,10 @@ export function statsFor(events: AppEvent[]): DayStats {
   return {
     sleepMin: sleeps.reduce((s, e) => s + e.durMin, 0),
     feedCount: feeds.length,
+    bottleMl: feeds.reduce((s, e) => {
+      const f = e.data as FeedData;
+      return s + (f.kind === "biberon" ? f.ml || 0 : 0);
+    }, 0),
     pumpMl: pumps.reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
     pumpCount: pumps.length,
     diaperCount: diapers.length,

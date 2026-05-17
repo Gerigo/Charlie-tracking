@@ -472,6 +472,7 @@ export function Tracker() {
         sheet={sheet}
         onClose={() => setSheet(null)}
         suggestBreast={lastBreast === "G" ? "D" : "G"}
+        bottleMlToday={stats.bottleMl}
       />
     </div>
   );
