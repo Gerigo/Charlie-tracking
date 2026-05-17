@@ -9,19 +9,16 @@ import {
 } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyDXOKB3GCmKq_Y4NR-1PaMPqYbSP0aWU_M",
+  authDomain: "sleeptracker-71e30.firebaseapp.com",
+  projectId: "sleeptracker-71e30",
+  storageBucket: "sleeptracker-71e30.firebasestorage.app",
+  messagingSenderId: "621914073040",
+  appId: "1:621914073040:web:37a4fa561275e9137abbd5"
 };
 
-// Reuse the app/Firestore instance across Vite HMR reloads — calling
-// initializeFirestore twice throws `failed-precondition`.
-export const firebaseApp = getApps().length
-  ? getApp()
-  : initializeApp(firebaseConfig);
+
+export const firebaseApp = initializeApp(firebaseConfig);
 
 export const auth = getAuth(firebaseApp);
 
