@@ -83,6 +83,8 @@ function EventTile({
   primary,
   hint,
   badge,
+  live = false,
+  sideBadge = null,
   asleep = false,
   onClick,
 }: {
@@ -92,80 +94,118 @@ function EventTile({
   primary?: ReactNode;
   hint?: string;
   badge?: string | null;
+  live?: boolean;
+  sideBadge?: "G" | "D" | null;
   asleep?: boolean;
   onClick: () => void;
 }) {
   const ink = asleep ? "#F0EEE7" : tone.ink;
+  const chipBg = asleep ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.6)";
   return (
     <button
       onClick={onClick}
       style={{
         position: "relative",
         textAlign: "left",
-        padding: "15px 16px 14px",
+        padding: "16px 16px 15px",
         width: "100%",
-        minHeight: 112,
-        borderRadius: 22,
+        minHeight: 124,
+        borderRadius: 24,
         background: asleep
           ? "linear-gradient(180deg, #2F3450 0%, #1F2238 100%)"
-          : `linear-gradient(180deg, ${tone.bg} 0%, ${tone.soft} 100%)`,
+          : `linear-gradient(165deg, ${tone.bg} 0%, ${tone.soft} 100%)`,
         color: ink,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         overflow: "hidden",
         boxShadow: asleep
-          ? "0 8px 22px rgba(20,20,40,0.22)"
-          : "0 1px 0 rgba(255,255,255,0.55) inset, 0 2px 6px rgba(40,38,32,0.04)",
+          ? "0 10px 26px rgba(20,20,40,0.24)"
+          : "0 1px 0 rgba(255,255,255,0.6) inset, 0 3px 10px rgba(40,38,32,0.05)",
         cursor: "pointer",
       }}
     >
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
         }}
       >
         <div
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            background: asleep
-              ? "rgba(255,255,255,0.08)"
-              : "rgba(255,255,255,0.55)",
+            width: 38,
+            height: 38,
+            borderRadius: 13,
+            background: chipBg,
             display: "grid",
             placeItems: "center",
             color: ink,
+            boxShadow: asleep ? "none" : "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
           <TileIcon kind={kind} asleep={asleep} />
         </div>
-        {badge && (
+        {sideBadge ? (
           <span
             style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              padding: "3px 7px",
+              minWidth: 34,
+              height: 34,
+              padding: "0 9px",
+              borderRadius: 999,
+              background: ink,
+              color: tone.soft,
+              fontWeight: 800,
+              fontSize: 15,
+              letterSpacing: "0.02em",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+            }}
+          >
+            {sideBadge}
+          </span>
+        ) : badge ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.07em",
+              padding: "5px 9px",
               borderRadius: 999,
               background: asleep
-                ? "rgba(255,255,255,0.15)"
-                : "rgba(0,0,0,0.06)",
+                ? "rgba(255,255,255,0.16)"
+                : "rgba(255,255,255,0.55)",
               color: ink,
             }}
           >
+            {live && (
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: "currentColor",
+                  animation: "pulse 1.6s ease-in-out infinite",
+                }}
+              />
+            )}
             {badge}
           </span>
-        )}
+        ) : null}
       </div>
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 12 }}>
         <div
           style={{
-            fontSize: 12.5,
-            fontWeight: 600,
-            opacity: asleep ? 0.7 : 0.75,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            opacity: asleep ? 0.6 : 0.55,
           }}
         >
           {label}
@@ -174,10 +214,11 @@ function EventTile({
           <div
             className="num"
             style={{
-              fontSize: 18,
-              fontWeight: 700,
+              fontSize: 21,
+              fontWeight: 800,
               letterSpacing: "-0.02em",
-              marginTop: 2,
+              marginTop: 4,
+              lineHeight: 1.1,
             }}
           >
             {primary}
@@ -186,10 +227,10 @@ function EventTile({
         {hint && (
           <div
             style={{
-              fontSize: 11,
-              opacity: 0.55,
-              marginTop: 1,
-              fontWeight: 500,
+              fontSize: 12,
+              opacity: asleep ? 0.6 : 0.6,
+              marginTop: 3,
+              fontWeight: 600,
             }}
           >
             {hint}
@@ -197,43 +238,6 @@ function EventTile({
         )}
       </div>
     </button>
-  );
-}
-
-function QuickStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 10.5,
-          color: P.inkSoft,
-          fontWeight: 600,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          opacity: 0.7,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className="num"
-        style={{
-          fontSize: 18,
-          fontWeight: 700,
-          marginTop: 2,
-          color: P.ink,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -349,6 +353,7 @@ export function Tracker() {
             tone={TONES.indigo}
             label="Sommeil"
             asleep={sleeping}
+            live={sleeping}
             badge={sleeping ? "EN COURS" : null}
             primary={
               sleeping && sleepStart
@@ -359,10 +364,10 @@ export function Tracker() {
             }
             hint={
               sleeping && sleepStart
-                ? `endormi à ${fmtTime(sleepStart)}`
+                ? `Depuis ${fmtTime(sleepStart)}`
                 : stats.lastSleep
-                  ? `dernier ${fmtTime(stats.lastSleep.start)}`
-                  : "aucun aujourd'hui"
+                  ? `Dernier à ${fmtTime(stats.lastSleep.start)}`
+                  : "Rien aujourd'hui"
             }
             onClick={() => {
               void (activeSleep ? stopSleep(activeSleep.id) : startSleep());
@@ -372,14 +377,28 @@ export function Tracker() {
             kind="feed"
             tone={TONES.sand}
             label="Nourriture"
-            primary={lastFeed ? fmtTime(lastFeed.start) : "—"}
-            badge={lastBreast ? `→ ${lastBreast === "G" ? "D" : "G"}` : null}
+            sideBadge={
+              lastFeed && (lastFeed.data as FeedData).kind === "sein"
+                ? lastBreast
+                : null
+            }
+            primary={
+              lastFeed
+                ? (lastFeed.data as FeedData).kind === "sein"
+                  ? `Sein ${lastBreast === "G" ? "gauche" : "droit"}`
+                  : "Biberon"
+                : "—"
+            }
             hint={
               lastFeed
                 ? (lastFeed.data as FeedData).kind === "sein"
-                  ? `sein ${lastBreast === "G" ? "gauche" : "droit"}`
-                  : `biberon ${(lastFeed.data as FeedData).ml}ml`
-                : "rien encore"
+                  ? `À ${fmtTime(lastFeed.start)} · prochain ${
+                      lastBreast === "G" ? "droit" : "gauche"
+                    }`
+                  : `${(lastFeed.data as FeedData).ml ?? "?"} ml · à ${fmtTime(
+                      lastFeed.start,
+                    )}`
+                : "Rien aujourd'hui"
             }
             onClick={() => setSheet({ type: "feed" })}
           />
@@ -387,30 +406,38 @@ export function Tracker() {
             kind="pump"
             tone={TONES.rose}
             label="Tirage"
-            primary={`${stats.pumpMl} ml`}
-            hint={`${stats.pumpCount} séance${stats.pumpCount > 1 ? "s" : ""}`}
+            primary={stats.pumpCount ? `${stats.pumpMl} ml` : "—"}
+            hint={
+              stats.pumpCount
+                ? `${stats.pumpCount} séance${stats.pumpCount > 1 ? "s" : ""}`
+                : "Rien aujourd'hui"
+            }
             onClick={() => setSheet({ type: "pump" })}
           />
           <EventTile
             kind="diaper"
             tone={TONES.olive}
             label="Couches"
-            primary={stats.diaperCount}
-            hint={`${stats.pipiCount} pipi · ${stats.cacaCount} caca`}
+            primary={stats.diaperCount ? stats.diaperCount : "—"}
+            hint={
+              stats.diaperCount
+                ? `${stats.pipiCount} pipi · ${stats.cacaCount} caca`
+                : "Rien aujourd'hui"
+            }
             onClick={() => setSheet({ type: "diaper" })}
           />
           <EventTile
             kind="care"
             tone={TONES.sky}
             label="Soins"
-            primary={stats.careCount}
+            primary={stats.careCount ? stats.careCount : "—"}
             hint={(() => {
               const c = events.filter((e) => e.type === "care");
-              if (!c.length) return "rien encore";
+              if (!c.length) return "Rien aujourd'hui";
               const last = c[c.length - 1];
-              return `dernier · ${careLabel(
+              return `Dernier · ${careLabel(
                 (last.data as { kind: string }).kind,
-              ).toLowerCase()}`;
+              )}`;
             })()}
             onClick={() => setSheet({ type: "care" })}
           />
@@ -421,49 +448,15 @@ export function Tracker() {
             primary={stats.lastTemp ? `${stats.lastTemp.toFixed(1)}°` : "—"}
             hint={(() => {
               const t = events.filter((e) => e.type === "temp");
-              if (!t.length) return "pas encore prise";
+              if (!t.length) return "Rien aujourd'hui";
               const last = t[t.length - 1] as AppEvent;
-              return `${(last.data as { slot: string }).slot} · ${fmtTime(
+              const slot = (last.data as { slot: string }).slot;
+              return `${slot[0].toUpperCase()}${slot.slice(1)} · à ${fmtTime(
                 last.start,
               )}`;
             })()}
             onClick={() => setSheet({ type: "temp" })}
           />
-        </div>
-
-        <div
-          style={{
-            marginTop: 22,
-            padding: "14px 16px",
-            background: P.surface,
-            borderRadius: 18,
-            border: `0.5px solid ${P.line}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: P.inkSoft,
-              opacity: 0.65,
-              marginBottom: 10,
-            }}
-          >
-            Aperçu rapide
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 12,
-            }}
-          >
-            <QuickStat label="Sommeil" value={fmtDur(stats.sleepMin)} />
-            <QuickStat label="Tétées" value={stats.feedCount} />
-            <QuickStat label="Lait tiré" value={`${stats.pumpMl}ml`} />
-          </div>
         </div>
       </div>
 
