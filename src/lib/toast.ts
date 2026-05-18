@@ -48,20 +48,25 @@ export const toast = {
  * Awaits an action, shows a success or error toast, and only resolves
  * (running `onOk`) if it succeeded.
  */
-export async function withToast(
+export function withToast(
   action: () => Promise<void>,
   successMsg: string,
   onOk?: () => void,
 ): Promise<void> {
-  try {
-    await action();
-    toast.success(successMsg);
-    onOk?.();
-  } catch (e) {
+  // Optimiste / "local-first" : la persistance Firestore applique
+  // l'écriture localement immédiatement et le listener met l'UI à jour
+  // tout de suite. On NE bloque PAS sur l'ACK serveur (qui peut traîner
+  // hors-ligne / en long-polling) — sinon l'UI paraît figée et l'utilisateur
+  // spamme. On confirme tout de suite et on signale une éventuelle erreur
+  // a posteriori (Firestore annule alors l'écriture locale de lui-même).
+  onOk?.();
+  toast.success(successMsg);
+  void action().catch((e) => {
     const msg =
       typeof e === "object" && e && "message" in e
         ? String((e as { message: unknown }).message)
         : "Une erreur est survenue.";
     toast.error(msg || "Une erreur est survenue.");
-  }
+  });
+  return Promise.resolve();
 }

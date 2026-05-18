@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -311,9 +312,28 @@ export function SubmitBar({
   onDelete,
 }: {
   label?: string;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   onDelete?: () => void;
 }) {
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const handle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onClick();
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -332,6 +352,7 @@ export function SubmitBar({
       {onDelete && (
         <button
           onClick={onDelete}
+          disabled={busy}
           style={{
             height: 52,
             padding: "0 20px",
@@ -340,13 +361,15 @@ export function SubmitBar({
             color: "#7A4D3F",
             fontWeight: 700,
             fontSize: 14,
+            opacity: busy ? 0.5 : 1,
           }}
         >
           Supprimer
         </button>
       )}
       <button
-        onClick={onClick}
+        onClick={handle}
+        disabled={busy}
         style={{
           flex: 1,
           height: 52,
@@ -356,9 +379,27 @@ export function SubmitBar({
           fontWeight: 700,
           fontSize: 15,
           letterSpacing: "-0.005em",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          opacity: busy ? 0.7 : 1,
+          cursor: busy ? "default" : "pointer",
         }}
       >
-        {label}
+        {busy && (
+          <span
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              border: "2px solid rgba(255,255,255,0.35)",
+              borderTopColor: "var(--p-surface)",
+              animation: "spin 700ms linear infinite",
+            }}
+          />
+        )}
+        {busy ? "Enregistrement…" : label}
       </button>
     </div>
   );
