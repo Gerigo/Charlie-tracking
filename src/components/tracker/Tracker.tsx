@@ -32,6 +32,7 @@ import { EVENT_EMOJI } from "@/components/ui/emoji";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { withToast } from "@/lib/toast";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
+import { DayFeed } from "@/components/DayFeed";
 
 const P = PALETTES.sage;
 
@@ -620,6 +621,8 @@ export function Tracker() {
             onClick={() => setSheet({ type: "temp" })}
           />
         </div>
+
+        <DayFeed />
       </div>
 
       <EncodeSheet
