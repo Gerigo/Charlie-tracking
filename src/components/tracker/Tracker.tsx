@@ -529,8 +529,14 @@ export function Tracker() {
             }
             corner={lastFeed ? timeAgo(lastFeed.start) : undefined}
             primary={
-              lastFeed && (lastFeed.data as FeedData).kind === "biberon"
-                ? `Biberon ${(lastFeed.data as FeedData).ml ?? "?"} ml`
+              lastFeed
+                ? (lastFeed.data as FeedData).kind === "biberon"
+                  ? `Biberon ${(lastFeed.data as FeedData).ml ?? "?"} ml`
+                  : (lastFeed.data as FeedData).supp
+                    ? `Tétée + biberon ${
+                        (lastFeed.data as FeedData).supp
+                      } ml`
+                    : undefined
                 : undefined
             }
             hint={lastFeed ? undefined : "Rien aujourd'hui"}

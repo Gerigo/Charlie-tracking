@@ -52,7 +52,7 @@ function FeedForm({
   bottleMlToday: number;
   onDone: () => void;
 }) {
-  const [seinOn, setSeinOn] = useState(true);
+  const [seinOn, setSeinOn] = useState(false);
   const [bibOn, setBibOn] = useState(false);
   const [breast, setBreast] = useState<"G" | "D">(suggestBreast);
   const [ml, setMl] = useState(120);

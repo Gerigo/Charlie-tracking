@@ -720,7 +720,7 @@ export function statsFor(events: AppEvent[]): DayStats {
     feedCount: feeds.length,
     bottleMl: feeds.reduce((s, e) => {
       const f = e.data as FeedData;
-      return s + (f.kind === "biberon" ? f.ml || 0 : 0);
+      return s + (f.kind === "biberon" ? f.ml || 0 : f.supp || 0);
     }, 0),
     pumpMl: pumps.reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
     pumpCount: pumps.length,
