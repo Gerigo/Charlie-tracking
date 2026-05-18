@@ -91,7 +91,8 @@ function rowText(e: AppEvent): string {
         : `Sommeil depuis ${hm(e.start)}`;
     case "feed": {
       const d = e.data as FeedData;
-      return d.kind === "sein" ? "Tétée" : `Biberon ${d.ml ?? "?"} ml`;
+      if (d.kind === "biberon") return `Biberon ${d.ml ?? "?"} ml`;
+      return d.supp ? `Tétée + biberon ${d.supp} ml` : "Tétée";
     }
     case "pump":
       return `Tirage ${(e.data as PumpData).ml} ml`;
@@ -300,11 +301,14 @@ export function Today() {
       const temps = list.filter((e) => e.type === "temp");
       return {
         feeds: feeds.length,
-        bottles: feeds.filter((e) => (e.data as FeedData).kind === "biberon")
-          .length,
-        bottleMl: feeds
-          .filter((e) => (e.data as FeedData).kind === "biberon")
-          .reduce((s, e) => s + ((e.data as FeedData).ml || 0), 0),
+        bottles: feeds.filter((e) => {
+          const d = e.data as FeedData;
+          return d.kind === "biberon" || (d.kind === "sein" && !!d.supp);
+        }).length,
+        bottleMl: feeds.reduce((s, e) => {
+          const d = e.data as FeedData;
+          return s + (d.kind === "biberon" ? d.ml || 0 : d.supp || 0);
+        }, 0),
         pumpMl: list
           .filter((e) => e.type === "pump")
           .reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
@@ -909,7 +913,7 @@ export function Today() {
         sheet={sheet}
         onClose={() => setSheet(null)}
         suggestBreast="G"
-        bottleMlToday={0}
+        bottleMlToday={M.cur.bottleMl}
       />
     </div>
   );
