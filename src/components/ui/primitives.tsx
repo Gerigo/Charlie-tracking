@@ -316,11 +316,14 @@ export function SubmitBar({
   onDelete?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const mounted = useRef(true);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
     };
   }, []);
 
@@ -332,6 +335,20 @@ export function SubmitBar({
     } finally {
       if (mounted.current) setBusy(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!onDelete || busy) return;
+    if (!confirmDel) {
+      setConfirmDel(true);
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      confirmTimer.current = setTimeout(() => {
+        if (mounted.current) setConfirmDel(false);
+      }, 4000);
+      return;
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    onDelete();
   };
 
   return (
@@ -351,20 +368,22 @@ export function SubmitBar({
     >
       {onDelete && (
         <button
-          onClick={onDelete}
+          onClick={handleDelete}
           disabled={busy}
           style={{
             height: 52,
-            padding: "0 20px",
+            padding: confirmDel ? "0 16px" : "0 20px",
             borderRadius: 16,
-            background: "rgba(154,107,93,0.12)",
-            color: "#7A4D3F",
+            background: confirmDel ? "#9A6B5D" : "rgba(154,107,93,0.12)",
+            color: confirmDel ? "#FBFAF6" : "#7A4D3F",
             fontWeight: 700,
-            fontSize: 14,
+            fontSize: confirmDel ? 13.5 : 14,
             opacity: busy ? 0.5 : 1,
+            transition: "background 160ms ease, color 160ms ease",
+            whiteSpace: "nowrap",
           }}
         >
-          Supprimer
+          {confirmDel ? "Confirmer ?" : "Supprimer"}
         </button>
       )}
       <button
