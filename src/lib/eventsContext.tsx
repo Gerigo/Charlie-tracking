@@ -13,6 +13,7 @@ import {
   subscribeBabies,
   subscribeProfile,
   subscribeScopedEvents,
+  subscribeToWrites,
   type AppEvent,
 } from "@/lib/events";
 import { toast } from "@/lib/toast";
@@ -41,6 +42,17 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    return subscribeToWrites((event) => {
+      setEvents((prev) => {
+        if (prev.some((e) => e.id === event.id)) return prev;
+        return [...prev, event].sort(
+          (a, b) => a.start.getTime() - b.start.getTime(),
+        );
+      });
+    });
+  }, []);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid ?? "unknown";
