@@ -178,8 +178,8 @@ export function Today() {
       Math.min(cutoffMin, 1439) / 60,
     )}h`;
 
-    const winEnd = dStart + cutoffMin * 60000;
-    const prevWinEnd = prevStart + cutoffMin * 60000;
+    const winEnd = dStart + (cutoffMin + 1) * 60000;
+    const prevWinEnd = prevStart + (cutoffMin + 1) * 60000;
 
     const inWin = (e: AppEvent, s: number, end: number) =>
       e.start.getTime() >= s && e.start.getTime() < end;
