@@ -15,6 +15,25 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { durationMin, startOfDay } from "@/lib/dates";
 
+// ─── Optimistic write notifications ──────────────────────────────────
+// Firestore compound-query listeners don't always fire immediately for
+// local pending writes (server round-trip required). We broadcast each
+// write locally so the UI can update without waiting for the network.
+type WriteListener = (event: AppEvent) => void;
+const writeListeners: WriteListener[] = [];
+
+export function subscribeToWrites(cb: WriteListener): () => void {
+  writeListeners.push(cb);
+  return () => {
+    const i = writeListeners.indexOf(cb);
+    if (i >= 0) writeListeners.splice(i, 1);
+  };
+}
+
+function notifyWrite(event: AppEvent): void {
+  for (const cb of writeListeners) cb(event);
+}
+
 // ─── Simplified model ────────────────────────────────────────────────
 // Single user, single baby, private DB. We read the whole `events`
 // collection and only keep what we need: type / startTime / endTime /
@@ -552,6 +571,14 @@ export async function addInstantEvent(
 ): Promise<void> {
   const s = scope();
   const ts = startMsFor(when, day);
+  notifyWrite({
+    id: `__opt_${Date.now()}`,
+    type,
+    start: new Date(ts),
+    end: new Date(ts),
+    durMin: 0,
+    data,
+  });
   await addDoc(collection(db, "events"), {
     familyId: s.familyId,
     babyId: s.babyId,
