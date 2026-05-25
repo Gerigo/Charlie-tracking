@@ -40,9 +40,9 @@ function Loader() {
 }
 
 function Tabs() {
-  const { loaded } = useEvents();
+  const { loaded, synced } = useEvents();
   const [tab, setTab] = useState<Tab>("tracker");
-  if (!loaded) return <ScreenLoader label="Chargement de Charlie…" />;
+  if (!loaded || !synced) return <ScreenLoader label="Chargement de Charlie…" />;
   return (
     <>
       <div style={{ display: tab === "tracker" ? "contents" : "none" }}>

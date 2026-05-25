@@ -510,7 +510,7 @@ export function subscribeBabies(
 export function subscribeScopedEvents(
   familyId: string,
   babyId: string,
-  cb: (events: AppEvent[]) => void,
+  cb: (events: AppEvent[], fromCache: boolean) => void,
   onError?: (e: Error) => void,
 ): Unsubscribe {
   return onSnapshot(
@@ -524,6 +524,7 @@ export function subscribeScopedEvents(
         snap.docs
           .map((d) => fromDoc(d.id, d.data() as Record<string, unknown>))
           .sort((a, b) => a.start.getTime() - b.start.getTime()),
+        snap.metadata.fromCache,
       );
     },
     (err) => onError?.(err as Error),

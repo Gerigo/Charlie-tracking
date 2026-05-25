@@ -22,12 +22,14 @@ interface EventsCtx {
   events: AppEvent[];
   activeSleep: { id: string; start: Date } | null;
   loaded: boolean;
+  synced: boolean;
 }
 
 const Ctx = createContext<EventsCtx>({
   events: [],
   activeSleep: null,
   loaded: false,
+  synced: false,
 });
 
 /**
@@ -42,6 +44,14 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [loaded, setLoaded] = useState(false);
+  const [synced, setSynced] = useState(false);
+
+  // Fallback: if Firestore server doesn't confirm within 5 s (offline /
+  // slow network), unblock the UI with whatever cached data we have.
+  useEffect(() => {
+    const t = setTimeout(() => setSynced(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     return subscribeToWrites((event) => {
@@ -72,8 +82,9 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       unsubEvents = subscribeScopedEvents(
         familyId,
         babyId,
-        (e) => {
+        (e, fromCache) => {
           setEvents(e);
+          if (!fromCache) setSynced(true);
           if (first) {
             first = false;
             setLoaded(true);
@@ -121,7 +132,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ events, activeSleep, loaded }}>
+    <Ctx.Provider value={{ events, activeSleep, loaded, synced }}>
       {children}
     </Ctx.Provider>
   );

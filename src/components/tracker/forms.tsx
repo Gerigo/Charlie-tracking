@@ -41,6 +41,22 @@ function nowTOD(): TimeOfDay {
   return { h: d.getHours(), m: d.getMinutes() };
 }
 
+/** Current moment as a datetime-local string "YYYY-MM-DDTHH:MM". */
+function nowDtLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** Parse a datetime-local string into addInstantEvent params. */
+function parseDtLocal(s: string): { when: TimeOfDay; day: Date } {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return { when: nowTOD(), day: new Date() };
+  return {
+    day: new Date(+m[1], +m[2] - 1, +m[3]),
+    when: { h: +m[4], m: +m[5] },
+  };
+}
+
 const BOTTLE_REF = 160;
 
 function FeedForm({
@@ -57,6 +73,7 @@ function FeedForm({
   const [breast, setBreast] = useState<"G" | "D">(suggestBreast);
   const [ml, setMl] = useState(120);
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
   const canSave = seinOn || bibOn;
   const toggleStyle = (on: boolean) => ({
     flex: 1,
@@ -79,6 +96,10 @@ function FeedForm({
           gap: 20,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         <div>
           <FieldLabel>Type · les deux possibles</FieldLabel>
           <div style={{ display: "flex", gap: 10 }}>
@@ -252,8 +273,9 @@ function FeedForm({
                 supp: null,
                 note,
               };
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () => addInstantEvent("feed", nowTOD(), data, note),
+            () => addInstantEvent("feed", when, data, note, day),
             "Tétée enregistrée",
             onDone,
           );
@@ -267,6 +289,7 @@ function PumpForm({ onDone }: { onDone: () => void }) {
   const [breast, setBreast] = useState<"G" | "D" | "GD">("G");
   const [ml, setMl] = useState(110);
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
   return (
     <div>
       <FormHeader title="Tirage de lait" />
@@ -278,6 +301,10 @@ function PumpForm({ onDone }: { onDone: () => void }) {
           gap: 20,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         <div>
           <FieldLabel>Sein</FieldLabel>
           <Segmented
@@ -313,8 +340,9 @@ function PumpForm({ onDone }: { onDone: () => void }) {
       <SubmitBar
         onClick={() => {
           const data: PumpData = { breast, ml, note };
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () => addInstantEvent("pump", nowTOD(), data, note),
+            () => addInstantEvent("pump", when, data, note, day),
             "Tirage enregistré",
             onDone,
           );
@@ -329,6 +357,7 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
   const [caca, setCaca] = useState(false);
   const [color, setColor] = useState<string>("jaune_or");
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
   const pill = (active: boolean) => ({
     flex: 1,
     padding: "16px 12px",
@@ -355,6 +384,10 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
           gap: 20,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         <div>
           <FieldLabel>Contenu</FieldLabel>
           <div style={{ display: "flex", gap: 10 }}>
@@ -431,8 +464,9 @@ function DiaperForm({ onDone }: { onDone: () => void }) {
             color: caca ? color : null,
             note,
           };
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () => addInstantEvent("diaper", nowTOD(), data, note),
+            () => addInstantEvent("diaper", when, data, note, day),
             "Couche enregistrée",
             onDone,
           );
@@ -446,6 +480,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
 
   const toggle = (v: string) =>
     setSelected((s) =>
@@ -467,6 +502,10 @@ function CareForm({ onDone }: { onDone: () => void }) {
           gap: 20,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         <div>
           <FieldLabel>Type · plusieurs possibles</FieldLabel>
           <div
@@ -566,8 +605,9 @@ function CareForm({ onDone }: { onDone: () => void }) {
           };
           // A single event groups all selected soins → one entry in
           // "Aujourd'hui", not N.
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () => addInstantEvent("care", nowTOD(), data, note),
+            () => addInstantEvent("care", when, data, note, day),
             items.length > 1 ? "Soins enregistrés" : "Soin enregistré",
             onDone,
           );
@@ -581,6 +621,7 @@ function TempForm({ onDone }: { onDone: () => void }) {
   const [value, setValue] = useState(36.8);
   const [slot, setSlot] = useState<"matin" | "soir">("matin");
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
   const round = (n: number) => +n.toFixed(1);
   return (
     <div>
@@ -593,6 +634,10 @@ function TempForm({ onDone }: { onDone: () => void }) {
           gap: 20,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         <div>
           <FieldLabel>Moment</FieldLabel>
           <Segmented
@@ -670,8 +715,9 @@ function TempForm({ onDone }: { onDone: () => void }) {
       <SubmitBar
         onClick={() => {
           const data: TempData = { value, slot, note };
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () => addInstantEvent("temp", nowTOD(), data, note),
+            () => addInstantEvent("temp", when, data, note, day),
             "Température enregistrée",
             onDone,
           );
@@ -1257,6 +1303,7 @@ function GrowthForm({
   const [height, setHeight] = useState(initial?.height ?? 56);
   const [head, setHead] = useState(initial?.head ?? 38);
   const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
   const fields = [
     {
       key: "w",
@@ -1303,6 +1350,10 @@ function GrowthForm({
           gap: 14,
         }}
       >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
         {fields.map((f) => (
           <div
             key={f.key}
@@ -1374,15 +1425,9 @@ function GrowthForm({
             head,
             note,
           };
-          const now = new Date();
+          const { when, day } = parseDtLocal(eventTime);
           void withToast(
-            () =>
-              addInstantEvent(
-                "growth",
-                { h: now.getHours(), m: now.getMinutes() },
-                data,
-                note,
-              ),
+            () => addInstantEvent("growth", when, data, note, day),
             "Mesure enregistrée",
             onDone,
           );
