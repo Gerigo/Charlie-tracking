@@ -152,10 +152,8 @@ export function Today() {
   const [offset, setOffset] = useState(0);
 
   const M = useMemo(() => {
-    const latest = events.length
-      ? startOfDay(events[events.length - 1].start)
-      : startOfDay(new Date());
-    const d = new Date(latest.getTime() - offset * 86400000);
+    const today = startOfDay(new Date());
+    const d = new Date(today.getTime() - offset * 86400000);
     const dStart = startOfDay(d).getTime();
     const prevStart = dStart - 86400000;
     const isLatest = offset === 0;
@@ -312,7 +310,7 @@ export function Today() {
               style={{ fontSize: 26, lineHeight: 1.1, color: P.ink }}
             >
               {M.isLatest
-                ? "Dernier jour"
+                ? "Aujourd'hui"
                 : fmtDateFull(M.d).replace(/^./, (c) => c.toUpperCase())}
             </div>
             <div style={{ fontSize: 11.5, color: P.inkSoft, marginTop: 2 }}>
