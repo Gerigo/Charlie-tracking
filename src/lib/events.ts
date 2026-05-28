@@ -769,6 +769,7 @@ export const CARE_OPTIONS: { v: string; l: string }[] = [
   { v: "bain", l: "Bain" },
   { v: "douche", l: "Douche" },
   { v: "vitamine_d", l: "Vitamine D" },
+  { v: "calmosine", l: "Calmosine" },
   { v: "creme", l: "Crème / pommade" },
   { v: "osteo", l: "Ostéopathe" },
   { v: "medecin", l: "Pédiatre / médecin / ONE" },
