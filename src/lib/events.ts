@@ -406,9 +406,11 @@ export function selectTrackerDay(all: AppEvent[]): DaySnapshot {
 
   const events = all.filter((e) => {
     const t = e.start.getTime();
-    // Ongoing sleep has no end yet — treat its end as now so it
-    // shows up on today even when it started yesterday.
-    const endT = e.end ? e.end.getTime() : Date.now();
+    // Only the active (most-recent open) sleep is truly ongoing — treat
+    // its end as now so it crosses midnight into today. Every other
+    // null-end event (abandoned sleeps, legacy data) falls back to t.
+    const isActiveSleep = openSleep !== null && e.id === openSleep.id;
+    const endT = e.end ? e.end.getTime() : isActiveSleep ? Date.now() : t;
     return endT >= from && t < to;
   });
 
