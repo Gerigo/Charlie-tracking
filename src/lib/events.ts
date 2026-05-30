@@ -391,8 +391,8 @@ export interface DaySnapshot {
   activeSleep: { id: string; start: Date } | null;
 }
 
-/** Pure selector — anchors on today if it has events, else the most
- *  recent event's day (like the legacy app: always show latest state). */
+/** Always anchored on today. A cross-midnight sleep (started yesterday,
+ *  still running) appears on today because its effective end is now. */
 export function selectTrackerDay(all: AppEvent[]): DaySnapshot {
   const openSleep =
     [...all].reverse().find((e) => e.type === "sleep" && e.end === null) ??
@@ -401,16 +401,14 @@ export function selectTrackerDay(all: AppEvent[]): DaySnapshot {
     ? { id: openSleep.id, start: openSleep.start }
     : null;
 
-  const todayFrom = startOfDay(new Date()).getTime();
-  const hasToday = all.some((e) => e.start.getTime() >= todayFrom);
-  const anchor =
-    hasToday || all.length === 0 ? new Date() : all[all.length - 1].start;
-  const from = startOfDay(anchor).getTime();
+  const from = startOfDay(new Date()).getTime();
   const to = from + 86400000;
 
   const events = all.filter((e) => {
     const t = e.start.getTime();
-    const endT = e.end ? e.end.getTime() : t;
+    // Ongoing sleep has no end yet — treat its end as now so it
+    // shows up on today even when it started yesterday.
+    const endT = e.end ? e.end.getTime() : Date.now();
     return endT >= from && t < to;
   });
 
