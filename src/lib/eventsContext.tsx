@@ -13,6 +13,7 @@ import {
   subscribeBabies,
   subscribeProfile,
   subscribeScopedEvents,
+  subscribeToRemovals,
   subscribeToWrites,
   type AppEvent,
 } from "@/lib/events";
@@ -61,6 +62,13 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           (a, b) => a.start.getTime() - b.start.getTime(),
         );
       });
+    });
+  }, []);
+
+  // Roll back an optimistic write that the server ultimately rejected.
+  useEffect(() => {
+    return subscribeToRemovals((id) => {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
     });
   }, []);
 
