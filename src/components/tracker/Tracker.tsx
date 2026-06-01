@@ -30,7 +30,7 @@ import { useEvents } from "@/lib/eventsContext";
 import { useThemeMode } from "@/lib/themeMode";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { withToast } from "@/lib/toast";
+import { withToast, toast } from "@/lib/toast";
 import { EncodeSheet, type SheetState } from "@/components/tracker/forms";
 import { DayFeed } from "@/components/DayFeed";
 
@@ -327,21 +327,28 @@ function EventTile({
 }
 
 export function Tracker() {
-  const { events: allEvents } = useEvents();
+  const { events: allEvents, activeSleep: ctxActiveSleep } = useEvents();
   const snap = useMemo(() => selectTrackerDay(allEvents), [allEvents]);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [, forceTick] = useState(0);
+  const [pendingSleep, setPendingSleep] = useState(false);
 
   const today = snap.day;
 
   // live ticking for the in-progress sleep duration
   useEffect(() => {
-    if (!snap.activeSleep) return;
+    if (!ctxActiveSleep && !pendingSleep) return;
     const i = setInterval(() => forceTick((n) => n + 1), 30000);
     return () => clearInterval(i);
-  }, [snap.activeSleep]);
+  }, [ctxActiveSleep, pendingSleep]);
 
-  const { events, activeSleep } = snap;
+  // clear pending flag once Firestore confirms the session is active
+  useEffect(() => {
+    if (ctxActiveSleep) setPendingSleep(false);
+  }, [ctxActiveSleep]);
+
+  const { events } = snap;
+  const activeSleep = ctxActiveSleep;
   const stats = statsFor(events);
   // Sleep total for the displayed day — same windowed split as
   // Aujourd'hui (midnight-split, up to now) so the two screens agree.
@@ -351,7 +358,7 @@ export function Tracker() {
     Math.max(Date.now(), dayFrom + 1),
   );
   const sleepDayMin = sleepMinutesIn(allEvents, dayFrom, dayTo);
-  const sleeping = !!activeSleep;
+  const sleeping = !!activeSleep || pendingSleep;
   const sleepStart = activeSleep?.start ?? stats.lastSleep?.start ?? null;
   const lastFeed = stats.lastFeed;
   const lastBreast = stats.lastBreast;
@@ -511,12 +518,17 @@ export function Tracker() {
               ) : null
             }
             onClick={() => {
-              void (activeSleep
-                ? withToast(
-                    () => stopSleep(activeSleep.id),
-                    "Réveil enregistré",
-                  )
-                : withToast(() => startSleep(), "Sommeil démarré"));
+              if (activeSleep) {
+                void withToast(() => stopSleep(activeSleep.id), "Réveil enregistré");
+              } else if (!pendingSleep) {
+                setPendingSleep(true);
+                startSleep()
+                  .then(() => toast.success("Sommeil démarré"))
+                  .catch(() => {
+                    setPendingSleep(false);
+                    toast.error("Impossible de démarrer le sommeil");
+                  });
+              }
             }}
           />
           <EventTile
