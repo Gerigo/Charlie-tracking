@@ -34,6 +34,24 @@ function notifyWrite(event: AppEvent): void {
   for (const cb of writeListeners) cb(event);
 }
 
+// Rollback channel for optimistic writes that fail before the server
+// confirms them (e.g. a sleep transaction that aborts). Lets the UI drop
+// the phantom event instead of waiting for the next server snapshot.
+type RemoveListener = (id: string) => void;
+const removeListeners: RemoveListener[] = [];
+
+export function subscribeToRemovals(cb: RemoveListener): () => void {
+  removeListeners.push(cb);
+  return () => {
+    const i = removeListeners.indexOf(cb);
+    if (i >= 0) removeListeners.splice(i, 1);
+  };
+}
+
+function notifyRemove(id: string): void {
+  for (const cb of removeListeners) cb(id);
+}
+
 // ─── Simplified model ────────────────────────────────────────────────
 // Single user, single baby, private DB. We read the whole `events`
 // collection and only keep what we need: type / startTime / endTime /
@@ -601,35 +619,55 @@ export async function startSleep(): Promise<void> {
   const ts = Date.now();
   const sessionRef = doc(db, "activeSessions", s.babyId);
   const eventRef = doc(collection(db, "events"));
-  await runTransaction(db, async (tx) => {
-    const active = await tx.get(sessionRef);
-    if (active.exists()) throw new Error("Un sommeil est déjà en cours.");
-    tx.set(eventRef, {
-      familyId: s.familyId,
-      babyId: s.babyId,
-      type: "sleep",
-      startTime: ts,
-      endTime: null,
-      notes: null,
-      details: {},
-      createdByUserId: s.userId,
-      createdByRole: s.role,
-      createdAt: ts,
-      updatedAt: ts,
-      serverCreatedAt: serverTimestamp(),
-    });
-    tx.set(sessionRef, {
-      familyId: s.familyId,
-      babyId: s.babyId,
-      eventId: eventRef.id,
-      type: "sleep",
-      startTime: ts,
-      details: {},
-      createdByUserId: s.userId,
-      createdByRole: s.role,
-      updatedAt: ts,
-    });
+  // Optimistic: surface the in-progress sleep right away. Transactions go
+  // straight to the server (no local pending write), so without this the
+  // tile + history would stay empty until the round-trip lands — the
+  // exact "I started a sleep but nothing showed up" bug. We reuse the
+  // event's real id so the server snapshot dedupes instead of duplicating.
+  notifyWrite({
+    id: eventRef.id,
+    type: "sleep",
+    start: new Date(ts),
+    end: null,
+    durMin: 0,
+    data: { note: "" } satisfies SleepData,
   });
+  try {
+    await runTransaction(db, async (tx) => {
+      const active = await tx.get(sessionRef);
+      if (active.exists()) throw new Error("Un sommeil est déjà en cours.");
+      tx.set(eventRef, {
+        familyId: s.familyId,
+        babyId: s.babyId,
+        type: "sleep",
+        startTime: ts,
+        endTime: null,
+        notes: null,
+        details: {},
+        createdByUserId: s.userId,
+        createdByRole: s.role,
+        createdAt: ts,
+        updatedAt: ts,
+        serverCreatedAt: serverTimestamp(),
+      });
+      tx.set(sessionRef, {
+        familyId: s.familyId,
+        babyId: s.babyId,
+        eventId: eventRef.id,
+        type: "sleep",
+        startTime: ts,
+        details: {},
+        createdByUserId: s.userId,
+        createdByRole: s.role,
+        updatedAt: ts,
+      });
+    });
+  } catch (e) {
+    // Transaction aborted (already in progress, offline, …): drop the
+    // optimistic sleep so the UI doesn't show a phantom in-progress nap.
+    notifyRemove(eventRef.id);
+    throw e;
+  }
 }
 
 export async function stopSleep(id: string): Promise<void> {
