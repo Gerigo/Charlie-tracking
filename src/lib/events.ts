@@ -15,41 +15,36 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { durationMin, startOfDay } from "@/lib/dates";
 
-// ─── Optimistic write notifications ──────────────────────────────────
-// Firestore compound-query listeners don't always fire immediately for
-// local pending writes (server round-trip required). We broadcast each
-// write locally so the UI can update without waiting for the network.
-type WriteListener = (event: AppEvent) => void;
-const writeListeners: WriteListener[] = [];
+// ─── Optimistic mutations ────────────────────────────────────────────
+// Firestore writes (especially transactions, which need a server round-
+// trip and produce no local pending write) don't reflect in the query
+// listener immediately. We broadcast each change so the UI can apply it
+// as an overlay on top of the server snapshot until the server confirms
+// it. The overlay survives intermediate snapshots — unlike state that a
+// full `setEvents(serverDocs)` would simply overwrite.
+export type OptimisticMutation =
+  | { kind: "upsert"; event: AppEvent }
+  | { kind: "close"; id: string; end: Date }
+  | { kind: "drop"; id: string };
 
-export function subscribeToWrites(cb: WriteListener): () => void {
-  writeListeners.push(cb);
+type MutationListener = (m: OptimisticMutation) => void;
+const mutationListeners: MutationListener[] = [];
+
+export function subscribeOptimistic(cb: MutationListener): () => void {
+  mutationListeners.push(cb);
   return () => {
-    const i = writeListeners.indexOf(cb);
-    if (i >= 0) writeListeners.splice(i, 1);
+    const i = mutationListeners.indexOf(cb);
+    if (i >= 0) mutationListeners.splice(i, 1);
   };
 }
 
+function emit(m: OptimisticMutation): void {
+  for (const cb of mutationListeners) cb(m);
+}
+
+/** Broadcast a new/updated event so the UI shows it before the server. */
 function notifyWrite(event: AppEvent): void {
-  for (const cb of writeListeners) cb(event);
-}
-
-// Rollback channel for optimistic writes that fail before the server
-// confirms them (e.g. a sleep transaction that aborts). Lets the UI drop
-// the phantom event instead of waiting for the next server snapshot.
-type RemoveListener = (id: string) => void;
-const removeListeners: RemoveListener[] = [];
-
-export function subscribeToRemovals(cb: RemoveListener): () => void {
-  removeListeners.push(cb);
-  return () => {
-    const i = removeListeners.indexOf(cb);
-    if (i >= 0) removeListeners.splice(i, 1);
-  };
-}
-
-function notifyRemove(id: string): void {
-  for (const cb of removeListeners) cb(id);
+  emit({ kind: "upsert", event });
 }
 
 // ─── Simplified model ────────────────────────────────────────────────
@@ -665,7 +660,7 @@ export async function startSleep(): Promise<void> {
   } catch (e) {
     // Transaction aborted (already in progress, offline, …): drop the
     // optimistic sleep so the UI doesn't show a phantom in-progress nap.
-    notifyRemove(eventRef.id);
+    emit({ kind: "drop", id: eventRef.id });
     throw e;
   }
 }
@@ -674,25 +669,38 @@ export async function stopSleep(id: string): Promise<void> {
   const s = scope();
   const sessionRef = doc(db, "activeSessions", s.babyId);
   const ts = Date.now();
-  await runTransaction(db, async (tx) => {
-    const active = await tx.get(sessionRef);
-    if (active.exists()) {
-      const eid = String(active.data()?.eventId ?? id);
-      const evRef = doc(db, "events", eid);
-      const ev = await tx.get(evRef);
-      if (ev.exists()) {
-        tx.update(evRef, { endTime: ts, updatedAt: ts });
+  // Optimistic: close the sleep right away (same round-trip caveat as
+  // startSleep). Without it the tile would keep showing "dort" until the
+  // server snapshot lands.
+  const end = new Date(ts);
+  if (id) emit({ kind: "close", id, end });
+  try {
+    await runTransaction(db, async (tx) => {
+      const active = await tx.get(sessionRef);
+      if (active.exists()) {
+        const eid = String(active.data()?.eventId ?? id);
+        const evRef = doc(db, "events", eid);
+        const ev = await tx.get(evRef);
+        if (ev.exists()) {
+          tx.update(evRef, { endTime: ts, updatedAt: ts });
+        }
+        if (eid !== id) emit({ kind: "close", id: eid, end });
+        tx.delete(sessionRef);
+      } else if (id) {
+        // No active-session doc (e.g. started elsewhere) — just close it.
+        tx.set(
+          doc(db, "events", id),
+          { endTime: ts, updatedAt: ts },
+          { merge: true },
+        );
       }
-      tx.delete(sessionRef);
-    } else if (id) {
-      // No active-session doc (e.g. started elsewhere) — just close it.
-      tx.set(
-        doc(db, "events", id),
-        { endTime: ts, updatedAt: ts },
-        { merge: true },
-      );
-    }
-  });
+    });
+  } catch (e) {
+    // Transaction aborted: re-open the sleep in the UI by dropping the
+    // optimistic close so it falls back to the server's open state.
+    if (id) emit({ kind: "drop", id });
+    throw e;
+  }
 }
 
 /** Full update of an existing event (times + details + note). */
