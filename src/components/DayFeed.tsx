@@ -160,6 +160,7 @@ export function DayFeed() {
           style={{ fontSize: 11.5, color: P.inkSoft, opacity: 0.6 }}
         >
           {events.length} évén.
+          <span style={{ opacity: 0.6 }}> · v{__BUILD_ID__}</span>
         </div>
       </div>
 

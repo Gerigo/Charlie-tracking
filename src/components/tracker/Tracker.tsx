@@ -359,7 +359,16 @@ export function Tracker() {
   );
   const sleepDayMin = sleepMinutesIn(allEvents, dayFrom, dayTo);
   const sleeping = !!activeSleep || pendingSleep;
-  const sleepStart = activeSleep?.start ?? stats.lastSleep?.start ?? null;
+  // Live duration source. While a start is pending (Firestore hasn't yet
+  // confirmed the session), use the freshly-started sleep's real start
+  // from the optimistic overlay, or "now" as a last resort — never the
+  // previous sleep's start, which would show its elapsed time (e.g.
+  // "dort depuis 4h") instead of the new nap's.
+  const sleepStart =
+    activeSleep?.start ??
+    (pendingSleep
+      ? (snap.activeSleep?.start ?? new Date())
+      : (stats.lastSleep?.start ?? null));
   const lastFeed = stats.lastFeed;
   const lastBreast = stats.lastBreast;
   const lastOf = (t: AppEvent["type"]) =>
