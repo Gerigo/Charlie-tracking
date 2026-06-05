@@ -3,7 +3,16 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
+// Build stamp so the running app can be matched to a deploy at a glance.
+// On Vercel the commit SHA is available; locally we fall back to a date.
+const BUILD_ID =
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+  new Date().toISOString().slice(0, 16).replace("T", " ");
+
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   esbuild: {
     tsconfigRaw: {},
   },

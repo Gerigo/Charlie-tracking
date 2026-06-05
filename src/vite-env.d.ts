@@ -13,3 +13,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Build stamp injected at build time (commit SHA or build date). */
+declare const __BUILD_ID__: string;
