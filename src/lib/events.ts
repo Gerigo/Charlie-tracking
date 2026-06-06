@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -585,28 +584,40 @@ export async function addInstantEvent(
 ): Promise<void> {
   const s = scope();
   const ts = startMsFor(when, day);
+  // Pre-generate the doc ref so the optimistic overlay and the server doc
+  // share one id. Otherwise the overlay (keyed by a `__opt_…` id) never
+  // matches the auto-id the server assigns, so it's never dropped and the
+  // event lingers as a permanent duplicate next to the real one.
+  const eventRef = doc(collection(db, "events"));
   notifyWrite({
-    id: `__opt_${Date.now()}`,
+    id: eventRef.id,
     type,
     start: new Date(ts),
     end: new Date(ts),
     durMin: 0,
     data,
   });
-  await addDoc(collection(db, "events"), {
-    familyId: s.familyId,
-    babyId: s.babyId,
-    type: dbType(type),
-    startTime: ts,
-    endTime: ts,
-    details: toDetails(type, data),
-    notes: note.trim() || null,
-    createdByUserId: s.userId,
-    createdByRole: s.role,
-    createdAt: ts,
-    updatedAt: ts,
-    serverCreatedAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(eventRef, {
+      familyId: s.familyId,
+      babyId: s.babyId,
+      type: dbType(type),
+      startTime: ts,
+      endTime: ts,
+      details: toDetails(type, data),
+      notes: note.trim() || null,
+      createdByUserId: s.userId,
+      createdByRole: s.role,
+      createdAt: ts,
+      updatedAt: ts,
+      serverCreatedAt: serverTimestamp(),
+    });
+  } catch (e) {
+    // Write failed (offline, rules, …): drop the optimistic event so the
+    // UI doesn't keep a phantom that the server will never confirm.
+    emit({ kind: "drop", id: eventRef.id });
+    throw e;
+  }
 }
 
 export async function startSleep(): Promise<void> {
