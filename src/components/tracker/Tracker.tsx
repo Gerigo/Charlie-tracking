@@ -365,10 +365,14 @@ export function Tracker() {
   // previous sleep's start, which would show its elapsed time (e.g.
   // "dort depuis 4h") instead of the new nap's.
   const sleepStart =
+    // Source of truth for the start time is the open sleep in `events`
+    // (snap.activeSleep): it reflects an edited start immediately and stays
+    // in sync with LE FIL. The activeSessions doc (activeSleep) is a separate
+    // cache that can lag or drift after an edit, so it's only a fallback
+    // before the events list has loaded the open sleep.
+    snap.activeSleep?.start ??
     activeSleep?.start ??
-    (pendingSleep
-      ? (snap.activeSleep?.start ?? new Date())
-      : (stats.lastSleep?.start ?? null));
+    (pendingSleep ? new Date() : (stats.lastSleep?.start ?? null));
   const lastFeed = stats.lastFeed;
   const lastBreast = stats.lastBreast;
   const lastOf = (t: AppEvent["type"]) =>
