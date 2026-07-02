@@ -37,9 +37,10 @@ import {
   MEAL_REACTIONS,
   MEAL_SYMPTOMS,
   MEAL_TEXTURES,
-  introducedIds,
+  foodEmoji,
+  foodLabel,
+  type FoodCat,
 } from "@/lib/food";
-import { useEvents } from "@/lib/eventsContext";
 
 export type SheetState =
   | { type: "feed" | "pump" | "diaper" | "care" | "temp" | "growth" | "meal" }
@@ -492,6 +493,12 @@ function CareForm({ onDone }: { onDone: () => void }) {
   const [custom, setCustom] = useState("");
   const [note, setNote] = useState("");
   const [eventTime, setEventTime] = useState(nowDtLocal);
+  // Température encodée depuis les soins (reste un event `temp` à part
+  // entière : fil, Aujourd'hui et Évolution ne changent pas).
+  const [tempOn, setTempOn] = useState(false);
+  const [tVal, setTVal] = useState(36.8);
+  const [tSlot, setTSlot] = useState<"matin" | "soir">("matin");
+  const roundT = (n: number) => +n.toFixed(1);
 
   const toggle = (v: string) =>
     setSelected((s) =>
@@ -499,7 +506,7 @@ function CareForm({ onDone }: { onDone: () => void }) {
     );
 
   const canSave =
-    selected.length > 0 &&
+    (selected.length > 0 || tempOn) &&
     (!selected.includes("custom") || custom.trim().length > 0);
 
   return (
@@ -595,6 +602,98 @@ function CareForm({ onDone }: { onDone: () => void }) {
             />
           </div>
         )}
+
+        {/* Température (optionnelle) — enregistrée comme event `temp`. */}
+        <div>
+          <button
+            onClick={() => setTempOn((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "13px 15px",
+              borderRadius: 14,
+              background: tempOn ? TONES.clay.bg : "var(--p-surface)",
+              border: `1px solid ${
+                tempOn ? alpha(TONES.clay.ink, 33) : "var(--hairline)"
+              }`,
+              color: tempOn ? TONES.clay.ink : "var(--p-ink)",
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            <span>🌡️ Ajouter la température</span>
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 6,
+                border: tempOn ? "none" : "1.5px solid var(--hairline-strong)",
+                background: tempOn ? TONES.clay.ink : "transparent",
+                color: TONES.clay.soft,
+                fontSize: 12,
+                fontWeight: 800,
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              {tempOn ? "✓" : ""}
+            </span>
+          </button>
+          {tempOn && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+              <Segmented
+                value={tSlot}
+                onChange={setTSlot}
+                options={[
+                  { value: "matin", label: "Matin" },
+                  { value: "soir", label: "Soir" },
+                ]}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <button
+                  onClick={() => setTVal(roundT(tVal - 0.1))}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    background: "var(--p-surface)",
+                    boxShadow: "0 1px 3px var(--hairline)",
+                    fontSize: 22,
+                  }}
+                >
+                  −
+                </button>
+                <div
+                  className="serif num"
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: 48,
+                    color: tVal > 38 ? "#9A4F3F" : "var(--p-ink)",
+                  }}
+                >
+                  {tVal.toFixed(1)}°
+                </div>
+                <button
+                  onClick={() => setTVal(roundT(tVal + 0.1))}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    background: "var(--p-surface)",
+                    boxShadow: "0 1px 3px var(--hairline)",
+                    fontSize: 22,
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} />
@@ -609,17 +708,27 @@ function CareForm({ onDone }: { onDone: () => void }) {
         onClick={() => {
           if (!canSave) return;
           const items = [...selected];
-          const data: CareData = {
-            kinds: items,
-            custom: items.includes("custom") ? custom.trim() : null,
-            note,
-          };
-          // A single event groups all selected soins → one entry in
-          // "Aujourd'hui", not N.
           const { when, day } = parseDtLocal(eventTime);
+          // Les soins → un event `care` (regroupés) ; la température →
+          // un event `temp` distinct. La note va au care s'il existe,
+          // sinon à la température.
+          const tasks: Promise<void>[] = [];
+          if (items.length) {
+            const data: CareData = {
+              kinds: items,
+              custom: items.includes("custom") ? custom.trim() : null,
+              note,
+            };
+            tasks.push(addInstantEvent("care", when, data, note, day));
+          }
+          if (tempOn) {
+            const tNote = items.length ? "" : note;
+            const tData: TempData = { value: tVal, slot: tSlot, note: tNote };
+            tasks.push(addInstantEvent("temp", when, tData, tNote, day));
+          }
           void withToast(
-            () => addInstantEvent("care", when, data, note, day),
-            items.length > 1 ? "Soins enregistrés" : "Soin enregistré",
+            () => Promise.all(tasks).then(() => undefined),
+            "Enregistré",
             onDone,
           );
         }}
@@ -792,9 +901,8 @@ function MealFields({
   value: MealFormValue;
   onChange: (patch: Partial<MealFormValue>) => void;
 }) {
-  const { events } = useEvents();
-  const introduced = introducedIds(events);
   const T = TONES.garden;
+  const [activeCat, setActiveCat] = useState<FoodCat>("legume");
 
   const toggleFood = (v: string) =>
     onChange({
@@ -822,89 +930,89 @@ function MealFields({
     fontWeight: 600,
   });
 
+  const activeItems = FOOD_CATALOG.filter((f) => f.cat === activeCat);
+  const hasCustom = value.foods.includes("custom");
+
   return (
     <>
       <div>
-        <FieldLabel>Texture</FieldLabel>
-        <Segmented
-          value={value.texture}
-          onChange={(texture) => onChange({ texture })}
-          options={MEAL_TEXTURES.map((t) => ({ value: t.v, label: t.l }))}
-        />
-      </div>
+        <FieldLabel>Aliments</FieldLabel>
 
-      <div>
-        <FieldLabel>Aliments · plusieurs possibles</FieldLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {FOOD_CATEGORIES.map((group) => {
-            const items = FOOD_CATALOG.filter((f) => f.cat === group.cat);
-            if (!items.length) return null;
+        {/* Résumé compact de la sélection (tap = retirer) */}
+        {value.foods.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              marginBottom: 12,
+            }}
+          >
+            {value.foods.map((id) => (
+              <button
+                key={id}
+                onClick={() => toggleFood(id)}
+                style={{ ...chip(true), fontWeight: 700 }}
+              >
+                <span>{id === "custom" ? "✍️" : foodEmoji(id)}</span>
+                {foodLabel(id, value.custom)}
+                <span style={{ opacity: 0.55, marginLeft: 1 }}>✕</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtre par famille */}
+        <div
+          className="scroll"
+          style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}
+        >
+          {FOOD_CATEGORIES.map((g) => {
+            const on = g.cat === activeCat;
             return (
-              <div key={group.cat}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--p-ink-soft)",
-                    marginBottom: 7,
-                  }}
-                >
-                  {group.emoji} {group.l}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {items.map((f) => {
-                    const on = value.foods.includes(f.v);
-                    const isNew = !introduced.has(f.v);
-                    return (
-                      <button
-                        key={f.v}
-                        onClick={() => toggleFood(f.v)}
-                        style={chip(on)}
-                      >
-                        <span>{f.emoji}</span>
-                        {f.l}
-                        {f.allergen && <span title="Allergène">⚠️</span>}
-                        {isNew && (
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 800,
-                              letterSpacing: "0.04em",
-                              opacity: 0.8,
-                            }}
-                          >
-                            🆕
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <button
+                key={g.cat}
+                onClick={() => setActiveCat(g.cat)}
+                style={{
+                  flexShrink: 0,
+                  padding: "7px 12px",
+                  borderRadius: 999,
+                  background: on ? T.ink : "var(--p-surface)",
+                  color: on ? T.soft : "var(--p-ink-soft)",
+                  border: `1px solid ${on ? T.ink : "var(--hairline)"}`,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {g.emoji} {g.l}
+              </button>
             );
           })}
-          <div>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--p-ink-soft)",
-                marginBottom: 7,
-              }}
-            >
-              ✍️ Autre
-            </div>
+        </div>
+
+        {/* Aliments de la famille active */}
+        <div
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}
+        >
+          {activeItems.map((f) => (
             <button
-              onClick={() => toggleFood("custom")}
-              style={chip(value.foods.includes("custom"))}
+              key={f.v}
+              onClick={() => toggleFood(f.v)}
+              style={chip(value.foods.includes(f.v))}
             >
-              Autre aliment
+              <span>{f.emoji}</span>
+              {f.l}
+              {f.allergen && <span title="Allergène">⚠️</span>}
             </button>
-          </div>
+          ))}
+          <button onClick={() => toggleFood("custom")} style={chip(hasCustom)}>
+            ✍️ Autre
+          </button>
         </div>
       </div>
 
-      {value.foods.includes("custom") && (
+      {hasCustom && (
         <div>
           <FieldLabel>Détail (autre)</FieldLabel>
           <input
@@ -923,6 +1031,15 @@ function MealFields({
           />
         </div>
       )}
+
+      <div>
+        <FieldLabel>Texture</FieldLabel>
+        <Segmented
+          value={value.texture}
+          onChange={(texture) => onChange({ texture })}
+          options={MEAL_TEXTURES.map((t) => ({ value: t.v, label: t.l }))}
+        />
+      </div>
 
       <div>
         <FieldLabel>Quantité mangée</FieldLabel>
