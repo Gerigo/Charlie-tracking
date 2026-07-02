@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { BottomNav, type Tab } from "@/components/BottomNav";
 import { Tracker } from "@/components/tracker/Tracker";
 import { Today } from "@/components/Today";
+import { FoodJournal } from "@/components/FoodJournal";
 import { Growth } from "@/components/Growth";
 import { Evolution } from "@/components/Evolution";
 import { Toaster } from "@/components/ui/Toaster";
@@ -50,6 +51,9 @@ function Tabs() {
       </div>
       <div style={{ display: tab === "today" ? "contents" : "none" }}>
         <Today />
+      </div>
+      <div style={{ display: tab === "food" ? "contents" : "none" }}>
+        <FoodJournal />
       </div>
       <div style={{ display: tab === "growth" ? "contents" : "none" }}>
         <Growth />
