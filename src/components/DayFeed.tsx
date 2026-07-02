@@ -8,9 +8,11 @@ import {
   type DiaperData,
   type FeedData,
   type GrowthData,
+  type MealData,
   type PumpData,
   type TempData,
 } from "@/lib/events";
+import { mealText } from "@/lib/food";
 import { useEvents } from "@/lib/eventsContext";
 import { useThemeMode } from "@/lib/themeMode";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
@@ -27,6 +29,7 @@ const TONE_BY_TYPE: Record<AppEvent["type"], Tone> = {
   care: TONES.sky,
   temp: TONES.clay,
   growth: TONES.sand,
+  meal: TONES.garden,
 };
 const LABEL_BY_TYPE: Record<AppEvent["type"], string> = {
   sleep: "Sommeil",
@@ -36,6 +39,7 @@ const LABEL_BY_TYPE: Record<AppEvent["type"], string> = {
   care: "Soins",
   temp: "Température",
   growth: "Mesure",
+  meal: "Repas",
 };
 
 /** "13h" or "13h05". */
@@ -49,6 +53,7 @@ function emojiFor(e: AppEvent): string {
   if (e.type === "sleep")
     return e.end ? EVENT_EMOJI.sleep : EVENT_EMOJI.sleepActive;
   if (e.type === "growth") return "📏";
+  if (e.type === "meal") return EVENT_EMOJI.meal;
   return EVENT_EMOJI[e.type as keyof typeof EVENT_EMOJI] ?? "•";
 }
 
@@ -106,6 +111,10 @@ function rowText(e: AppEvent): string {
       ]
         .filter(Boolean)
         .join(" · ")}`;
+    }
+    case "meal": {
+      const d = e.data as MealData;
+      return `Repas · ${mealText(d)}${d.allergy ? " ⚠️" : ""}`;
     }
     default:
       return LABEL_BY_TYPE[e.type];
@@ -451,7 +460,8 @@ export function DayFeed() {
           >
             {(
               [
-                ["feed", "Tétée", EVENT_EMOJI.feed],
+                ["feed", "Lait", EVENT_EMOJI.feed],
+                ["meal", "Repas", EVENT_EMOJI.meal],
                 ["pump", "Tirage", EVENT_EMOJI.pump],
                 ["diaper", "Couche", EVENT_EMOJI.diaper],
                 ["care", "Soins", EVENT_EMOJI.care],

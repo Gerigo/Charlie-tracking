@@ -25,7 +25,9 @@ import {
   type AppEvent,
   type CareData,
   type FeedData,
+  type MealData,
 } from "@/lib/events";
+import { mealFoodsText } from "@/lib/food";
 import { useEvents } from "@/lib/eventsContext";
 import { useThemeMode } from "@/lib/themeMode";
 import { EVENT_EMOJI } from "@/components/ui/emoji";
@@ -381,6 +383,7 @@ export function Tracker() {
   const lastDiaper = lastOf("diaper");
   const lastCare = lastOf("care");
   const lastTempEv = lastOf("temp");
+  const lastMeal = lastOf("meal");
 
   const containerStyle: CSSProperties = {
     position: "absolute",
@@ -547,7 +550,7 @@ export function Tracker() {
           <EventTile
             kind="feed"
             tone={TONES.sand}
-            label="Nourriture"
+            label="Lait"
             sideBadge={
               lastFeed && (lastFeed.data as FeedData).kind === "sein"
                 ? lastBreast
@@ -574,6 +577,24 @@ export function Tracker() {
                 : undefined
             }
             onClick={() => setSheet({ type: "feed" })}
+          />
+          <EventTile
+            kind="meal"
+            tone={TONES.garden}
+            label="Repas"
+            corner={lastMeal ? timeAgo(lastMeal.start) : undefined}
+            primary={
+              lastMeal
+                ? mealFoodsText(lastMeal.data as MealData)
+                : undefined
+            }
+            hint={lastMeal ? undefined : "Rien aujourd'hui"}
+            meta={
+              stats.mealCount
+                ? `${stats.mealCount} repas aujourd'hui`
+                : undefined
+            }
+            onClick={() => setSheet({ type: "meal" })}
           />
           <EventTile
             kind="pump"

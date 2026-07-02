@@ -59,7 +59,7 @@ export interface Tone {
 
 // Per-event-type tones (warm earthy + soft pastels on the bone background).
 export const TONES: Record<
-  "indigo" | "sand" | "rose" | "olive" | "sky" | "clay",
+  "indigo" | "sand" | "rose" | "olive" | "sky" | "clay" | "garden",
   Tone
 > = {
   indigo: {
@@ -92,6 +92,11 @@ export const TONES: Record<
     ink: "var(--t-clay-ink)",
     soft: "var(--t-clay-soft)",
   }, // température
+  garden: {
+    bg: "var(--t-garden-bg)",
+    ink: "var(--t-garden-ink)",
+    soft: "var(--t-garden-soft)",
+  }, // repas / diversification
 };
 
 /** Translucent variant of any color (works with CSS vars). */

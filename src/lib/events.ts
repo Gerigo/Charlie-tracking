@@ -61,7 +61,8 @@ export type EventType =
   | "diaper"
   | "care"
   | "temp"
-  | "growth";
+  | "growth"
+  | "meal";
 
 export interface FeedData {
   kind: "sein" | "biberon";
@@ -102,6 +103,25 @@ export interface GrowthData {
   head: number | null; // cm
   note: string;
 }
+export interface MealData {
+  /** Consistance : purée lisse, morceaux, ou mixte. */
+  texture: "puree" | "morceaux" | "mixte";
+  /** Aliments (ids du catalogue food.ts ; peut contenir "custom"). */
+  foods: string[];
+  /** Texte libre associé à l'entrée "custom". */
+  custom: string | null;
+  /** Quantité mangée, échelle qualitative. */
+  amount: "goute" | "un_peu" | "moitie" | "tout" | "refuse";
+  /** Quantité précise optionnelle (grammes). */
+  grams: number | null;
+  /** Appréciation de Charlie. */
+  reaction: "adore" | "aime" | "neutre" | "refuse";
+  /** Réaction suspecte à surveiller (allergie potentielle). */
+  allergy: boolean;
+  /** Symptômes observés (ids de MEAL_SYMPTOMS). */
+  symptoms: string[];
+  note: string;
+}
 export type EventData =
   | FeedData
   | PumpData
@@ -109,6 +129,7 @@ export type EventData =
   | CareData
   | TempData
   | GrowthData
+  | MealData
   | SleepData;
 
 export interface AppEvent {
@@ -134,6 +155,7 @@ const TYPE_TO_DB: Record<EventType, string> = {
   care: "care",
   temp: "temperature",
   growth: "growth",
+  meal: "meal",
 };
 function dbType(t: EventType): string {
   return TYPE_TO_DB[t];
@@ -154,6 +176,9 @@ function appType(raw: string): EventType {
       return "temp";
     case "growth":
       return "growth";
+    case "meal":
+    case "solid":
+      return "meal";
     // legacy data stored "soins"/"visites" as `medication`
     case "medication":
     case "visit":
@@ -242,6 +267,20 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
       if (d.weight != null) out.weight = d.weight;
       if (d.height != null) out.height = d.height;
       if (d.head != null) out.head = d.head;
+      return out;
+    }
+    case "meal": {
+      const d = data as MealData;
+      const out: Record<string, unknown> = {
+        mealTexture: d.texture,
+        mealFoods: d.foods,
+        mealAmount: d.amount,
+        mealReaction: d.reaction,
+      };
+      if (d.custom) out.mealCustom = d.custom;
+      if (d.grams != null) out.mealGrams = d.grams;
+      if (d.allergy) out.mealAllergy = true;
+      if (d.symptoms.length) out.mealSymptoms = d.symptoms;
       return out;
     }
     default:
@@ -356,6 +395,39 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
         head: typeof det.head === "number" ? det.head : null,
         note,
       } satisfies GrowthData;
+      break;
+    }
+    case "meal": {
+      const foods = Array.isArray(det.mealFoods)
+        ? det.mealFoods.filter((x): x is string => typeof x === "string")
+        : [];
+      const symptoms = Array.isArray(det.mealSymptoms)
+        ? det.mealSymptoms.filter((x): x is string => typeof x === "string")
+        : [];
+      const texture = det.mealTexture;
+      const amount = det.mealAmount;
+      const reaction = det.mealReaction;
+      data = {
+        texture:
+          texture === "morceaux" || texture === "mixte" ? texture : "puree",
+        foods,
+        custom: typeof det.mealCustom === "string" ? det.mealCustom : null,
+        amount:
+          amount === "goute" ||
+          amount === "moitie" ||
+          amount === "tout" ||
+          amount === "refuse"
+            ? amount
+            : "un_peu",
+        grams: typeof det.mealGrams === "number" ? det.mealGrams : null,
+        reaction:
+          reaction === "adore" || reaction === "neutre" || reaction === "refuse"
+            ? reaction
+            : "aime",
+        allergy: det.mealAllergy === true,
+        symptoms,
+        note,
+      } satisfies MealData;
       break;
     }
     default:
@@ -782,10 +854,12 @@ export interface DayStats {
   pipiCount: number;
   cacaCount: number;
   careCount: number;
+  mealCount: number;
   lastTemp: number | null;
   lastFeed: AppEvent | null;
   lastBreast: "G" | "D" | null;
   lastSleep: AppEvent | null;
+  lastMeal: AppEvent | null;
 }
 
 export function statsFor(events: AppEvent[]): DayStats {
@@ -794,6 +868,7 @@ export function statsFor(events: AppEvent[]): DayStats {
   const diapers = events.filter((e) => e.type === "diaper");
   const temps = events.filter((e) => e.type === "temp");
   const sleeps = events.filter((e) => e.type === "sleep");
+  const meals = events.filter((e) => e.type === "meal");
   const lastFeed = feeds.length ? feeds[feeds.length - 1] : null;
   const lastBreast =
     [...feeds]
@@ -813,12 +888,14 @@ export function statsFor(events: AppEvent[]): DayStats {
     pipiCount: diapers.filter((e) => (e.data as DiaperData).pipi).length,
     cacaCount: diapers.filter((e) => (e.data as DiaperData).caca).length,
     careCount: events.filter((e) => e.type === "care").length,
+    mealCount: meals.length,
     lastTemp: temps.length
       ? (temps[temps.length - 1].data as TempData).value
       : null,
     lastFeed,
     lastBreast,
     lastSleep: [...sleeps].reverse().find((e) => e.end) ?? null,
+    lastMeal: meals.length ? meals[meals.length - 1] : null,
   };
 }
 

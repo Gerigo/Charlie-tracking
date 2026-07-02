@@ -3,11 +3,12 @@ import { NAV_EMOJI } from "@/components/ui/emoji";
 
 const P = PALETTES.sage;
 
-export type Tab = "tracker" | "today" | "growth" | "evolution";
+export type Tab = "tracker" | "today" | "food" | "growth" | "evolution";
 
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id: "tracker", label: "Tracker", emoji: NAV_EMOJI.tracker },
   { id: "today", label: "Aujourd'hui", emoji: NAV_EMOJI.today },
+  { id: "food", label: "Aliments", emoji: NAV_EMOJI.food },
   { id: "growth", label: "Croissance", emoji: NAV_EMOJI.growth },
   { id: "evolution", label: "Évolution", emoji: NAV_EMOJI.evolution },
 ];
@@ -38,7 +39,7 @@ export function BottomNav({
           borderRadius: 26,
           padding: 6,
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(5, 1fr)",
           gap: 2,
           overflow: "hidden",
           // liquid glass
@@ -94,10 +95,11 @@ export function BottomNav({
               </span>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: isActive ? 700 : 600,
-                  letterSpacing: "-0.005em",
+                  letterSpacing: "-0.01em",
                   opacity: isActive ? 1 : 0.75,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {t.label}

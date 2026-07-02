@@ -25,13 +25,24 @@ import {
   type EventData,
   type FeedData,
   type GrowthData,
+  type MealData,
   type PumpData,
   type TempData,
   type TimeOfDay,
 } from "@/lib/events";
+import {
+  FOOD_CATALOG,
+  FOOD_CATEGORIES,
+  MEAL_AMOUNTS,
+  MEAL_REACTIONS,
+  MEAL_SYMPTOMS,
+  MEAL_TEXTURES,
+  introducedIds,
+} from "@/lib/food";
+import { useEvents } from "@/lib/eventsContext";
 
 export type SheetState =
-  | { type: "feed" | "pump" | "diaper" | "care" | "temp" | "growth" }
+  | { type: "feed" | "pump" | "diaper" | "care" | "temp" | "growth" | "meal" }
   | { type: "edit"; event: AppEvent }
   | null;
 
@@ -727,6 +738,373 @@ function TempForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ─── Repas / diversification ───
+export interface MealFormValue {
+  texture: MealData["texture"];
+  foods: string[];
+  custom: string;
+  amount: MealData["amount"];
+  grams: number | null;
+  reaction: MealData["reaction"];
+  allergy: boolean;
+  symptoms: string[];
+}
+
+export function emptyMeal(): MealFormValue {
+  return {
+    texture: "puree",
+    foods: [],
+    custom: "",
+    amount: "un_peu",
+    grams: null,
+    reaction: "aime",
+    allergy: false,
+    symptoms: [],
+  };
+}
+
+export function mealToData(v: MealFormValue, note: string): MealData {
+  return {
+    texture: v.texture,
+    foods: v.foods,
+    custom: v.foods.includes("custom") ? v.custom.trim() || null : null,
+    amount: v.amount,
+    grams: v.grams,
+    reaction: v.reaction,
+    allergy: v.allergy,
+    symptoms: v.allergy ? v.symptoms : [],
+    note,
+  };
+}
+
+export function mealCanSave(v: MealFormValue): boolean {
+  return (
+    v.foods.length > 0 &&
+    (!v.foods.includes("custom") || v.custom.trim().length > 0)
+  );
+}
+
+/** Contrôles repas partagés entre création (MealForm) et édition. */
+function MealFields({
+  value,
+  onChange,
+}: {
+  value: MealFormValue;
+  onChange: (patch: Partial<MealFormValue>) => void;
+}) {
+  const { events } = useEvents();
+  const introduced = introducedIds(events);
+  const T = TONES.garden;
+
+  const toggleFood = (v: string) =>
+    onChange({
+      foods: value.foods.includes(v)
+        ? value.foods.filter((x) => x !== v)
+        : [...value.foods, v],
+    });
+  const toggleSymptom = (v: string) =>
+    onChange({
+      symptoms: value.symptoms.includes(v)
+        ? value.symptoms.filter((x) => x !== v)
+        : [...value.symptoms, v],
+    });
+
+  const chip = (on: boolean, tone = T) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "9px 13px",
+    borderRadius: 999,
+    background: on ? tone.bg : "var(--p-surface)",
+    border: `1px solid ${on ? alpha(tone.ink, 33) : "var(--hairline)"}`,
+    color: on ? tone.ink : "var(--p-ink)",
+    fontSize: 13,
+    fontWeight: 600,
+  });
+
+  return (
+    <>
+      <div>
+        <FieldLabel>Texture</FieldLabel>
+        <Segmented
+          value={value.texture}
+          onChange={(texture) => onChange({ texture })}
+          options={MEAL_TEXTURES.map((t) => ({ value: t.v, label: t.l }))}
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Aliments · plusieurs possibles</FieldLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {FOOD_CATEGORIES.map((group) => {
+            const items = FOOD_CATALOG.filter((f) => f.cat === group.cat);
+            if (!items.length) return null;
+            return (
+              <div key={group.cat}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--p-ink-soft)",
+                    marginBottom: 7,
+                  }}
+                >
+                  {group.emoji} {group.l}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {items.map((f) => {
+                    const on = value.foods.includes(f.v);
+                    const isNew = !introduced.has(f.v);
+                    return (
+                      <button
+                        key={f.v}
+                        onClick={() => toggleFood(f.v)}
+                        style={chip(on)}
+                      >
+                        <span>{f.emoji}</span>
+                        {f.l}
+                        {f.allergen && <span title="Allergène">⚠️</span>}
+                        {isNew && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 800,
+                              letterSpacing: "0.04em",
+                              opacity: 0.8,
+                            }}
+                          >
+                            🆕
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--p-ink-soft)",
+                marginBottom: 7,
+              }}
+            >
+              ✍️ Autre
+            </div>
+            <button
+              onClick={() => toggleFood("custom")}
+              style={chip(value.foods.includes("custom"))}
+            >
+              Autre aliment
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {value.foods.includes("custom") && (
+        <div>
+          <FieldLabel>Détail (autre)</FieldLabel>
+          <input
+            value={value.custom}
+            onChange={(e) => onChange({ custom: e.target.value })}
+            placeholder="ex: purée maison courge-lentilles…"
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: "1px solid var(--hairline)",
+              background: "var(--p-surface)",
+              fontFamily: "inherit",
+              fontSize: 16,
+            }}
+          />
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>Quantité mangée</FieldLabel>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {MEAL_AMOUNTS.map((a) => (
+            <button
+              key={a.v}
+              onClick={() => onChange({ amount: a.v })}
+              style={chip(value.amount === a.v)}
+            >
+              {a.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Quantité précise (optionnel)</FieldLabel>
+        {value.grams == null ? (
+          <button
+            onClick={() => onChange({ grams: 50 })}
+            style={chip(false)}
+          >
+            + Préciser en grammes
+          </button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Stepper
+              value={value.grams}
+              onChange={(grams) => onChange({ grams })}
+              min={0}
+              max={400}
+              step={10}
+              unit=" g"
+            />
+            <button
+              onClick={() => onChange({ grams: null })}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--p-ink-soft)",
+                textDecoration: "underline",
+              }}
+            >
+              retirer
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <FieldLabel>Appréciation</FieldLabel>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {MEAL_REACTIONS.map((r) => (
+            <button
+              key={r.v}
+              onClick={() => onChange({ reaction: r.v })}
+              style={chip(value.reaction === r.v)}
+            >
+              <span style={{ fontSize: 15 }}>{r.emoji}</span> {r.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <button
+          onClick={() => onChange({ allergy: !value.allergy })}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "13px 15px",
+            borderRadius: 14,
+            background: value.allergy ? "var(--delta-neg-bg)" : "var(--p-surface)",
+            border: `1px solid ${
+              value.allergy ? "var(--delta-neg-ink)" : "var(--hairline)"
+            }`,
+            color: value.allergy ? "var(--delta-neg-ink)" : "var(--p-ink)",
+            fontWeight: 700,
+            fontSize: 14,
+          }}
+        >
+          <span>⚠️ Réaction à surveiller</span>
+          <span
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 6,
+              border: value.allergy ? "none" : "1.5px solid var(--hairline-strong)",
+              background: value.allergy ? "var(--delta-neg-ink)" : "transparent",
+              color: "#FBFAF6",
+              fontSize: 12,
+              fontWeight: 800,
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            {value.allergy ? "✓" : ""}
+          </span>
+        </button>
+      </div>
+
+      {value.allergy && (
+        <div>
+          <FieldLabel>Symptômes observés</FieldLabel>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {MEAL_SYMPTOMS.map((s) => (
+              <button
+                key={s.v}
+                onClick={() => toggleSymptom(s.v)}
+                style={chip(value.symptoms.includes(s.v), TONES.clay)}
+              >
+                {s.l}
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--p-ink-soft)",
+              marginTop: 10,
+              lineHeight: 1.4,
+            }}
+          >
+            En cas de gonflement ou de gêne respiratoire, contacte un médecin
+            sans attendre.
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MealForm({ onDone }: { onDone: () => void }) {
+  const [value, setValue] = useState<MealFormValue>(emptyMeal);
+  const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
+  const patch = (p: Partial<MealFormValue>) =>
+    setValue((v) => ({ ...v, ...p }));
+  return (
+    <div>
+      <FormHeader title="Nouveau repas" />
+      <div
+        style={{
+          padding: "0 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        <div>
+          <FieldLabel>Date et heure</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
+        <MealFields value={value} onChange={patch} />
+        <div>
+          <FieldLabel>Note</FieldLabel>
+          <NoteField value={note} onChange={setNote} />
+        </div>
+      </div>
+      <SubmitBar
+        label={
+          value.foods.length > 1
+            ? `Enregistrer (${value.foods.length})`
+            : "Enregistrer"
+        }
+        onClick={() => {
+          if (!mealCanSave(value)) return;
+          const { when, day } = parseDtLocal(eventTime);
+          void withToast(
+            () => addInstantEvent("meal", when, mealToData(value, note), note, day),
+            "Repas enregistré",
+            onDone,
+          );
+        }}
+      />
+    </div>
+  );
+}
+
 const EDIT_LABELS: Record<AppEvent["type"], string> = {
   sleep: "Sommeil",
   feed: "Tétée",
@@ -735,6 +1113,7 @@ const EDIT_LABELS: Record<AppEvent["type"], string> = {
   care: "Soins",
   temp: "Température",
   growth: "Mesure",
+  meal: "Repas",
 };
 
 function EditForm({
@@ -793,6 +1172,23 @@ function EditForm({
   const [gW, setGW] = useState(num("weight", 4.5));
   const [gH, setGH] = useState(num("height", 56));
   const [gHead, setGHead] = useState(num("head", 38));
+  // meal
+  const [meal, setMeal] = useState<MealFormValue>(() =>
+    t === "meal"
+      ? {
+          texture: (str("texture") as MealData["texture"]) ?? "puree",
+          foods: Array.isArray(fd.foods) ? (fd.foods as string[]) : [],
+          custom: str("custom") ?? "",
+          amount: (str("amount") as MealData["amount"]) ?? "un_peu",
+          grams: typeof fd.grams === "number" ? (fd.grams as number) : null,
+          reaction: (str("reaction") as MealData["reaction"]) ?? "aime",
+          allergy: fd.allergy === true,
+          symptoms: Array.isArray(fd.symptoms)
+            ? (fd.symptoms as string[])
+            : [],
+        }
+      : emptyMeal(),
+  );
 
   const toggle = (v: string) =>
     setSelected((s) =>
@@ -823,6 +1219,8 @@ function EditForm({
         return { value: tVal, slot: tSlot, note };
       case "growth":
         return { weight: gW, height: gH, head: gHead, note };
+      case "meal":
+        return mealToData(meal, note);
       default:
         return { note };
     }
@@ -1234,6 +1632,13 @@ function EditForm({
           </>
         )}
 
+        {t === "meal" && (
+          <MealFields
+            value={meal}
+            onChange={(p) => setMeal((v) => ({ ...v, ...p }))}
+          />
+        )}
+
         <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} placeholder="Optionnel…" />
@@ -1463,6 +1868,7 @@ export function EncodeSheet({
       {sheet?.type === "diaper" && <DiaperForm onDone={onClose} />}
       {sheet?.type === "care" && <CareForm onDone={onClose} />}
       {sheet?.type === "temp" && <TempForm onDone={onClose} />}
+      {sheet?.type === "meal" && <MealForm onDone={onClose} />}
       {sheet?.type === "growth" && (
         <GrowthForm initial={growthInitial} onDone={onClose} />
       )}

@@ -68,6 +68,18 @@ Tous les champs sont optionnels ; seuls ceux pertinents au `type` sont remplis.
 | `pumpingVolumeMl`                    | number                            | ml               | pumping                            |
 | `pumpingLeftMl` / `pumpingRightMl`   | number                            | ml               | pumping (si side `both`)           |
 | `pumpingDurationMin`                 | number                            | min              | pumping                            |
+| `mealTexture`                        | `'puree' \| 'morceaux' \| 'mixte'`| —                | meal (diversification)             |
+| `mealFoods`                          | string[]                          | ids catalogue    | meal (peut contenir `"custom"`)    |
+| `mealCustom`                         | string                            | —                | meal (aliment libre)               |
+| `mealAmount`                         | `goute\|un_peu\|moitie\|tout\|refuse` | —            | meal (quantité qualitative)        |
+| `mealGrams`                          | number                            | g (optionnel)    | meal                               |
+| `mealReaction`                       | `adore\|aime\|neutre\|refuse`     | —                | meal (appréciation)                |
+| `mealAllergy`                        | boolean                           | —                | meal (réaction à surveiller)       |
+| `mealSymptoms`                       | string[]                          | —                | meal (si mealAllergy)              |
+
+> Le catalogue d'aliments (`src/lib/food.ts`) est **statique côté code**
+> (comme `careKinds`) : la DB ne stocke que des ids. Le "journal des
+> aliments" et le suivi allergènes sont **dérivés** des events `meal`.
 
 **`stoolColor`** : `jaune_pale | beige | blanc_mastic | jaune_or | ocre_bronze | vert | marron | noir | blanc | rouge`
 
@@ -160,7 +172,7 @@ Le format legacy n'a pas besoin d'index composite (requêtes mono-champ sur
 ```ts
 export type TrackedEventType =
   | 'sleep' | 'feed' | 'diaper' | 'medication'
-  | 'growth' | 'temperature' | 'pumping';
+  | 'growth' | 'temperature' | 'pumping' | 'meal';
 
 export type FeedSide = 'left' | 'right' | 'bottle';
 export type DiaperType = 'wet' | 'dirty' | 'both';
