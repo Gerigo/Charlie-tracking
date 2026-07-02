@@ -99,6 +99,9 @@ function FoodChip({
 export function FoodJournal() {
   const { events } = useEvents();
   const [selected, setSelected] = useState<FoodStat | null>(null);
+  const [showAllIntro, setShowAllIntro] = useState(false);
+  const INTRO_LIMIT = 6;
+  const TOTRY_LIMIT = 8;
 
   const M = useMemo(() => {
     const stats = foodStatsFor(events);
@@ -343,41 +346,60 @@ export function FoodJournal() {
               }}
             />
           </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              marginTop: 12,
-            }}
-          >
-            {M.allergens.map((f) => {
-              const done = M.introducedCatalogIds.has(f.v);
+          {(() => {
+            const remaining = M.allergens.filter(
+              (f) => !M.introducedCatalogIds.has(f.v),
+            );
+            if (remaining.length === 0)
               return (
-                <span
-                  key={f.v}
+                <div
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 11px",
-                    borderRadius: 999,
-                    background: done ? "var(--delta-pos-bg)" : "var(--p-surface)",
-                    border: `1px solid ${
-                      done ? "var(--delta-pos-ink)" : "var(--hairline)"
-                    }`,
-                    color: done ? "var(--delta-pos-ink)" : P.inkSoft,
+                    marginTop: 12,
                     fontSize: 12.5,
-                    fontWeight: 600,
+                    fontWeight: 700,
+                    color: "var(--delta-pos-ink)",
                   }}
                 >
-                  <span>{f.emoji}</span>
-                  {f.l}
-                  <span style={{ fontWeight: 800 }}>{done ? "✓" : ""}</span>
-                </span>
+                  ✓ Tous introduits
+                </div>
               );
-            })}
-          </div>
+            return (
+              <div style={{ marginTop: 12 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: P.inkSoft,
+                    marginBottom: 7,
+                  }}
+                >
+                  À introduire
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {remaining.map((f) => (
+                    <span
+                      key={f.v}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 11px",
+                        borderRadius: 999,
+                        background: "var(--p-surface)",
+                        border: "1px solid var(--hairline)",
+                        color: P.inkSoft,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span>{f.emoji}</span>
+                      {f.l}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Déjà introduits */}
@@ -385,7 +407,10 @@ export function FoodJournal() {
           <>
             <SectionTitle>🍽️ Déjà introduits</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {M.byRecent.map((s) => {
+              {(showAllIntro
+                ? M.byRecent
+                : M.byRecent.slice(0, INTRO_LIMIT)
+              ).map((s) => {
                 const st = statusOf(s);
                 return (
                   <button
@@ -435,6 +460,22 @@ export function FoodJournal() {
                   </button>
                 );
               })}
+              {!showAllIntro && M.byRecent.length > INTRO_LIMIT && (
+                <button
+                  onClick={() => setShowAllIntro(true)}
+                  style={{
+                    height: 42,
+                    borderRadius: 14,
+                    background: "transparent",
+                    border: `1px solid ${P.line}`,
+                    color: P.inkSoft,
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  Voir plus · {M.byRecent.length - INTRO_LIMIT} autres
+                </button>
+              )}
             </div>
           </>
         )}
@@ -444,7 +485,7 @@ export function FoodJournal() {
           <>
             <SectionTitle>💡 À essayer</SectionTitle>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {M.toTry.map((f) => (
+              {M.toTry.slice(0, TOTRY_LIMIT).map((f) => (
                 <span
                   key={f.v}
                   style={{

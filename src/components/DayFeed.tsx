@@ -465,7 +465,6 @@ export function DayFeed() {
                 ["pump", "Tirage", EVENT_EMOJI.pump],
                 ["diaper", "Couche", EVENT_EMOJI.diaper],
                 ["care", "Soins", EVENT_EMOJI.care],
-                ["temp", "Température", EVENT_EMOJI.temp],
                 ["growth", "Mesure", "📏"],
               ] as const
             ).map(([typ, lbl, emo]) => (

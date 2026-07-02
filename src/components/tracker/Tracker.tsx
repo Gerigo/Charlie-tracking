@@ -382,7 +382,6 @@ export function Tracker() {
   const lastPump = lastOf("pump");
   const lastDiaper = lastOf("diaper");
   const lastCare = lastOf("care");
-  const lastTempEv = lastOf("temp");
   const lastMeal = lastOf("meal");
 
   const containerStyle: CSSProperties = {
@@ -649,22 +648,6 @@ export function Tracker() {
                 : undefined
             }
             onClick={() => setSheet({ type: "care" })}
-          />
-          <EventTile
-            kind="temp"
-            tone={TONES.clay}
-            label="Température"
-            corner={lastTempEv ? timeAgo(lastTempEv.start) : undefined}
-            primary={stats.lastTemp ? `${stats.lastTemp.toFixed(1)}°` : "—"}
-            hint={
-              lastTempEv
-                ? (() => {
-                    const s = (lastTempEv.data as { slot: string }).slot;
-                    return s[0].toUpperCase() + s.slice(1);
-                  })()
-                : "Rien aujourd'hui"
-            }
-            onClick={() => setSheet({ type: "temp" })}
           />
         </div>
 
