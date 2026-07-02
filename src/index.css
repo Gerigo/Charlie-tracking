@@ -33,6 +33,9 @@
     --t-clay-bg: #dec2b5;
     --t-clay-ink: #5a3528;
     --t-clay-soft: #ebd4c8;
+    --t-garden-bg: #cfe0bc;
+    --t-garden-ink: #3c5325;
+    --t-garden-soft: #e5efd6;
 
     /* filets / séparateurs neutres */
     --hairline: rgba(0, 0, 0, 0.08);
@@ -161,6 +164,9 @@
     --t-clay-bg: #2f231b;
     --t-clay-ink: #e6b79c;
     --t-clay-soft: #251b15;
+    --t-garden-bg: #232e18;
+    --t-garden-ink: #c3dc9f;
+    --t-garden-soft: #1b2312;
 
     --background: 45 7% 10%;
     --foreground: 42 27% 89%;

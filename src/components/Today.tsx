@@ -202,6 +202,7 @@ export function Today() {
           .reduce((s, e) => s + ((e.data as PumpData).ml || 0), 0),
         diapers: list.filter((e) => e.type === "diaper").length,
         cares: list.filter((e) => e.type === "care").length,
+        meals: list.filter((e) => e.type === "meal").length,
         lastTemp: temps.length
           ? (temps[temps.length - 1].data as TempData).value
           : null,
@@ -361,6 +362,19 @@ export function Today() {
                 diff={M.cur.feeds - M.prev.feeds}
                 fmt={(n) => `${n}`}
                 noun="tétée(s)"
+              />
+            }
+          />
+          <StatTile
+            emoji={EVENT_EMOJI.meal}
+            tone={TONES.garden}
+            label="Repas"
+            value={`${M.cur.meals}`}
+            delta={
+              <DeltaPill
+                diff={M.cur.meals - M.prev.meals}
+                fmt={(n) => `${n}`}
+                noun="repas"
               />
             }
           />

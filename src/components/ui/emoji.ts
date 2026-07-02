@@ -9,11 +9,13 @@ export const EVENT_EMOJI = {
   diaper: "🧷",
   care: "🧴",
   temp: "🌡️",
+  meal: "🥄",
 } as const;
 
 export const NAV_EMOJI = {
   tracker: "🏠",
   today: "📅",
+  food: "🥕",
   growth: "📈",
   evolution: "📊",
 } as const;
