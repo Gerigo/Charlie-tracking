@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { dayKey, fmtDateFull, fmtDur, fmtTime } from "@/lib/dates";
 import {
+  awayLabel,
   careText,
   type AppEvent,
+  type AwayData,
   type CareData,
   type DiaperData,
   type FeedData,
@@ -30,6 +32,7 @@ const TONE_BY_TYPE: Record<AppEvent["type"], Tone> = {
   temp: TONES.clay,
   growth: TONES.sand,
   meal: TONES.garden,
+  away: TONES.clay,
 };
 const LABEL_BY_TYPE: Record<AppEvent["type"], string> = {
   sleep: "Sommeil",
@@ -40,6 +43,7 @@ const LABEL_BY_TYPE: Record<AppEvent["type"], string> = {
   temp: "Température",
   growth: "Mesure",
   meal: "Repas",
+  away: "Journée non suivie",
 };
 
 /** "13h" or "13h05". */
@@ -116,6 +120,8 @@ function rowText(e: AppEvent): string {
       const d = e.data as MealData;
       return `Repas · ${mealText(d)}${d.allergy ? " ⚠️" : ""}`;
     }
+    case "away":
+      return `Journée non suivie · ${awayLabel(e.data as AwayData)}`;
     default:
       return LABEL_BY_TYPE[e.type];
   }
@@ -466,6 +472,7 @@ export function DayFeed() {
                 ["diaper", "Couche", EVENT_EMOJI.diaper],
                 ["care", "Soins", EVENT_EMOJI.care],
                 ["growth", "Mesure", "📏"],
+                ["away", "Non suivi", EVENT_EMOJI.away],
               ] as const
             ).map(([typ, lbl, emo]) => (
               <button

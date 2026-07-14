@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { ageLabel, dayKey, fmtDateFull, fmtDur, startOfDay } from "@/lib/dates";
 import {
+  awayLabel,
   sleepMinutesIn,
   type AppEvent,
+  type AwayData,
   type FeedData,
   type PumpData,
   type TempData,
@@ -58,6 +60,28 @@ function DeltaPill({
         : `${fmt(Math.abs(diff))} ${noun} ${
             more ? "de plus" : "de moins"
           } qu'hier${suffix ? ` ${suffix}` : ""}`}
+    </span>
+  );
+}
+
+/** Comparatif suspendu : le jour affiché ou celui de comparaison est
+ *  marqué "non suivi" (garde famille, crèche…) — un delta serait trompeur. */
+function AwayPill({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "3px 9px",
+        borderRadius: 999,
+        background: "var(--hairline)",
+        color: "var(--p-ink-soft)",
+        fontSize: 11,
+        fontWeight: 700,
+      }}
+    >
+      🧳 {text}
     </span>
   );
 }
@@ -215,6 +239,22 @@ export function Today() {
     const ongoing =
       isLatest && events.some((e) => e.type === "sleep" && !e.end);
 
+    // Jours marqués "non suivis" (garde famille, crèche…) : le jour affiché
+    // et/ou celui de comparaison — dans les deux cas le delta serait faux.
+    const findAway = (key: string) =>
+      events.find((e) => e.type === "away" && dayKey(e.start) === key);
+    const curAwayEv = findAway(dayKey(d));
+    const prevAwayEv = findAway(dayKey(new Date(prevStart)));
+    const curAway = curAwayEv ? awayLabel(curAwayEv.data as AwayData) : null;
+    const prevAway = prevAwayEv
+      ? awayLabel(prevAwayEv.data as AwayData)
+      : null;
+    const awayNote = curAway
+      ? `non comparable · ${curAway} aujourd'hui`
+      : prevAway
+        ? `non comparable · ${prevAway} hier`
+        : null;
+
     return {
       d,
       isLatest,
@@ -225,6 +265,8 @@ export function Today() {
       sleepCur,
       sleepPrev,
       ongoing,
+      curAway,
+      awayNote,
     };
   }, [events, offset]);
 
@@ -330,6 +372,27 @@ export function Today() {
           padding: "12px 16px calc(120px + env(safe-area-inset-bottom))",
         }}
       >
+        {M.curAway && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "var(--hairline)",
+              color: P.inkSoft,
+              fontSize: 12.5,
+              fontWeight: 600,
+              lineHeight: 1.4,
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🧳</span>
+            Journée non suivie · {M.curAway}. Les chiffres ci-dessous peuvent
+            être incomplets et ne sont pas comparés à la veille.
+          </div>
+        )}
         <div
           style={{
             display: "grid",
@@ -344,12 +407,16 @@ export function Today() {
             dark={M.ongoing}
             value={fmtDur(M.sleepCur)}
             delta={
-              <DeltaPill
-                diff={(M.sleepCur - M.sleepPrev) / 60}
-                fmt={(n) => fmtDur(Math.round(n * 60))}
-                noun=""
-                suffix={`à ${M.cutoffHourLabel}`}
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={(M.sleepCur - M.sleepPrev) / 60}
+                  fmt={(n) => fmtDur(Math.round(n * 60))}
+                  noun=""
+                  suffix={`à ${M.cutoffHourLabel}`}
+                />
+              )
             }
           />
           <StatTile
@@ -358,11 +425,15 @@ export function Today() {
             label="Tétées"
             value={`${M.cur.feeds}`}
             delta={
-              <DeltaPill
-                diff={M.cur.feeds - M.prev.feeds}
-                fmt={(n) => `${n}`}
-                noun="tétée(s)"
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.feeds - M.prev.feeds}
+                  fmt={(n) => `${n}`}
+                  noun="tétée(s)"
+                />
+              )
             }
           />
           <StatTile
@@ -371,11 +442,15 @@ export function Today() {
             label="Repas"
             value={`${M.cur.meals}`}
             delta={
-              <DeltaPill
-                diff={M.cur.meals - M.prev.meals}
-                fmt={(n) => `${n}`}
-                noun="repas"
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.meals - M.prev.meals}
+                  fmt={(n) => `${n}`}
+                  noun="repas"
+                />
+              )
             }
           />
           <StatTile
@@ -384,11 +459,15 @@ export function Today() {
             label="Biberons"
             value={`${M.cur.bottles} · ${M.cur.bottleMl} ml`}
             delta={
-              <DeltaPill
-                diff={M.cur.bottleMl - M.prev.bottleMl}
-                fmt={(n) => `${Math.round(n)} ml`}
-                noun=""
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.bottleMl - M.prev.bottleMl}
+                  fmt={(n) => `${Math.round(n)} ml`}
+                  noun=""
+                />
+              )
             }
           />
           <StatTile
@@ -397,11 +476,15 @@ export function Today() {
             label="Lait tiré"
             value={`${M.cur.pumpMl} ml`}
             delta={
-              <DeltaPill
-                diff={M.cur.pumpMl - M.prev.pumpMl}
-                fmt={(n) => `${Math.round(n)} ml`}
-                noun=""
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.pumpMl - M.prev.pumpMl}
+                  fmt={(n) => `${Math.round(n)} ml`}
+                  noun=""
+                />
+              )
             }
           />
           <StatTile
@@ -410,11 +493,15 @@ export function Today() {
             label="Couches"
             value={`${M.cur.diapers}`}
             delta={
-              <DeltaPill
-                diff={M.cur.diapers - M.prev.diapers}
-                fmt={(n) => `${n}`}
-                noun="couche(s)"
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.diapers - M.prev.diapers}
+                  fmt={(n) => `${n}`}
+                  noun="couche(s)"
+                />
+              )
             }
           />
           <StatTile
@@ -423,11 +510,15 @@ export function Today() {
             label="Soins"
             value={`${M.cur.cares}`}
             delta={
-              <DeltaPill
-                diff={M.cur.cares - M.prev.cares}
-                fmt={(n) => `${n}`}
-                noun="soin(s)"
-              />
+              M.awayNote ? (
+                <AwayPill text={M.awayNote} />
+              ) : (
+                <DeltaPill
+                  diff={M.cur.cares - M.prev.cares}
+                  fmt={(n) => `${n}`}
+                  noun="soin(s)"
+                />
+              )
             }
           />
           <StatTile
