@@ -12,7 +12,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { durationMin, startOfDay } from "@/lib/dates";
+import { dayKey, durationMin, startOfDay } from "@/lib/dates";
 
 // ─── Optimistic mutations ────────────────────────────────────────────
 // Firestore writes (especially transactions, which need a server round-
@@ -62,7 +62,8 @@ export type EventType =
   | "care"
   | "temp"
   | "growth"
-  | "meal";
+  | "meal"
+  | "away";
 
 export interface FeedData {
   kind: "sein" | "biberon";
@@ -122,6 +123,19 @@ export interface MealData {
   symptoms: string[];
   note: string;
 }
+export type AwayReason = "famille" | "creche" | "autre";
+/**
+ * Journée où Charlie n'est pas suivi par nous (garde chez la famille,
+ * crèche…). Sert uniquement de marqueur de contexte : exclut ce jour des
+ * comparatifs ("Aujourd'hui") et des moyennes/graphiques ("Évolution"),
+ * sans effacer d'éventuels events réellement encodés ce jour-là.
+ */
+export interface AwayData {
+  reason: AwayReason;
+  /** Qui / précision libre (ex: "Mamie", "Tata Julie"). */
+  custom: string | null;
+  note: string;
+}
 export type EventData =
   | FeedData
   | PumpData
@@ -130,7 +144,8 @@ export type EventData =
   | TempData
   | GrowthData
   | MealData
-  | SleepData;
+  | SleepData
+  | AwayData;
 
 export interface AppEvent {
   id: string;
@@ -156,6 +171,7 @@ const TYPE_TO_DB: Record<EventType, string> = {
   temp: "temperature",
   growth: "growth",
   meal: "meal",
+  away: "away",
 };
 function dbType(t: EventType): string {
   return TYPE_TO_DB[t];
@@ -179,6 +195,8 @@ function appType(raw: string): EventType {
     case "meal":
     case "solid":
       return "meal";
+    case "away":
+      return "away";
     // legacy data stored "soins"/"visites" as `medication`
     case "medication":
     case "visit":
@@ -282,6 +300,13 @@ function toDetails(type: EventType, data: EventData): Record<string, unknown> {
       if (d.allergy) out.mealAllergy = true;
       if (d.symptoms.length) out.mealSymptoms = d.symptoms;
       return out;
+    }
+    case "away": {
+      const d = data as AwayData;
+      return {
+        awayReason: d.reason,
+        ...(d.custom ? { awayCustom: d.custom } : {}),
+      };
     }
     default:
       return {};
@@ -428,6 +453,16 @@ function fromDoc(id: string, raw: Record<string, unknown>): AppEvent {
         symptoms,
         note,
       } satisfies MealData;
+      break;
+    }
+    case "away": {
+      const reason = det.awayReason as string | undefined;
+      data = {
+        reason:
+          reason === "creche" || reason === "autre" ? reason : "famille",
+        custom: typeof det.awayCustom === "string" ? det.awayCustom : null,
+        note,
+      } satisfies AwayData;
       break;
     }
     default:
@@ -931,4 +966,30 @@ export function careText(data: CareData): string {
     k === "custom" ? (data.custom?.trim() || "Autre") : careLabel(k),
   );
   return parts.join(", ");
+}
+
+// ─── Journées non suivies (garde famille / crèche…) ───
+export const AWAY_REASONS: { v: AwayReason; l: string }[] = [
+  { v: "famille", l: "Famille" },
+  { v: "creche", l: "Crèche" },
+  { v: "autre", l: "Autre" },
+];
+
+/** "Famille · Mamie", "Crèche", "Autre · voisine"… */
+export function awayLabel(data: AwayData): string {
+  const base = AWAY_REASONS.find((r) => r.v === data.reason)?.l ?? data.reason;
+  return data.custom?.trim() ? `${base} · ${data.custom.trim()}` : base;
+}
+
+/**
+ * Jours (dayKey) explicitement marqués "non suivis". Dérivé des events
+ * `away` — sert à exclure ces jours des comparatifs (Aujourd'hui) et des
+ * moyennes/graphiques (Évolution) sans toucher aux events réels.
+ */
+export function awayDayKeys(events: AppEvent[]): Set<string> {
+  const s = new Set<string>();
+  for (const e of events) {
+    if (e.type === "away") s.add(dayKey(e.start));
+  }
+  return s;
 }

@@ -15,11 +15,14 @@ import { pad2 } from "@/lib/dates";
 import { withToast } from "@/lib/toast";
 import {
   addInstantEvent,
+  AWAY_REASONS,
   CARE_OPTIONS,
   deleteEvent,
   updateEvent,
   STOOL_COLORS,
   type AppEvent,
+  type AwayData,
+  type AwayReason,
   type CareData,
   type DiaperData,
   type EventData,
@@ -43,7 +46,17 @@ import {
 } from "@/lib/food";
 
 export type SheetState =
-  | { type: "feed" | "pump" | "diaper" | "care" | "temp" | "growth" | "meal" }
+  | {
+      type:
+        | "feed"
+        | "pump"
+        | "diaper"
+        | "care"
+        | "temp"
+        | "growth"
+        | "meal"
+        | "away";
+    }
   | { type: "edit"; event: AppEvent }
   | null;
 
@@ -1222,6 +1235,79 @@ function MealForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ─── Journée non suivie (garde famille / crèche…) ───
+function AwayForm({ onDone }: { onDone: () => void }) {
+  const [reason, setReason] = useState<AwayReason>("famille");
+  const [custom, setCustom] = useState("");
+  const [note, setNote] = useState("");
+  const [eventTime, setEventTime] = useState(nowDtLocal);
+  return (
+    <div>
+      <FormHeader title="Journée non suivie" />
+      <div
+        style={{
+          padding: "0 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        <div
+          style={{ fontSize: 12.5, color: "var(--p-ink-soft)", lineHeight: 1.4 }}
+        >
+          Pour un jour où personne n'a encodé (garde chez la famille,
+          crèche…). Ce jour ne sera pas utilisé comme référence pour les
+          comparatifs ni les moyennes.
+        </div>
+        <div>
+          <FieldLabel>Date</FieldLabel>
+          <DateTimeField value={eventTime} onChange={setEventTime} />
+        </div>
+        <div>
+          <FieldLabel>Motif</FieldLabel>
+          <Segmented
+            value={reason}
+            onChange={setReason}
+            options={AWAY_REASONS.map((r) => ({ value: r.v, label: r.l }))}
+          />
+        </div>
+        <div>
+          <FieldLabel>Précision (optionnel)</FieldLabel>
+          <input
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="ex: Mamie, Tata Julie…"
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: "1px solid var(--hairline)",
+              background: "var(--p-surface)",
+              fontFamily: "inherit",
+              fontSize: 16,
+            }}
+          />
+        </div>
+        <div>
+          <FieldLabel>Note</FieldLabel>
+          <NoteField value={note} onChange={setNote} />
+        </div>
+      </div>
+      <SubmitBar
+        onClick={() => {
+          const data: AwayData = { reason, custom: custom.trim() || null, note };
+          const { when, day } = parseDtLocal(eventTime);
+          void withToast(
+            () => addInstantEvent("away", when, data, note, day),
+            "Journée marquée non suivie",
+            onDone,
+          );
+        }}
+      />
+    </div>
+  );
+}
+
 const EDIT_LABELS: Record<AppEvent["type"], string> = {
   sleep: "Sommeil",
   feed: "Tétée",
@@ -1231,6 +1317,7 @@ const EDIT_LABELS: Record<AppEvent["type"], string> = {
   temp: "Température",
   growth: "Mesure",
   meal: "Repas",
+  away: "Journée non suivie",
 };
 
 function EditForm({
@@ -1306,6 +1393,11 @@ function EditForm({
         }
       : emptyMeal(),
   );
+  // away
+  const [awayReason, setAwayReason] = useState<AwayReason>(
+    (str("reason") as AwayReason) ?? "famille",
+  );
+  const [awayCustom, setAwayCustom] = useState(str("custom") ?? "");
 
   const toggle = (v: string) =>
     setSelected((s) =>
@@ -1338,6 +1430,12 @@ function EditForm({
         return { weight: gW, height: gH, head: gHead, note };
       case "meal":
         return mealToData(meal, note);
+      case "away":
+        return {
+          reason: awayReason,
+          custom: awayCustom.trim() || null,
+          note,
+        };
       default:
         return { note };
     }
@@ -1756,6 +1854,39 @@ function EditForm({
           />
         )}
 
+        {t === "away" && (
+          <>
+            <div>
+              <FieldLabel>Motif</FieldLabel>
+              <Segmented
+                value={awayReason}
+                onChange={setAwayReason}
+                options={AWAY_REASONS.map((r) => ({
+                  value: r.v,
+                  label: r.l,
+                }))}
+              />
+            </div>
+            <div>
+              <FieldLabel>Précision (optionnel)</FieldLabel>
+              <input
+                value={awayCustom}
+                onChange={(e) => setAwayCustom(e.target.value)}
+                placeholder="ex: Mamie, Tata Julie…"
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "1px solid var(--hairline)",
+                  background: "var(--p-surface)",
+                  fontFamily: "inherit",
+                  fontSize: 16,
+                }}
+              />
+            </div>
+          </>
+        )}
+
         <div>
           <FieldLabel>Note</FieldLabel>
           <NoteField value={note} onChange={setNote} placeholder="Optionnel…" />
@@ -1986,6 +2117,7 @@ export function EncodeSheet({
       {sheet?.type === "care" && <CareForm onDone={onClose} />}
       {sheet?.type === "temp" && <TempForm onDone={onClose} />}
       {sheet?.type === "meal" && <MealForm onDone={onClose} />}
+      {sheet?.type === "away" && <AwayForm onDone={onClose} />}
       {sheet?.type === "growth" && (
         <GrowthForm initial={growthInitial} onDone={onClose} />
       )}

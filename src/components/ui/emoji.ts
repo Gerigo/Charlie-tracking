@@ -10,6 +10,7 @@ export const EVENT_EMOJI = {
   care: "🧴",
   temp: "🌡️",
   meal: "🥄",
+  away: "🧳",
 } as const;
 
 export const NAV_EMOJI = {

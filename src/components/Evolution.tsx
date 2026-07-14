@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { PALETTES, TONES, type Tone } from "@/lib/theme";
 import { dayKey, fmtDur, startOfDay } from "@/lib/dates";
+import { awayDayKeys } from "@/lib/events";
 import { useEvents } from "@/lib/eventsContext";
 import { Segmented, Sheet } from "@/components/ui/primitives";
 import { LineChart, type Point } from "@/components/ui/Chart";
@@ -405,6 +406,19 @@ export function Evolution() {
     };
     if (!events.length) return empty;
 
+    // Jours marqués "non suivis" (garde famille, crèche…) : exclus des
+    // moyennes et des graphiques ci-dessous — un jour sans encodage parce
+    // que Charlie était ailleurs ne doit pas se voir comme un creux réel.
+    const awaySet = awayDayKeys(events);
+    /** Nombre de jours calendaires non-away entre from et to (inclus). */
+    const countTrackedDays = (from: number, to: number): number => {
+      let n = 0;
+      for (let t = from; t <= to; t += 86400000) {
+        if (!awaySet.has(dayKey(new Date(t)))) n++;
+      }
+      return Math.max(1, n);
+    };
+
     // main exclut growth & temperature pour borner la période ("trackerEvents").
     const tracker = events.filter(
       (e) => e.type !== "growth" && e.type !== "temp",
@@ -413,24 +427,19 @@ export function Evolution() {
     const lastDay = startOfDay(events[events.length - 1].start);
     const spanDays =
       Math.round((lastDay.getTime() - firstDay.getTime()) / 86400000) + 1;
-    // Like main: usageDays = jours calendaires du 1er event à AUJOURD'HUI.
-    const usageDays = Math.max(
-      1,
-      Math.round(
-        (startOfDay(new Date()).getTime() - firstDay.getTime()) / 86400000,
-      ) + 1,
+    // Like main: usageDays = jours calendaires du 1er event à AUJOURD'HUI,
+    // moins les jours non suivis.
+    const usageDays = countTrackedDays(
+      firstDay.getTime(),
+      startOfDay(new Date()).getTime(),
     );
     // Le lait tiré a commencé bien après l'app : on moyenne à partir du
     // 1er tirage (sinon les jours sans tirage écrasent la moyenne).
     const firstPump = events.find((e) => e.type === "pump");
     const pumpDays = firstPump
-      ? Math.max(
-          1,
-          Math.round(
-            (startOfDay(new Date()).getTime() -
-              startOfDay(firstPump.start).getTime()) /
-              86400000,
-          ) + 1,
+      ? countTrackedDays(
+          startOfDay(firstPump.start).getTime(),
+          startOfDay(new Date()).getTime(),
         )
       : 1;
 
@@ -477,6 +486,7 @@ export function Evolution() {
 
     for (const ev of events) {
       const k = dayKey(ev.start);
+      if (awaySet.has(k)) continue;
       daysWithData.add(k);
       if (ev.type === "sleep") {
         addSleep(ev.start, ev.end ?? new Date());
@@ -527,25 +537,37 @@ export function Evolution() {
       return txt;
     };
 
-    const sleepS: Point[] = visible.map((d, i) => ({
-      y: Math.round(((sleepMin.get(dayKey(d)) ?? 0) / 60) * 10) / 10,
-      label: lbl(d, i),
-    }));
-    const seinS: Point[] = visible.map((d, i) => ({
-      y: seinCount.get(dayKey(d)) ?? 0,
-      label: lbl(d, i),
-    }));
-    const bottleS: Point[] = visible.map((d, i) => ({
-      y: bottleCount.get(dayKey(d)) ?? 0,
-      label: lbl(d, i),
-    }));
-    const pumpS: Point[] = visible.map((d, i) => ({
-      y: pumpMl.get(dayKey(d)) ?? 0,
-      label: lbl(d, i),
-    }));
+    // Jours "non suivis" omis (pas juste mis à 0) pour ne pas simuler un
+    // creux d'activité qui n'a simplement pas été encodé. Le filtre passe
+    // après le map (comme tempS) pour garder l'index d'origine dans `lbl`.
+    const dropAway = (d: Date) => !awaySet.has(dayKey(d));
+    const sleepS: Point[] = visible
+      .map((d, i) => ({
+        d,
+        y: Math.round(((sleepMin.get(dayKey(d)) ?? 0) / 60) * 10) / 10,
+        label: lbl(d, i),
+      }))
+      .filter((p) => dropAway(p.d))
+      .map((p) => ({ y: p.y, label: p.label }));
+    const seinS: Point[] = visible
+      .map((d, i) => ({ d, y: seinCount.get(dayKey(d)) ?? 0, label: lbl(d, i) }))
+      .filter((p) => dropAway(p.d))
+      .map((p) => ({ y: p.y, label: p.label }));
+    const bottleS: Point[] = visible
+      .map((d, i) => ({
+        d,
+        y: bottleCount.get(dayKey(d)) ?? 0,
+        label: lbl(d, i),
+      }))
+      .filter((p) => dropAway(p.d))
+      .map((p) => ({ y: p.y, label: p.label }));
+    const pumpS: Point[] = visible
+      .map((d, i) => ({ d, y: pumpMl.get(dayKey(d)) ?? 0, label: lbl(d, i) }))
+      .filter((p) => dropAway(p.d))
+      .map((p) => ({ y: p.y, label: p.label }));
     const tempS: Point[] = visible
-      .map((d, i) => ({ v: tempLast.get(dayKey(d))?.v, label: lbl(d, i) }))
-      .filter((p) => p.v != null)
+      .map((d, i) => ({ d, v: tempLast.get(dayKey(d))?.v, label: lbl(d, i) }))
+      .filter((p) => p.v != null && dropAway(p.d))
       .map((p) => ({ y: p.v as number, label: p.label }));
 
     const nDays = Math.max(1, daysWithData.size);
